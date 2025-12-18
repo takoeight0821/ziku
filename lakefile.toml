@@ -1,0 +1,10 @@
+name = "ziku"
+version = "0.1.0"
+defaultTargets = ["ziku"]
+
+[[lean_lib]]
+name = "Ziku"
+
+[[lean_exe]]
+name = "ziku"
+root = "Main"
