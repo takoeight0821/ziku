@@ -5,3 +5,7 @@ import Ziku.Type
 import Ziku.Parser
 import Ziku.Infer
 import Ziku.Eval
+import Ziku.Proofs.Eval
+import Ziku.Proofs.Arithmetic
+import Ziku.Proofs.Identities
+import Ziku.Proofs.Soundness

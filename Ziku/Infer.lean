@@ -11,13 +11,16 @@ structure InferState where
 def freshTyVar (s : InferState) : Ty × InferState :=
   (Ty.var s.nextVar, { s with nextVar := s.nextVar + 1 })
 
-partial def applySubst (subst : Subst) (ty : Ty) : Ty :=
-  match ty with
-  | Ty.int => Ty.int
-  | Ty.var n =>
-    match subst.lookup n with
-    | some t => applySubst subst t
-    | none => ty
+def applySubst (subst : Subst) (ty : Ty) (fuel : Nat := 100) : Ty :=
+  match fuel with
+  | 0 => ty  -- Out of fuel, return type as-is
+  | fuel' + 1 =>
+    match ty with
+    | Ty.int => Ty.int
+    | Ty.var n =>
+      match subst.lookup n with
+      | some t => applySubst subst t fuel'
+      | none => ty
 
 def unify (t1 t2 : Ty) : Option Subst :=
   match t1, t2 with
