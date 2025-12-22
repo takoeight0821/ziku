@@ -81,7 +81,7 @@ Closes #123
 
 ## Breaking Changes
 
-Mark breaking changes with `!` after type/scope:
+Mark breaking changes with an exclamation mark (`!`) after type/scope:
 
 ```
 feat!: remove deprecated API endpoints
