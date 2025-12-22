@@ -1,8 +1,10 @@
 {
+  "permissions": {
+    "ask": [
+      "Bash(git commit:*)"
+    ]
+  },
   "enabledPlugins": {
     "plugin-dev@claude-plugins-official": true
-  },
-  "permissions": {
-    "ask": ["Bash(git commit:*)"]
   }
 }
