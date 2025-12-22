@@ -1,0 +1,578 @@
+# Ziku Syntax Design
+
+Ziku is the successor of malgo and anma, featuring:
+- Duality-aware design with explicit data/codata symmetry
+- Sequent calculus foundation
+- Copattern matching for codata construction
+
+## Design Principles
+
+1. **Duality-aware**: Explicit support for data/codata, pattern/copattern symmetry
+2. **Sequent calculus foundation**: Producers and consumers as first-class concepts
+3. **Minimal but expressive**: No syntactic sugar that obscures semantics
+4. **Lean-verifiable**: Syntax should map cleanly to Lean AST
+
+## Core Distinction
+
+- **Pattern matching** (destructing data): uses `|` clauses
+- **Copattern matching** (constructing codata): uses `{}` blocks
+- **`#`** represents "the object being defined" (like `this` or `self`)
+
+---
+
+## Function Application and Currying
+
+All functions in Ziku are curried. Multiple argument syntaxes are equivalent:
+
+```ziku
+-- These are all equivalent
+f x y
+f(x)(y)
+f(x, y)      -- sugar for f(x)(y)
+
+-- Method calls too
+obj.method x y
+obj.method(x)(y)
+obj.method(x, y)
+```
+
+**No tuples**: Ziku does not have tuple types. Use anonymous records instead:
+
+```ziku
+-- Instead of (a, b), use records:
+{ fst = a, snd = b }
+
+-- Access fields with dot notation
+r.fst
+r.snd
+```
+
+---
+
+## Basic Expressions
+
+```ziku
+-- Literals
+42
+3.14
+"hello"
+'c'
+true
+
+-- Variables
+x
+fooBar
+snake_case
+
+-- Arithmetic
+1 + 2 * 3
+(a - b) / c
+
+-- Comparison
+x == y
+a < b
+p && q
+not r
+```
+
+---
+
+## Type Declarations
+
+### Data Types (constructed by patterns)
+
+```ziku
+data Bool =
+  | True
+  | False
+
+data Nat =
+  | Zero
+  | Succ Nat
+
+data List a =
+  | Nil
+  | Cons a (List a)
+
+data Either a b =
+  | Left a
+  | Right b
+```
+
+### Codata Types (destructed by copatterns)
+
+```ziku
+codata Stream a {
+  #.head : a
+  #.tail : Stream a
+}
+
+codata Lazy a {
+  #.force : a
+}
+
+-- Functions as codata
+codata a -> b {
+  #(a) : b
+}
+
+-- Records
+codata Point {
+  #.x : Int
+  #.y : Int
+}
+```
+
+---
+
+## The `#` Pattern
+
+- `#` represents "the object being defined" (like `this` or `self`)
+- `#.field` means "when this object's field is accessed"
+- `#.method(x)` means "when this object's method is called with x"
+- Can be chained: `#.tail.head` for nested access
+
+---
+
+## Pattern Matching (for data)
+
+```ziku
+-- Function definitions with patterns
+def length : List a -> Nat
+  | Nil       => Zero
+  | Cons _ xs => Succ (length xs)
+
+def map : (a -> b) -> List a -> List b
+  | f, Nil       => Nil
+  | f, Cons x xs => Cons (f x) (map f xs)
+
+-- Match expression
+match xs with
+  | Nil       => "empty"
+  | Cons x _  => "has: " ++ show x
+end
+```
+
+---
+
+## Copattern Matching (for codata)
+
+```ziku
+-- Stream of naturals
+def nats : Nat -> Stream Nat = \n => {
+  #.head => n
+  #.tail => nats (Succ n)
+}
+
+-- Fibonacci (nested copatterns)
+def fibs : Stream Int = {
+  #.head      => 0
+  #.tail.head => 1
+  #.tail.tail => zipWith (\x, y => x + y) fibs #.tail
+}
+
+-- Point construction
+def origin : Point = {
+  #.x => 0
+  #.y => 0
+}
+
+-- Lazy value
+def lazy : a -> Lazy a = \x => {
+  #.force => x
+}
+```
+
+---
+
+## Functions with `#`
+
+```ziku
+-- Function as codata (explicit)
+def const : a -> b -> a = \x => {
+  #(y) => x
+}
+
+-- Curried
+def add : Int -> Int -> Int = \x => {
+  #(y) => x + y
+}
+
+-- Multi-argument
+def compose : (b -> c) -> (a -> b) -> a -> c = \f => {
+  #(g) => {
+    #(x) => f (g x)
+  }
+}
+
+-- Shorthand (sugar for single #(x) copattern)
+def compose : (b -> c) -> (a -> b) -> a -> c = \f, g, x => f (g x)
+```
+
+---
+
+## Mixed Patterns and Copatterns
+
+```ziku
+def zipWith : (a -> b -> c) -> Stream a -> Stream b -> Stream c = \f, s1, s2 => {
+  #.head => f (s1.head) (s2.head)
+  #.tail => zipWith f (s1.tail) (s2.tail)
+}
+
+-- Pattern in copattern clause
+def map : (a -> b) -> List a -> Stream b = {
+  \f, Nil       => error "empty list"
+  \f, Cons x xs => {
+    #.head => f x
+    #.tail => map f xs
+  }
+}
+
+-- Alternative: patterns before #
+def map : (a -> b) -> List a -> Stream b = {
+  f, Cons x xs #.head => f x
+  f, Cons x xs #.tail => map f xs
+  f, Nil       #.head => error "empty"
+  f, Nil       #.tail => error "empty"
+}
+```
+
+---
+
+## Referencing `#` in Expressions
+
+```ziku
+-- # can appear on RHS to reference the object being defined (for recursion)
+def ones : Stream Int = {
+  #.head => 1
+  #.tail => #    -- # refers to ones itself
+}
+
+-- Equivalent to
+def ones : Stream Int = {
+  #.head => 1
+  #.tail => ones
+}
+
+-- Useful for self-referential structures
+def cycle : a -> Stream a = \x => {
+  #.head => x
+  #.tail => #
+}
+```
+
+---
+
+## State Monad
+
+```ziku
+codata State s a {
+  #.run : s -> { val : a, state : s }
+}
+
+def pure : a -> State s a = \x => {
+  #.run => \s => { val = x, state = s }
+}
+
+def bind : State s a -> (a -> State s b) -> State s b = \m, f => {
+  #.run => \s =>
+    let r = m.run(s) in
+    (f r.val).run(r.state)
+}
+
+def get : State s s = {
+  #.run => \s => { val = s, state = s }
+}
+
+def put : s -> State s () = \s' => {
+  #.run => \_ => { val = (), state = s' }
+}
+```
+
+---
+
+## Object-Oriented Style
+
+```ziku
+codata Counter {
+  #.value     : Int
+  #.increment : Counter
+  #.decrement : Counter
+  #.add(Int)  : Counter
+}
+
+def counter : Int -> Counter = \n => {
+  #.value     => n
+  #.increment => counter (n + 1)
+  #.decrement => counter (n - 1)
+  #.add(m)    => counter (n + m)
+}
+
+-- Usage
+let c = counter 0 in
+c.increment.add(5).value  -- evaluates to 6
+```
+
+---
+
+## Sequent Calculus Connection
+
+```ziku
+-- # in copatterns corresponds to the "hole" in evaluation contexts
+-- Consumer syntax uses | for pattern matching
+{ | Left x  => x
+  | Right y => y }
+
+-- Producer/Consumer cut
+cut <Left 42 | { | Left x => x + 1 | Right _ => 0 }>
+
+-- μ-abstraction binds continuation
+μk => {
+  #(v) => <v | k>
+}
+```
+
+---
+
+## Let Bindings and Lambdas
+
+```ziku
+-- Let binding
+let x = 42 in
+let y = x + 1 in
+x * y
+
+-- Recursive let
+let rec fact = \n =>
+  match n with
+    | Zero   => Succ Zero
+    | Succ m => n * fact m
+  end
+in fact (Succ (Succ (Succ Zero)))
+
+-- Lambda (shorthand for single #(x) copattern)
+\x => x + 1
+\x, y => x * y
+
+-- Explicit copattern form
+{ #(x) => x + 1 }
+{ #(x) => { #(y) => x * y } }
+```
+
+---
+
+## Anonymous Blocks
+
+```ziku
+-- Anonymous function
+\x => x + 1              -- shorthand
+{ #(x) => x + 1 }        -- explicit
+
+-- Anonymous stream
+let s = { #.head => 1, #.tail => s }
+
+-- Anonymous record
+let p = { #.x => 3, #.y => 4 }
+
+-- Inline codata
+list.map { #(x) => x * 2 }
+```
+
+---
+
+## Type Annotations
+
+```ziku
+-- Inline annotation
+(42 : Int)
+(\x => x : a -> a)
+
+-- Definition signature
+def id : forall a. a -> a
+  | x => x
+
+-- Polymorphic types
+def compose : forall a b c. (b -> c) -> (a -> b) -> a -> c = \f, g, x => f (g x)
+```
+
+---
+
+## Modules
+
+```ziku
+module List where
+  data List a =
+    | Nil
+    | Cons a (List a)
+
+  def map : (a -> b) -> List a -> List b = ...
+  def filter : (a -> Bool) -> List a -> List a = ...
+end
+
+-- Import
+import List
+import List (map, filter)
+import List as L
+```
+
+---
+
+## Operators
+
+```ziku
+-- Custom operators
+infix 6 ++  -- precedence 6, left associative
+infixr 5 :: -- precedence 5, right associative
+
+def (++) : List a -> List a -> List a
+  | Nil, ys       => ys
+  | Cons x xs, ys => Cons x (xs ++ ys)
+
+-- Pipe operator
+x |> f      -- same as f x
+x |> f |> g -- same as g (f x)
+```
+
+---
+
+## Comments
+
+```ziku
+-- Single line comment
+
+{-
+   Multi-line
+   comment
+-}
+
+--- Documentation comment
+--- @param x the input value
+--- @return the squared value
+def square : Int -> Int = ...
+```
+
+---
+
+## Complete Example: Infinite Structures
+
+```ziku
+codata Stream a {
+  #.head : a
+  #.tail : Stream a
+}
+
+codata Tree a {
+  #.value : a
+  #.left  : Tree a
+  #.right : Tree a
+}
+
+-- Infinite stream of ones
+def ones : Stream Int = {
+  #.head => 1
+  #.tail => #
+}
+
+-- Infinite tree of naturals (breadth-first labeling)
+def natTree : Nat -> Tree Nat = \n => {
+  #.value => n
+  #.left  => natTree (2 * n + 1)
+  #.right => natTree (2 * n + 2)
+}
+
+-- Take from stream
+def take : Int -> Stream a -> List a
+  | 0, _ => Nil
+  | n, s => Cons (s.head) (take (n - 1) (s.tail))
+
+-- Zip two streams
+def zip : Stream a -> Stream b -> Stream { fst : a, snd : b } = \s1, s2 => {
+  #.head => { fst = s1.head, snd = s2.head }
+  #.tail => zip s1.tail s2.tail
+}
+
+-- Fibonacci
+def fibs : Stream Int = {
+  #.head      => 0
+  #.tail.head => 1
+  #.tail.tail => zipWith (\x, y => x + y) fibs #.tail
+}
+
+def zipWith : (a -> b -> c) -> Stream a -> Stream b -> Stream c = \f, s1, s2 => {
+  #.head => f (s1.head) (s2.head)
+  #.tail => zipWith f (s1.tail) (s2.tail)
+}
+```
+
+---
+
+## Grammar Summary (EBNF)
+
+```ebnf
+program     = decl*
+
+decl        = dataDecl | codataDecl | defDecl | moduleDecl
+
+dataDecl    = "data" IDENT tyParams? "=" ("|" constr)+
+constr      = IDENT type*
+
+codataDecl  = "codata" IDENT tyParams? "{" copatSig* "}"
+copatSig    = "#" accessor* ":" type
+accessor    = "." IDENT | "(" IDENT ")"   -- .field or (arg)
+
+defDecl     = "def" IDENT ":" type "=" expr
+            | "def" IDENT ":" type patternClauses
+            | "def" IDENT ":" type copatternBlock
+
+patternClauses  = ("|" pattern+ "=>" expr)+
+copatternBlock  = "{" copatClause* "}"
+copatClause     = pattern* "#" accessor* "=>" expr
+
+expr        = atom
+            | expr binop expr
+            | "match" expr "with" ("|" pattern "=>" expr)+ "end"
+            | "let" IDENT (":" type)? "=" expr "in" expr
+            | "let" "rec" IDENT "=" expr "in" expr
+            | "\" params "=>" expr
+            | "{" copatClause* "}"
+            | "{" "#" accessor "=>" expr ("," "#" accessor "=>" expr)* "}"
+            | "{" (IDENT "=" expr ",")* IDENT "=" expr "}"   -- anonymous record
+            | expr "." IDENT                                  -- field access
+            | expr atom+                                      -- application (space)
+            | expr "(" args ")"                               -- application (parens)
+            | "#"
+            | "(" expr ")"
+
+args        = expr ("," expr)*                -- desugars to curried application
+
+pattern     = IDENT | LITERAL | "_" | "(" pattern ")" | constr pattern*
+
+type        = typeAtom | type "->" type | "forall" IDENT+ "." type
+           | "{" (IDENT ":" type ",")* IDENT ":" type "}"    -- record type
+typeAtom    = IDENT | IDENT type+ | "(" type ")"
+
+tyParams    = IDENT+
+params      = IDENT ("," IDENT)*
+
+binop       = "+" | "-" | "*" | "/" | "==" | "<" | ">" | "<=" | ">="
+            | "&&" | "||" | "++" | "|>"
+```
+
+---
+
+## Visual Summary
+
+| Syntax | Meaning |
+|--------|---------|
+| `#` | The object being defined (this/self) |
+| `#.field` | When field is accessed |
+| `#(x)` | When called with argument x (callable codata) |
+| `#.tail.head` | Nested: when `.tail.head` is accessed |
+| `{ #.x => e }` | Codata block defining field x |
+| `{ #(x) => e }` | Function block (callable codata) |
+| `\x => e` | Lambda (sugar for `{ #(x) => e }`) |
+| `\| p => e` | Pattern match clause |
+| `f(x, y)` | Curried application: `f(x)(y)` |
+| `f x y` | Same as above |
+| `{ a = x, b = y }` | Anonymous record |
+| `r.field` | Field access |
