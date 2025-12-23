@@ -4,8 +4,16 @@ open Ziku
 
 partial def repl (env : Env) : IO Unit := do
   IO.print "> "
-  let input ← IO.getStdin >>= (·.getLine)
+  let stdout ← IO.getStdout
+  stdout.flush
+  let stdin ← IO.getStdin
+  let input ← stdin.getLine
   let input := input.trim
+
+  -- Handle EOF or quit commands
+  if input.isEmpty then
+    IO.println "\nGoodbye!"
+    return
 
   if input == ":quit" || input == ":q" then
     IO.println "Goodbye!"

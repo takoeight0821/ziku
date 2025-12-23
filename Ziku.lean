@@ -1,6 +1,7 @@
 -- This module serves as the root of the `Ziku` library.
 -- Import modules here that should be built as part of the library.
 import Ziku.Syntax
+import Ziku.Lexer
 import Ziku.Type
 import Ziku.Parser
 import Ziku.Infer

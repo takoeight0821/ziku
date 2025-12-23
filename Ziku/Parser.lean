@@ -1,148 +1,1032 @@
 import Ziku.Syntax
+import Ziku.Lexer
 
 namespace Ziku
 
+/-!
+# Ziku Parser
+
+This module implements a recursive descent parser for the Ziku programming language.
+The parser uses the token stream from the lexer to build an AST.
+-/
+
+-- Parser state
 structure ParseState where
-  input : String
-  pos : Nat
+  tokens : List PosToken
   deriving Repr
 
+def ParseState.peek? (s : ParseState) : Option PosToken :=
+  s.tokens.head?
+
+def ParseState.peekToken? (s : ParseState) : Option Token :=
+  s.tokens.head?.map (·.token)
+
+def ParseState.peekN (s : ParseState) (n : Nat) : Option PosToken :=
+  s.tokens[n]?
+
+def ParseState.advance (s : ParseState) : ParseState :=
+  { s with tokens := s.tokens.drop 1 }
+
 def ParseState.eof (s : ParseState) : Bool :=
-  s.pos >= s.input.length
+  match s.peekToken? with
+  | some .eof => true
+  | _ => false
 
-def ParseState.peek? (s : ParseState) : Option Char :=
-  let rec get? : List Char → Nat → Option Char
-    | [], _ => none
-    | c :: _, 0 => some c
-    | _ :: cs, n + 1 => get? cs n
-  get? s.input.toList s.pos
-
-def ParseState.advance (s : ParseState) (n : Nat := 1) : ParseState :=
-  { s with pos := s.pos + n }
+def ParseState.currentPos (s : ParseState) : SourcePos :=
+  match s.peek? with
+  | some tok => tok.pos
+  | none => { line := 0, col := 0 }
 
 abbrev Parser α := ParseState → Except String (α × ParseState)
 
-partial def skipWhitespace (s : ParseState) : ParseState :=
-  let rec loop (st : ParseState) : ParseState :=
-    match st.peek? with
-    | some c => if c.isWhitespace then loop (st.advance) else st
-    | none => st
-  loop s
+-- Parser combinators
+def Parser.pure (a : α) : Parser α := fun s => .ok (a, s)
 
-partial def parseInt : Parser Int := fun s =>
-  let s := skipWhitespace s
-  let (negative, s') := match s.peek? with
-    | some '-' => (true, s.advance)
-    | _ => (false, s)
-  let rec parseDigits (st : ParseState) (acc : Nat) : Option (Nat × ParseState) :=
-    match st.peek? with
-    | some c =>
-      if c.isDigit then
-        parseDigits (st.advance) (acc * 10 + (c.toNat - '0'.toNat))
-      else
-        some (acc, st)
-    | none => some (acc, st)
-  match parseDigits s' 0 with
-  | some (n, s'') =>
-    let result := if negative then -(n : Int) else (n : Int)
-    .ok (result, skipWhitespace s'')
-  | none => .error s!"expected integer at position {s.pos}"
+def Parser.fail (msg : String) : Parser α := fun s =>
+  let pos := s.currentPos
+  .error s!"{msg} at {pos.line}:{pos.col}"
 
-partial def parseIdent : Parser String := fun s =>
-  let s := skipWhitespace s
-  match s.peek? with
-  | some c =>
-    if c.isAlpha then
-      let rec loop (st : ParseState) (chars : List Char) : String × ParseState :=
-        match st.peek? with
-        | some ch =>
-          if ch.isAlphanum || ch == '_' then
-            loop (st.advance) (chars ++ [ch])
-          else
-            (String.ofList chars, st)
-        | none => (String.ofList chars, st)
-      let (id, s') := loop (s.advance) [c]
-      .ok (id, skipWhitespace s')
-    else
-      .error s!"expected identifier at position {s.pos}"
-  | none => .error s!"unexpected EOF"
+def Parser.bind (p : Parser α) (f : α → Parser β) : Parser β := fun s =>
+  match p s with
+  | .ok (a, s') => f a s'
+  | .error msg => .error msg
 
+instance : Monad Parser where
+  pure := Parser.pure
+  bind := Parser.bind
+
+instance : MonadExcept String Parser where
+  throw := Parser.fail
+  tryCatch p handler s :=
+    match p s with
+    | .ok res => .ok res
+    | .error msg => handler msg s
+
+-- Expect a specific token
+def expect (expected : Token) : Parser Unit := fun s =>
+  match s.peekToken? with
+  | some tok =>
+    if tok == expected then .ok ((), s.advance)
+    else .error s!"expected {expected} but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+  | none => .error s!"expected {expected} but found EOF"
+
+-- Expect and return identifier
+def expectIdent : Parser Ident := fun s =>
+  match s.peekToken? with
+  | some (.ident id) => .ok (id, s.advance)
+  | some tok => .error s!"expected identifier but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+  | none => .error "expected identifier but found EOF"
+
+-- Expect constructor identifier
+def expectConId : Parser Ident := fun s =>
+  match s.peekToken? with
+  | some (.conId id) => .ok (id, s.advance)
+  | some tok => .error s!"expected constructor identifier but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+  | none => .error "expected constructor identifier but found EOF"
+
+-- Try to match a token, return true if matched
+def tryToken (tok : Token) : Parser Bool := fun s =>
+  match s.peekToken? with
+  | some t => if t == tok then .ok (true, s.advance) else .ok (false, s)
+  | none => .ok (false, s)
+
+-- Optional parser
+def optional (p : Parser α) : Parser (Option α) := fun s =>
+  match p s with
+  | .ok (a, s') => .ok (some a, s')
+  | .error _ => .ok (none, s)
+
+-- Many parser (zero or more)
+partial def many (p : Parser α) : Parser (List α) := fun s =>
+  match p s with
+  | .ok (a, s') =>
+    match many p s' with
+    | .ok (as, s'') => .ok (a :: as, s'')
+    | .error _ => .ok ([a], s')
+  | .error _ => .ok ([], s)
+
+-- Many1 parser (one or more)
+partial def many1 (p : Parser α) : Parser (List α) := do
+  let first ← p
+  let rest ← many p
+  return first :: rest
+
+-- Separated by (sep-separated list)
+partial def sepBy (p : Parser α) (sep : Parser β) : Parser (List α) := fun s =>
+  match p s with
+  | .ok (first, s') =>
+    let rec loop (acc : List α) (st : ParseState) : List α × ParseState :=
+      match sep st with
+      | .ok (_, st') =>
+        match p st' with
+        | .ok (a, st'') => loop (a :: acc) st''
+        | .error _ => (acc, st)
+      | .error _ => (acc, st)
+    let (rest, s'') := loop [first] s'
+    .ok (rest.reverse, s'')
+  | .error _ => .ok ([], s)
+
+-- Separated by (at least one)
+def seqRight (x : Parser α) (y : Parser β) : Parser β := do
+  let _ ← x
+  y
+
+def sepBy1 (p : Parser α) (sep : Parser β) : Parser (List α) := do
+  let first ← p
+  let rest ← many (seqRight sep p)
+  return first :: rest
+
+-- Forward declarations (using mutual recursion)
 mutual
-  partial def parseAtom : Parser Expr := fun s =>
-    let s := skipWhitespace s
-    match s.peek? with
-    | some '(' =>
+  -- Parse a type
+  partial def parseType : Parser Ty := parseArrowType
+
+  -- Parse arrow type (right associative)
+  partial def parseArrowType : Parser Ty := do
+    let left ← parseAppType
+    let hasArrow ← tryToken .arrow
+    if hasArrow then
+      let right ← parseArrowType
+      return .arrow left right
+    else
+      return left
+
+  -- Parse type application
+  partial def parseAppType : Parser Ty := do
+    let base ← parseAtomType
+    let args ← many parseAtomType
+    return args.foldl Ty.app base
+
+  -- Parse atomic type
+  partial def parseAtomType : Parser Ty := fun s =>
+    match s.peekToken? with
+    | some (.ident id) => .ok (.var id, s.advance)
+    | some (.conId id) => .ok (.con id, s.advance)
+    | some .kForall =>
       let s := s.advance
-      match parseExpr s with
-      | .ok (e, s') =>
-        let s' := skipWhitespace s'
-        match s'.peek? with
-        | some ')' => .ok (e, skipWhitespace (s'.advance))
-        | _ => .error s!"expected ')' at position {s'.pos}"
+      match parseTypeVars s with
+      | .ok (vars, s') =>
+        match expect .dot s' with
+        | .ok (_, s'') =>
+          match parseType s'' with
+          | .ok (ty, s''') =>
+            let result := vars.foldr (fun v acc => Ty.forall_ v acc) ty
+            .ok (result, s''')
+          | .error msg => .error msg
+        | .error msg => .error msg
       | .error msg => .error msg
-    | some c =>
-      if c.isDigit || c == '-' then
-        match parseInt s with
-        | .ok (n, s') => .ok (Expr.lit n, s')
+    | some .lparen =>
+      let s := s.advance
+      match parseType s with
+      | .ok (ty, s') =>
+        match expect .rparen s' with
+        | .ok (_, s'') => .ok (ty, s'')
         | .error msg => .error msg
-      else if c.isAlpha then
-        match parseIdent s with
-        | .ok (id, s') => .ok (Expr.var id, s')
+      | .error msg => .error msg
+    | some .lbrace =>
+      -- Record type: { x : ty, ... }
+      let s := s.advance
+      match parseRecordTypeFields s with
+      | .ok (fields, s') =>
+        match expect .rbrace s' with
+        | .ok (_, s'') => .ok (.record fields, s'')
         | .error msg => .error msg
+      | .error msg => .error msg
+    | some tok => .error s!"expected type but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+    | none => .error "expected type but found EOF"
+
+  partial def parseTypeVars : Parser (List Ident) := many1 expectIdent
+
+  partial def parseRecordTypeFields : Parser (List (Ident × Ty)) :=
+    sepBy parseRecordTypeField (expect .comma)
+
+  partial def parseRecordTypeField : Parser (Ident × Ty) := do
+    let name ← expectIdent
+    expect .colon
+    let ty ← parseType
+    return (name, ty)
+
+  -- Parse pattern
+  partial def parsePattern : Parser Pat := parsePatternAtom
+
+  partial def parsePatternAtom : Parser Pat := fun s =>
+    match s.peekToken? with
+    | some (.ident id) => .ok (.var id, s.advance)
+    | some (.conId id) =>
+      -- Constructor pattern, possibly with arguments
+      let s := s.advance
+      match many parsePatternAtom s with
+      | .ok (args, s') => .ok (.con id args, s')
+      | .error msg => .error msg
+    | some (.int n) => .ok (.lit (.int n), s.advance)
+    | some (.string str) => .ok (.lit (.string str), s.advance)
+    | some (.char c) => .ok (.lit (.char c), s.advance)
+    | some .kTrue => .ok (.lit (.bool true), s.advance)
+    | some .kFalse => .ok (.lit (.bool false), s.advance)
+    | some .underscore => .ok (.wild, s.advance)
+    | some .lparen =>
+      let s := s.advance
+      match parsePattern s with
+      | .ok (p, s') =>
+        match s'.peekToken? with
+        | some .colon =>
+          -- Annotated pattern
+          let s' := s'.advance
+          match parseType s' with
+          | .ok (ty, s'') =>
+            match expect .rparen s'' with
+            | .ok (_, s''') => .ok (.ann p ty, s''')
+            | .error msg => .error msg
+          | .error msg => .error msg
+        | some .rparen => .ok (.paren p, s'.advance)
+        | some tok => .error s!"expected ')' or ':' but found {tok}"
+        | none => .error "unexpected EOF in pattern"
+      | .error msg => .error msg
+    | some tok => .error s!"expected pattern but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+    | none => .error "expected pattern but found EOF"
+
+  -- Parse copattern accessor
+  partial def parseAccessor : Parser Accessor := fun s =>
+    match s.peekToken? with
+    | some .dot =>
+      let s := s.advance
+      match s.peekToken? with
+      | some (.ident id) => .ok (.field id, s.advance)
+      | some tok => .error s!"expected field name after '.' but found {tok}"
+      | none => .error "expected field name after '.'"
+    | some .lparen =>
+      let s := s.advance
+      match s.peekToken? with
+      | some (.ident id) =>
+        let s := s.advance
+        match expect .rparen s with
+        | .ok (_, s') => .ok (.apply id, s')
+        | .error msg => .error msg
+      | some tok => .error s!"expected identifier in copattern application but found {tok}"
+      | none => .error "expected identifier in copattern application"
+    | some tok => .error s!"expected '.' or '(' but found {tok}"
+    | none => .error "expected accessor"
+
+  -- Parse copattern (after #)
+  partial def parseCopattern : Parser Copattern := many parseAccessor
+
+  -- Parse expression
+  partial def parseExpr : Parser Expr := parsePipeExpr
+
+  -- Pipe operator (lowest precedence, left associative)
+  partial def parsePipeExpr : Parser Expr := do
+    let left ← parseOrExpr
+    parsePipeRest left
+
+  partial def parsePipeRest (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .pipeGt =>
+      let s := s.advance
+      match parseOrExpr s with
+      | .ok (right, s') =>
+        parsePipeRest (Expr.binOp .pipe left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  -- Or expression
+  partial def parseOrExpr : Parser Expr := do
+    let left ← parseAndExpr
+    parseOrRest left
+
+  partial def parseOrRest (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .pipeOr =>
+      let s := s.advance
+      match parseAndExpr s with
+      | .ok (right, s') =>
+        parseOrRest (Expr.binOp .or left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  -- And expression
+  partial def parseAndExpr : Parser Expr := do
+    let left ← parseCompareExpr
+    parseAndRest left
+
+  partial def parseAndRest (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .ampAmp =>
+      let s := s.advance
+      match parseCompareExpr s with
+      | .ok (right, s') =>
+        parseAndRest (Expr.binOp .and left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  -- Comparison expression
+  partial def parseCompareExpr : Parser Expr := do
+    let left ← parseConcatExpr
+    parseCompareRest left
+
+  partial def parseCompareRest (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .eqEq =>
+      let s := s.advance
+      match parseConcatExpr s with
+      | .ok (right, s') => .ok (Expr.binOp .eq left right, s')
+      | .error msg => .error msg
+    | some .neq =>
+      let s := s.advance
+      match parseConcatExpr s with
+      | .ok (right, s') => .ok (Expr.binOp .ne left right, s')
+      | .error msg => .error msg
+    | some .langle =>
+      -- Check it's not part of something else
+      let s := s.advance
+      match parseConcatExpr s with
+      | .ok (right, s') => .ok (Expr.binOp .lt left right, s')
+      | .error msg => .error msg
+    | some .le =>
+      let s := s.advance
+      match parseConcatExpr s with
+      | .ok (right, s') => .ok (Expr.binOp .le left right, s')
+      | .error msg => .error msg
+    | some .rangle =>
+      let s := s.advance
+      match parseConcatExpr s with
+      | .ok (right, s') => .ok (Expr.binOp .gt left right, s')
+      | .error msg => .error msg
+    | some .ge =>
+      let s := s.advance
+      match parseConcatExpr s with
+      | .ok (right, s') => .ok (Expr.binOp .ge left right, s')
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  -- Concat expression (right associative)
+  partial def parseConcatExpr : Parser Expr := do
+    let left ← parseAddExpr
+    parseConcatRest left
+
+  partial def parseConcatRest (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .plusPlus =>
+      let s := s.advance
+      match parseConcatExpr s with  -- Right associative
+      | .ok (right, s') => .ok (Expr.binOp .concat left right, s')
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  -- Additive expression
+  partial def parseAddExpr : Parser Expr := do
+    let left ← parseMulExpr
+    parseAddRest left
+
+  partial def parseAddRest (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .plus =>
+      let s := s.advance
+      match parseMulExpr s with
+      | .ok (right, s') =>
+        parseAddRest (Expr.binOp .add left right) s'
+      | .error msg => .error msg
+    | some .minus =>
+      let s := s.advance
+      match parseMulExpr s with
+      | .ok (right, s') =>
+        parseAddRest (Expr.binOp .sub left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  -- Multiplicative expression
+  partial def parseMulExpr : Parser Expr := do
+    let left ← parseUnaryExpr
+    parseMulRest left
+
+  partial def parseMulRest (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .star =>
+      let s := s.advance
+      match parseUnaryExpr s with
+      | .ok (right, s') =>
+        parseMulRest (Expr.binOp .mul left right) s'
+      | .error msg => .error msg
+    | some .slash =>
+      let s := s.advance
+      match parseUnaryExpr s with
+      | .ok (right, s') =>
+        parseMulRest (Expr.binOp .div left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  -- Unary expression
+  partial def parseUnaryExpr : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .minus =>
+      let s := s.advance
+      match parseUnaryExpr s with
+      | .ok (e, s') => .ok (Expr.unaryOp .neg e, s')
+      | .error msg => .error msg
+    | some .kNot =>
+      let s := s.advance
+      match parseUnaryExpr s with
+      | .ok (e, s') => .ok (Expr.unaryOp .not e, s')
+      | .error msg => .error msg
+    | _ => parseAppExpr s
+
+  -- Application expression
+  partial def parseAppExpr : Parser Expr := do
+    let base ← parseFieldExpr
+    parseAppArgs base
+
+  partial def parseAppArgs (base : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .lparen =>
+      -- Parenthesized arguments: f(x) or f(x, y)
+      let s := s.advance
+      match sepBy parseExpr (expect .comma) s with
+      | .ok (args, s') =>
+        match expect .rparen s' with
+        | .ok (_, s'') =>
+          -- Apply arguments as curried: f(x, y) becomes (f x) y
+          let result := args.foldl Expr.app base
+          parseAppArgs result s''
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | _ =>
+      -- Try space-separated application
+      match parseFieldExpr s with
+      | .ok (arg, s') =>
+        -- Check if this is really an argument or a different expression
+        parseAppArgs (Expr.app base arg) s'
+      | .error _ => .ok (base, s)
+
+  -- Field access
+  partial def parseFieldExpr : Parser Expr := do
+    let base ← parseAtomExpr
+    parseFieldRest base
+
+  partial def parseFieldRest (base : Expr) : Parser Expr := fun s =>
+    match s.peekToken?, s.peekN 1 with
+    | some .dot, some ptok =>
+      match ptok.token with
+      | .ident field =>
+        let s := s.advance.advance
+        parseFieldRest (Expr.field base field) s
+      | _ => .ok (base, s)
+    | _, _ => .ok (base, s)
+
+  -- Atomic expression
+  partial def parseAtomExpr : Parser Expr := fun s =>
+    match s.peekToken? with
+    -- Literals
+    | some (.int n) => .ok (Expr.lit (.int n), s.advance)
+    | some (.float f) => .ok (Expr.lit (.float f), s.advance)
+    | some (.string str) => .ok (Expr.lit (.string str), s.advance)
+    | some (.char c) => .ok (Expr.lit (.char c), s.advance)
+    | some .kTrue => .ok (Expr.lit (.bool true), s.advance)
+    | some .kFalse => .ok (Expr.lit (.bool false), s.advance)
+    -- Hash (self-reference)
+    | some .hash => .ok (Expr.hash, s.advance)
+    -- Variable or constructor
+    | some (.ident id) => .ok (Expr.var id, s.advance)
+    | some (.conId id) => .ok (Expr.var id, s.advance)
+    -- Lambda
+    | some .backslash => parseLambda s
+    -- Let
+    | some .kLet => parseLet s
+    -- Match
+    | some .kMatch => parseMatch s
+    -- If
+    | some .kIf => parseIf s
+    -- Cut
+    | some .kCut => parseCut s
+    -- Mu
+    | some .kMu => parseMu s
+    -- Parenthesized or unit
+    | some .lparen =>
+      let s := s.advance
+      match s.peekToken? with
+      | some .rparen => .ok (Expr.lit .unit, s.advance)
+      | _ =>
+        match parseExpr s with
+        | .ok (e, s') =>
+          match s'.peekToken? with
+          | some .colon =>
+            -- Type annotation
+            let s' := s'.advance
+            match parseType s' with
+            | .ok (ty, s'') =>
+              match expect .rparen s'' with
+              | .ok (_, s''') => .ok (Expr.ann e ty, s''')
+              | .error msg => .error msg
+            | .error msg => .error msg
+          | some .rparen => .ok (e, s'.advance)
+          | some tok => .error s!"expected ')' or ':' but found {tok}"
+          | none => .error "unexpected EOF"
+        | .error msg => .error msg
+    -- Codata block or record
+    | some .lbrace => parseBraceExpr s
+    | some tok => .error s!"expected expression but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+    | none => .error "expected expression but found EOF"
+
+  -- Parse lambda: \x, y => e
+  partial def parseLambda : Parser Expr := fun s =>
+    let s := s.advance  -- skip \
+    match sepBy1 expectIdent (expect .comma) s with
+    | .ok (params, s') =>
+      match expect .fatArrow s' with
+      | .ok (_, s'') =>
+        match parseExpr s'' with
+        | .ok (body, s''') => .ok (Expr.lam params body, s''')
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse let: let x = e in body or let rec f = e in body
+  partial def parseLet : Parser Expr := fun s =>
+    let s := s.advance  -- skip 'let'
+    match s.peekToken? with
+    | some .kRec =>
+      let s := s.advance
+      match expectIdent s with
+      | .ok (name, s') =>
+        let (tyOpt, s') := match s'.peekToken? with
+          | some .colon =>
+            match parseType s'.advance with
+            | .ok (ty, s'') => (some ty, s'')
+            | .error _ => (none, s')
+          | _ => (none, s')
+        match expect .eq s' with
+        | .ok (_, s'') =>
+          match parseExpr s'' with
+          | .ok (value, s''') =>
+            match expect .kIn s''' with
+            | .ok (_, s'''') =>
+              match parseExpr s'''' with
+              | .ok (body, s''''') => .ok (Expr.letRec name tyOpt value body, s''''')
+              | .error msg => .error msg
+            | .error msg => .error msg
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | _ =>
+      match expectIdent s with
+      | .ok (name, s') =>
+        let (tyOpt, s') := match s'.peekToken? with
+          | some .colon =>
+            match parseType s'.advance with
+            | .ok (ty, s'') => (some ty, s'')
+            | .error _ => (none, s')
+          | _ => (none, s')
+        match expect .eq s' with
+        | .ok (_, s'') =>
+          match parseExpr s'' with
+          | .ok (value, s''') =>
+            match expect .kIn s''' with
+            | .ok (_, s'''') =>
+              match parseExpr s'''' with
+              | .ok (body, s''''') => .ok (Expr.let_ name tyOpt value body, s''''')
+              | .error msg => .error msg
+            | .error msg => .error msg
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+
+  -- Parse match: match e with | p => e end
+  partial def parseMatch : Parser Expr := fun s =>
+    let s := s.advance  -- skip 'match'
+    match parseExpr s with
+    | .ok (scrutinee, s') =>
+      match expect .kWith s' with
+      | .ok (_, s'') =>
+        match parseMatchCases s'' with
+        | .ok (cases, s''') =>
+          match expect .kEnd s''' with
+          | .ok (_, s'''') => .ok (Expr.match_ scrutinee cases, s'''')
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  partial def parseMatchCases : Parser (List (Pat × Expr)) := many1 parseMatchCase
+
+  partial def parseMatchCase : Parser (Pat × Expr) := fun s =>
+    match expect .pipe s with
+    | .ok (_, s') =>
+      match parsePattern s' with
+      | .ok (pat, s'') =>
+        match expect .fatArrow s'' with
+        | .ok (_, s''') =>
+          match parseExpr s''' with
+          | .ok (body, s'''') => .ok ((pat, body), s'''')
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse if: if c then t else f
+  partial def parseIf : Parser Expr := fun s =>
+    let s := s.advance  -- skip 'if'
+    match parseExpr s with
+    | .ok (cond, s') =>
+      match expect .kThen s' with
+      | .ok (_, s'') =>
+        match parseExpr s'' with
+        | .ok (thenBranch, s''') =>
+          match expect .kElse s''' with
+          | .ok (_, s'''') =>
+            match parseExpr s'''' with
+            | .ok (elseBranch, s''''') => .ok (Expr.if_ cond thenBranch elseBranch, s''''')
+            | .error msg => .error msg
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse cut: cut <producer | consumer>
+  partial def parseCut : Parser Expr := fun s =>
+    let s := s.advance  -- skip 'cut'
+    match expect .langle s with
+    | .ok (_, s') =>
+      match parseExpr s' with
+      | .ok (producer, s'') =>
+        match expect .pipe s'' with
+        | .ok (_, s''') =>
+          match parseExpr s''' with
+          | .ok (consumer, s'''') =>
+            match expect .rangle s'''' with
+            | .ok (_, s''''') => .ok (Expr.cut producer consumer, s''''')
+            | .error msg => .error msg
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse mu: μk => e or mu k => e
+  partial def parseMu : Parser Expr := fun s =>
+    let s := s.advance  -- skip 'μ' or 'mu'
+    match expectIdent s with
+    | .ok (name, s') =>
+      match expect .fatArrow s' with
+      | .ok (_, s'') =>
+        match parseExpr s'' with
+        | .ok (body, s''') => .ok (Expr.mu name body, s''')
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse brace expression: codata block { #.f => e } or record { x = 1 }
+  partial def parseBraceExpr : Parser Expr := fun s =>
+    let s := s.advance  -- skip '{'
+    match s.peekToken? with
+    | some .hash =>
+      -- Codata block
+      match parseCodataBlock s with
+      | .ok (clauses, s') =>
+        match expect .rbrace s' with
+        | .ok (_, s'') => .ok (Expr.codata clauses, s'')
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | some .pipe =>
+      -- Consumer block: { | p => e | ... }
+      match parseCodataBlock s with
+      | .ok (clauses, s') =>
+        match expect .rbrace s' with
+        | .ok (_, s'') => .ok (Expr.codata clauses, s'')
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | some (.ident _) =>
+      -- Could be record or codata with patterns
+      -- Check if next is '=' (record) or '#' (codata)
+      match s.peekN 1 with
+      | some ptok =>
+        if ptok.token == .eq then
+          -- Record
+          match parseRecordFields s with
+          | .ok (fields, s') =>
+            match expect .rbrace s' with
+            | .ok (_, s'') => .ok (Expr.record fields, s'')
+            | .error msg => .error msg
+          | .error msg => .error msg
+        else
+          -- Codata with patterns
+          match parseCodataBlock s with
+          | .ok (clauses, s') =>
+            match expect .rbrace s' with
+            | .ok (_, s'') => .ok (Expr.codata clauses, s'')
+            | .error msg => .error msg
+          | .error msg => .error msg
+      | none => .error "unexpected EOF"
+    | some .rbrace => .ok (Expr.record [], s.advance)
+    | _ =>
+      match parseCodataBlock s with
+      | .ok (clauses, s') =>
+        match expect .rbrace s' with
+        | .ok (_, s'') => .ok (Expr.codata clauses, s'')
+        | .error msg => .error msg
+      | .error msg => .error msg
+
+  partial def parseCodataBlock : Parser (List (List Pat × Copattern × Expr)) :=
+    many1 parseCodataClause
+
+  partial def parseCodataClause : Parser (List Pat × Copattern × Expr) := fun s =>
+    -- Parse optional leading pipe for consumer syntax
+    let s := match s.peekToken? with
+      | some .pipe => s.advance
+      | _ => s
+    -- Parse patterns before #
+    let (patterns, s) :=
+      let rec loop (acc : List Pat) (st : ParseState) : List Pat × ParseState :=
+        match st.peekToken? with
+        | some .hash => (acc.reverse, st)
+        | _ =>
+          match parsePattern st with
+          | .ok (p, st') => loop (p :: acc) st'
+          | .error _ => (acc.reverse, st)
+      loop [] s
+    -- Parse # and copattern
+    match s.peekToken? with
+    | some .hash =>
+      let s := s.advance
+      match parseCopattern s with
+      | .ok (copat, s') =>
+        match expect .fatArrow s' with
+        | .ok (_, s'') =>
+          match parseExpr s'' with
+          | .ok (body, s''') => .ok ((patterns, copat, body), s''')
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | _ =>
+      -- Pattern-only clause (for consumers)
+      match expect .fatArrow s with
+      | .ok (_, s') =>
+        match parseExpr s' with
+        | .ok (body, s'') => .ok ((patterns, [], body), s'')
+        | .error msg => .error msg
+      | .error msg => .error msg
+
+  partial def parseRecordFields : Parser (List (Ident × Expr)) :=
+    sepBy parseRecordField (expect .comma)
+
+  partial def parseRecordField : Parser (Ident × Expr) := do
+    let name ← expectIdent
+    expect .eq
+    let value ← parseExpr
+    return (name, value)
+
+  -- Parse declaration
+  partial def parseDecl : Parser Decl := fun s =>
+    match s.peekToken? with
+    | some .kData => parseDataDecl s
+    | some .kCodata => parseCodataDecl s
+    | some .kDef => parseDefDecl s
+    | some .kModule => parseModuleDecl s
+    | some .kImport => parseImportDecl s
+    | some .kInfix => parseInfixDecl false s
+    | some .kInfixr => parseInfixDecl true s
+    | some .kInfixl => parseInfixDecl false s
+    | some tok => .error s!"expected declaration but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+    | none => .error "expected declaration but found EOF"
+
+  -- Parse data declaration: data T a b = | C1 ty1 | C2 ty2
+  partial def parseDataDecl : Parser Decl := fun s =>
+    let s := s.advance  -- skip 'data'
+    match expectConId s with
+    | .ok (name, s') =>
+      let (tyParams, s') :=
+        let rec loop (acc : List Ident) (st : ParseState) : List Ident × ParseState :=
+          match expectIdent st with
+          | .ok (id, st') => loop (id :: acc) st'
+          | .error _ => (acc.reverse, st)
+        loop [] s'
+      match expect .eq s' with
+      | .ok (_, s'') =>
+        match parseConstructors s'' with
+        | .ok (constrs, s''') => .ok (.data name tyParams constrs, s''')
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  partial def parseConstructors : Parser (List ConDecl) := many1 parseConstructor
+
+  partial def parseConstructor : Parser ConDecl := fun s =>
+    match expect .pipe s with
+    | .ok (_, s') =>
+      match expectConId s' with
+      | .ok (name, s'') =>
+        let (args, s'') :=
+          let rec loop (acc : List Ty) (st : ParseState) : List Ty × ParseState :=
+            match parseAtomType st with
+            | .ok (ty, st') => loop (ty :: acc) st'
+            | .error _ => (acc.reverse, st)
+          loop [] s''
+        .ok ({ name := name, args := args }, s'')
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse codata declaration: codata T a { #.f : ty }
+  partial def parseCodataDecl : Parser Decl := fun s =>
+    let s := s.advance  -- skip 'codata'
+    match expectConId s with
+    | .ok (name, s') =>
+      let (tyParams, s') :=
+        let rec loop (acc : List Ident) (st : ParseState) : List Ident × ParseState :=
+          match expectIdent st with
+          | .ok (id, st') => loop (id :: acc) st'
+          | .error _ => (acc.reverse, st)
+        loop [] s'
+      match expect .lbrace s' with
+      | .ok (_, s'') =>
+        match parseCodataSigs s'' with
+        | .ok (sigs, s''') =>
+          match expect .rbrace s''' with
+          | .ok (_, s'''') => .ok (.codata name tyParams sigs, s'''')
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  partial def parseCodataSigs : Parser (List CopatSig) := many parseCodataSig
+
+  partial def parseCodataSig : Parser CopatSig := fun s =>
+    match expect .hash s with
+    | .ok (_, s') =>
+      match parseCopattern s' with
+      | .ok (copat, s'') =>
+        match expect .colon s'' with
+        | .ok (_, s''') =>
+          match parseType s''' with
+          | .ok (ty, s'''') => .ok ({ accessors := copat, ty := ty }, s'''')
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse def declaration
+  partial def parseDefDecl : Parser Decl := fun s =>
+    let s := s.advance  -- skip 'def'
+    -- Handle operator definitions: def (++) : ty = e
+    let (name, s') :=
+      if s.peekToken? == some .lparen then
+        let s := s.advance
+        match s.peekToken? with
+        | some (.ident op) =>
+          let s := s.advance
+          match expect .rparen s with
+          | .ok (_, s') => (op, s')
+          | .error _ => ("", s)
+        | _ => ("", s)
       else
-        .error s!"unexpected character '{c}' at position {s.pos}"
+        match expectIdent s with
+        | .ok (id, s') => (id, s')
+        | .error _ =>
+          match expectConId s with
+          | .ok (id, s') => (id, s')
+          | .error _ => ("", s)
+    if name.isEmpty then .error "expected function name" else
+    match expect .colon s' with
+    | .ok (_, s'') =>
+      match parseType s'' with
+      | .ok (ty, s''') =>
+        match s'''.peekToken? with
+        | some .eq =>
+          let s''' := s'''.advance
+          match parseExpr s''' with
+          | .ok (body, s'''') => .ok (.def_ name ty body, s'''')
+          | .error msg => .error msg
+        | some .pipe =>
+          -- Pattern clauses
+          match parseDefClauses s''' with
+          | .ok (clauses, s'''') => .ok (.defPat name ty clauses, s'''')
+          | .error msg => .error msg
+        | some .lbrace =>
+          -- Copattern block
+          match parseDefClauses s''' with
+          | .ok (clauses, s'''') => .ok (.defPat name ty clauses, s'''')
+          | .error msg => .error msg
+        | some tok => .error s!"expected '=' or '|' but found {tok}"
+        | none => .error "unexpected EOF"
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  partial def parseDefClauses : Parser (List DefClause) := many1 parseDefClause
+
+  partial def parseDefClause : Parser DefClause := fun s =>
+    match s.peekToken? with
+    | some .pipe =>
+      let s := s.advance
+      let (patterns, s) :=
+        let rec loop (acc : List Pat) (st : ParseState) : List Pat × ParseState :=
+          match st.peekToken? with
+          | some .fatArrow => (acc.reverse, st)
+          | some .hash => (acc.reverse, st)
+          | some .comma =>
+            let st := st.advance
+            match parsePattern st with
+            | .ok (p, st') => loop (p :: acc) st'
+            | .error _ => (acc.reverse, st)
+          | _ =>
+            match parsePattern st with
+            | .ok (p, st') => loop (p :: acc) st'
+            | .error _ => (acc.reverse, st)
+        match parsePattern s with
+        | .ok (p, s') => loop [p] s'
+        | .error _ => ([], s)
+      match s.peekToken? with
+      | some .hash =>
+        let s := s.advance
+        match parseCopattern s with
+        | .ok (copat, s') =>
+          match expect .fatArrow s' with
+          | .ok (_, s'') =>
+            match parseExpr s'' with
+            | .ok (body, s''') => .ok (.copatClause patterns copat body, s''')
+            | .error msg => .error msg
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | _ =>
+        match expect .fatArrow s with
+        | .ok (_, s') =>
+          match parseExpr s' with
+          | .ok (body, s'') => .ok (.patClause patterns body, s'')
+          | .error msg => .error msg
+        | .error msg => .error msg
+    | some tok => .error s!"expected '|' but found {tok}"
     | none => .error "unexpected EOF"
 
-  partial def parseFactor : Parser Expr := fun s =>
-    match parseAtom s with
-    | .ok (e, s') =>
-      let rec loop (expr : Expr) (st : ParseState) : Expr × ParseState :=
-        let st := skipWhitespace st
-        match st.peek? with
-        | some '*' =>
-          let st := skipWhitespace (st.advance)
-          match parseAtom st with
-          | .ok (rhs, st') => loop (Expr.mul expr rhs) st'
-          | .error _ => (expr, st)
-        | some '/' =>
-          let st := skipWhitespace (st.advance)
-          match parseAtom st with
-          | .ok (rhs, st') => loop (Expr.div expr rhs) st'
-          | .error _ => (expr, st)
-        | _ => (expr, st)
-      .ok (loop e s')
+  -- Parse module declaration
+  partial def parseModuleDecl : Parser Decl := fun s =>
+    let s := s.advance  -- skip 'module'
+    match expectConId s with
+    | .ok (name, s') =>
+      match expect .kWhere s' with
+      | .ok (_, s'') =>
+        match parseDecls s'' with
+        | .ok (decls, s''') =>
+          match expect .kEnd s''' with
+          | .ok (_, s'''') => .ok (.module_ name decls, s'''')
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
     | .error msg => .error msg
 
-  partial def parseExpr : Parser Expr := fun s =>
-    match parseFactor s with
-    | .ok (e, s') =>
-      let rec loop (expr : Expr) (st : ParseState) : Expr × ParseState :=
-        let st := skipWhitespace st
-        match st.peek? with
-        | some '+' =>
-          let st := skipWhitespace (st.advance)
-          match parseFactor st with
-          | .ok (rhs, st') => loop (Expr.add expr rhs) st'
-          | .error _ => (expr, st)
-        | some '-' =>
-          let st := skipWhitespace (st.advance)
-          match parseFactor st with
-          | .ok (rhs, st') => loop (Expr.sub expr rhs) st'
-          | .error _ => (expr, st)
-        | _ => (expr, st)
-      .ok (loop e s')
+  -- Parse import declaration
+  partial def parseImportDecl : Parser Decl := fun s =>
+    let s := s.advance  -- skip 'import'
+    match expectConId s with
+    | .ok (name, s') =>
+      match s'.peekToken? with
+      | some .lparen =>
+        -- import M (a, b)
+        let s' := s'.advance
+        match sepBy expectIdent (expect .comma) s' with
+        | .ok (items, s'') =>
+          match expect .rparen s'' with
+          | .ok (_, s''') => .ok (.import_ name (some items) none, s''')
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | some .kAs =>
+        -- import M as N
+        let s' := s'.advance
+        match expectConId s' with
+        | .ok (alias, s'') => .ok (.import_ name none (some alias), s'')
+        | .error msg => .error msg
+      | _ => .ok (.import_ name none none, s')
     | .error msg => .error msg
+
+  -- Parse infix declaration
+  partial def parseInfixDecl (rightAssoc : Bool) : Parser Decl := fun s =>
+    let s := s.advance  -- skip 'infix'/'infixr'/'infixl'
+    match s.peekToken? with
+    | some (.int prec) =>
+      let s := s.advance
+      match expectIdent s with
+      | .ok (op, s') => .ok (.infix_ prec.toNat rightAssoc op, s')
+      | .error msg => .error msg
+    | some tok => .error s!"expected precedence number but found {tok}"
+    | none => .error "unexpected EOF"
+
+  partial def parseDecls : Parser (List Decl) := many parseDecl
 end
 
-def parse (input : String) : Except String Expr :=
-  let s : ParseState := { input := input, pos := 0 }
-  match parseExpr s with
-  | .ok (e, s') =>
-    let s' := skipWhitespace s'
-    if s'.eof then
-      .ok e
-    else
-      .error s!"unexpected input at position {s'.pos}"
-  | .error msg => .error msg
+-- Parse a complete program
+def parseProgram (input : String) : Except String Program := do
+  let tokens ← tokenize input
+  let s : ParseState := { tokens := tokens }
+  let (decls, s') ← parseDecls s
+  if s'.eof then
+    .ok decls
+  else
+    .error s!"unexpected token at end of input: {s'.peekToken?}"
+
+-- Parse a single expression (for REPL)
+def parseExprString (input : String) : Except String Expr := do
+  let tokens ← tokenize input
+  let s : ParseState := { tokens := tokens }
+  let (expr, s') ← parseExpr s
+  if s'.eof then
+    .ok expr
+  else
+    .error s!"unexpected token at end of input: {s'.peekToken?}"
+
+-- Backward compatibility alias
+def parse (input : String) : Except String Expr := parseExprString input
 
 end Ziku
