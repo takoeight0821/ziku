@@ -7,6 +7,15 @@ description: This skill should be used when the user asks to "create a commit", 
 
 Guidance for creating well-structured commit messages following the Conventional Commits specification.
 
+## Commit Workflow
+
+1. Run `git status` and `git diff` to analyze changes
+2. If there are unstaged changes to include, stage them with `git add`
+3. Check recent commits with `git log --oneline -5` for style reference
+4. Determine the appropriate commit type based on the nature of changes
+5. Write a concise commit message in imperative mood
+6. Create the commit
+
 ## Commit Message Structure
 
 ```
@@ -69,15 +78,6 @@ Default limit is 100 requests per minute per user.
 
 Closes #123
 ```
-
-## Commit Workflow
-
-1. Review changes with `git status` and `git diff`
-2. Determine the appropriate commit type based on the nature of changes
-3. Identify scope if changes are focused on a specific component
-4. Write a concise description in imperative mood
-5. Add body for complex changes explaining the "why"
-6. Include footer for issue references or breaking changes
 
 ## Breaking Changes
 
