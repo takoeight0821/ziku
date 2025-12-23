@@ -8,3 +8,7 @@ name = "Ziku"
 [[lean_exe]]
 name = "ziku"
 root = "Main"
+
+[[lean_exe]]
+name = "golden-test"
+root = "tests.GoldenTest"

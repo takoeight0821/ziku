@@ -1,0 +1,1 @@
+(BinOp + (Field (Var "point") "x") (Field (Var "point") "y"))

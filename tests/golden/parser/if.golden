@@ -1,0 +1,1 @@
+(If (Lit true) (Lit 1) (Lit 0))
