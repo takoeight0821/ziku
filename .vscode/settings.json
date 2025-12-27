@@ -2,7 +2,7 @@
     "chat.tools.terminal.autoApprove": {
         "lake test": true,
         "lake build": true,
-        ".lake/build/bin/ziku": true,
+        "lake exe ziku": true,
         "hexdump": true,
         "cd": true,
         "sed": true,
