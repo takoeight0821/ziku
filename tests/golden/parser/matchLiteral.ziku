@@ -1,0 +1,5 @@
+match x with
+| 0 => "zero"
+| 1 => "one"
+| _ => "other"
+end

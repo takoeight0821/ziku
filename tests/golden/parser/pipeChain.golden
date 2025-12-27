@@ -1,0 +1,1 @@
+(BinOp |> (BinOp |> (BinOp |> (Var "x") (Var "f")) (Var "g")) (Var "h"))

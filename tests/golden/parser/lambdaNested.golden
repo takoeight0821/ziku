@@ -1,0 +1,1 @@
+(Lam ["x"] (Lam ["y"] (BinOp + (Var "x") (Var "y"))))

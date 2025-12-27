@@ -1,0 +1,1 @@
+(LetRec "fact" (Lam ["n"] (If (BinOp == (Var "n") (Lit 0)) (Lit 1) (BinOp * (Var "n") (App (Var "fact") (BinOp - (Var "n") (Lit 1)))))) (Var "fact"))

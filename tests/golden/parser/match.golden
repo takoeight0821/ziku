@@ -1,0 +1,1 @@
+(Match (Lit true) [(true => (Lit 1)), (false => (Lit 0))])

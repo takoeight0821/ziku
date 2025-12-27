@@ -1,0 +1,4 @@
+match xs with
+| Cons (Cons x _) _ => x
+| _ => 0
+end

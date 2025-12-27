@@ -1,0 +1,4 @@
+match x with
+| Nil => 0
+| _ => 1
+end

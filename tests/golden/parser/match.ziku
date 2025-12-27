@@ -1,0 +1,4 @@
+match true with
+| true => 1
+| false => 0
+end

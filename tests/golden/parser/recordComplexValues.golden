@@ -1,0 +1,1 @@
+(Record { x = (BinOp + (Lit 1) (Lit 2)), y = (Lam ["z"] (BinOp * (Var "z") (Lit 3))) })

@@ -1,0 +1,1 @@
+(Codata [(#(x) => (BinOp + (Var "x") (Lit 1)))])

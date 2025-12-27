@@ -1,0 +1,1 @@
+(Codata [(#.field => (Lit 1)), (#(x) => (Var "x"))])

@@ -1,0 +1,1 @@
+(App (App (App (Var "f") (Var "x")) (App (Var "g") (Var "y"))) (Var "z"))
