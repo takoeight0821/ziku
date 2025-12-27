@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.Elaborate
 
 namespace Ziku
 
@@ -9,13 +10,16 @@ This module provides a simple evaluator for Ziku expressions.
 Currently only supports arithmetic operations on integers.
 -/
 
--- Simplified value type (no closures for now)
+-- Value type with closures and lazy record fields
 inductive Value where
   | int : Int → Value
   | bool : Bool → Value
   | unit : Value
   | string : String → Value
   | char : Char → Value
+  | closure : List (Ident × Value) → Ident → Expr → Value  -- Closure for lambdas (env inlined)
+  | thunk : List (Ident × Value) → Expr → Value             -- Unevaluated expression (for lazy fields, env inlined)
+  | record : List (Ident × Value) → Value  -- Record with lazy fields (thunks)
   deriving Repr, BEq
 
 -- Environment mapping variables to values
@@ -84,8 +88,7 @@ def evalUnaryOp (op : UnaryOp) (v : Value) : Option Value :=
     | some b => some (.bool (!b))
     | none => none
 
--- Simple evaluator (handles basic arithmetic expressions)
--- Note: Lambdas and application not yet supported in this simplified version
+-- Simple evaluator (handles basic arithmetic expressions, lambdas, records)
 partial def eval (env : Env) : Expr → Option Value
   | .lit _ (.int n) => some (.int n)
   | .lit _ (.bool b) => some (.bool b)
@@ -94,7 +97,6 @@ partial def eval (env : Env) : Expr → Option Value
   | .lit _ (.char c) => some (.char c)
   | .lit _ (.float _) => none  -- Float not yet supported
   | .var _ x => env.lookup x
-  | .hash _ => none  -- Self-reference needs special handling
   | .binOp _ op e1 e2 =>
     match eval env e1, eval env e2 with
     | some v1, some v2 => evalBinOp op v1 v2
@@ -103,8 +105,18 @@ partial def eval (env : Env) : Expr → Option Value
     match eval env e with
     | some v => evalUnaryOp op v
     | none => none
-  | .lam _ _ _ => none  -- Lambdas not yet supported
-  | .app _ _ _ => none  -- Application not yet supported
+  | .lam _pos param body => some (.closure env param body)
+  | .app _ fn arg => do
+    let fnVal ← eval env fn
+    -- Force evaluation of thunks
+    let fnVal ← match fnVal with
+      | .thunk tenv te => eval tenv te
+      | v => some v
+    match fnVal with
+    | .closure closureEnv param body =>
+      let argVal ← eval env arg
+      eval ((param, argVal) :: closureEnv) body
+    | _ => none
   | .let_ _ x _ e1 e2 =>
     match eval env e1 with
     | some v => eval ((x, v) :: env) e2
@@ -116,10 +128,33 @@ partial def eval (env : Env) : Expr → Option Value
     | some (.bool false) => eval env elseBranch
     | _ => none
   | .match_ _ _ _ => none  -- Pattern matching not yet implemented
-  | .codata _ _ => none    -- Codata blocks not yet implemented
-  | .field _ _ _ => none   -- Field access not yet implemented
+  | .codata pos clauses =>
+    -- Elaborate codata to record/lambda before evaluation
+    match elaborate pos clauses with
+    | .ok elaborated => eval env elaborated
+    | .error _ => none
+  | .field _ e fieldName => do
+    let recVal ← eval env e
+    -- Force evaluation of thunks
+    let recVal ← match recVal with
+      | .thunk tenv te => eval tenv te
+      | v => some v
+    match recVal with
+    | .record fields =>
+      -- Lookup field and force it (lazy evaluation)
+      match fields.lookup fieldName with
+      | some fieldVal =>
+        -- Force the field value (lazy evaluation)
+        match fieldVal with
+        | .thunk fenv fe => eval fenv fe
+        | v => some v
+      | none => none
+    | _ => none
   | .ann _ e _ => eval env e
-  | .record _ _ => none    -- Records not yet implemented
+  | .record _ fields =>
+    -- Wrap each field value in a thunk for lazy evaluation
+    let lazyFields := fields.map (fun (name, expr) => (name, .thunk env expr))
+    some (.record lazyFields)
   | .cut _ _ _ => none     -- Sequent cut not yet implemented
   | .mu _ _ _ => none      -- Mu abstraction not yet implemented
 
@@ -130,6 +165,11 @@ def Value.toString : Value → String
   | .unit => "()"
   | .string s => s!"\"{s}\""
   | .char c => s!"'{c}'"
+  | .closure _ _ _ => "<closure>"
+  | .thunk _ _ => "<thunk>"
+  | .record fields =>
+    let fs := fields.map (fun (n, _) => s!"{n} = <lazy>")
+    "{ " ++ String.intercalate ", " fs ++ " }"
 
 instance : ToString Value := ⟨Value.toString⟩
 

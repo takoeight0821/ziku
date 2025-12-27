@@ -104,10 +104,9 @@ abbrev Copattern := List Accessor
 inductive Expr where
   | lit       : SourcePos → Lit → Expr                              -- Literal: 42
   | var       : SourcePos → Ident → Expr                            -- Variable: x
-  | hash      : SourcePos → Expr                                    -- The # symbol (self-reference)
   | binOp     : SourcePos → BinOp → Expr → Expr → Expr              -- Binary op: a + b
   | unaryOp   : SourcePos → UnaryOp → Expr → Expr                   -- Unary op: -x, not p
-  | lam       : SourcePos → List Ident → Expr → Expr                -- Lambda: \x, y => e
+  | lam       : SourcePos → Ident → Expr → Expr                     -- Lambda: \x => e
   | app       : SourcePos → Expr → Expr → Expr                      -- Application: f x
   | let_      : SourcePos → Ident → Option Ty → Expr → Expr → Expr  -- Let: let x : ty = e in body
   | letRec    : SourcePos → Ident → Option Ty → Expr → Expr → Expr  -- Let rec: let rec f = e in body
@@ -125,7 +124,6 @@ inductive Expr where
 def Expr.pos : Expr → SourcePos
   | lit p _ => p
   | var p _ => p
-  | hash p => p
   | binOp p _ _ _ => p
   | unaryOp p _ _ => p
   | lam p _ _ => p
@@ -179,7 +177,6 @@ abbrev Program := List Decl
 partial def Expr.exprSize : Expr → Nat
   | lit _ _ => 1
   | var _ _ => 1
-  | hash _ => 1
   | binOp _ _ e1 e2 => 1 + e1.exprSize + e2.exprSize
   | unaryOp _ _ e => 1 + e.exprSize
   | lam _ _ e => 1 + e.exprSize
@@ -199,10 +196,9 @@ partial def Expr.exprSize : Expr → Nat
 partial def Expr.freeVars : Expr → List Ident
   | lit _ _ => []
   | var _ x => [x]
-  | hash _ => []
   | binOp _ _ e1 e2 => e1.freeVars ++ e2.freeVars
   | unaryOp _ _ e => e.freeVars
-  | lam _ xs e => e.freeVars.filter (fun v => !xs.contains v)
+  | lam _ x e => e.freeVars.filter (fun v => v != x)
   | app _ e1 e2 => e1.freeVars ++ e2.freeVars
   | let_ _ x _ e1 e2 => e1.freeVars ++ e2.freeVars.filter (· != x)
   | letRec _ x _ e1 e2 =>
@@ -296,10 +292,9 @@ def Copattern.toString (cp : Copattern) : String :=
 partial def Expr.toString : Expr → String
   | .lit _ l => s!"(Lit {l})"
   | .var _ x => s!"(Var \"{x}\")"
-  | .hash _ => "#"
   | .binOp _ op e1 e2 => s!"(BinOp {op} {e1.toString} {e2.toString})"
   | .unaryOp _ op e => s!"(UnaryOp {op} {e.toString})"
-  | .lam _ ps body => s!"(Lam [{String.intercalate ", " (ps.map (s!"\"{·}\""))}] {body.toString})"
+  | .lam _ p body => s!"(Lam \"{p}\" {body.toString})"
   | .app _ e1 e2 => s!"(App {e1.toString} {e2.toString})"
   | .let_ _ x ty e1 e2 =>
     let tyStr := match ty with | some t => s!" : {t}" | none => ""

@@ -4,6 +4,7 @@ import Ziku.Syntax
 import Ziku.Lexer
 import Ziku.Type
 import Ziku.Parser
+import Ziku.Elaborate
 import Ziku.Infer
 import Ziku.Eval
 import Ziku.Proofs.Eval

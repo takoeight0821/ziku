@@ -1,5 +1,6 @@
 import Ziku.Syntax
 import Ziku.Type
+import Ziku.Elaborate
 
 namespace Ziku
 
@@ -192,8 +193,6 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
       let ty ← instantiate scheme
       return (ty, [])
     | none => throw $ .unboundVariable pos x
-  | .hash pos =>
-    throw $ .notImplemented pos "self-reference (#)"
   -- Special case for pipe operator: e1 |> e2  ≡  e2(e1)
   -- Type rule: Γ ⊢ e1 : α, Γ ⊢ e2 : α → β  ⇒  e1 |> e2 : β
   | .binOp pos .pipe e1 e2 => do
@@ -214,22 +213,19 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     let (t, subst) ← infer env e
     let subst' ← unifyAt (e.pos) t expectedTy
     return (resultTy, subst ++ subst')
-  | .lam pos params body => do
-    -- Generate fresh type variables for parameters
-    let mut paramTys : List Ty := []
-    for _ in params do
-      let ty ← freshTyVar
-      paramTys := paramTys ++ [ty]
-    let paramSchemes := paramTys.map (fun ty => { vars := [], ty := ty })
-    let env' := (params.zip paramSchemes) ++ env
+  | .lam pos param body => do
+    -- Generate fresh type variable for the single parameter
+    let paramTy ← freshTyVar
+    let paramScheme : Scheme := { vars := [], ty := paramTy }
+    let env' := (param, paramScheme) :: env
     let (bodyTy, subst) ← infer env' body
-    let funTy := paramTys.foldr (fun t acc => .arrow pos t acc) bodyTy
+    let funTy : Ty := Ty.arrow pos paramTy bodyTy
     return (funTy.applySubst subst, subst)
   | .app pos fn arg => do
     let (fnTy, subst1) ← infer env fn
     let (argTy, subst2) ← infer (env.applySubst subst1) arg
     let resultTy ← freshTyVar
-    let subst3 ← unifyAt pos (fnTy.applySubst subst2) (.arrow pos argTy resultTy)
+    let subst3 ← unifyAt pos (fnTy.applySubst subst2) (.arrow dummyPos argTy resultTy)
     return (resultTy.applySubst subst3, subst1 ++ subst2 ++ subst3)
   | .let_ _ x tyOpt e1 e2 => do
     let (t1, subst1) ← infer env e1
@@ -293,8 +289,11 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     match resultTy with
     | some ty => return (ty, accSubst)
     | none => throw $ .customError pos "match expression has no cases"
-  | .codata pos _ =>
-    throw $ .notImplemented pos "codata blocks"
+  | .codata pos clauses => do
+    -- Elaborate codata to record/lambda before type inference
+    match elaborate pos clauses with
+    | .ok elaborated => infer env elaborated
+    | .error err => throw $ .customError pos (toString err)
   | .field pos e field => do
     -- Infer type of the record expression
     let (recTy, subst) ← infer env e

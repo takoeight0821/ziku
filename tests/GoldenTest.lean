@@ -98,7 +98,7 @@ def parserTests : List String :=
 
 /-- List of eval test cases -/
 def evalTests : List String :=
-  ["arithmetic", "let", "if"]
+  ["arithmetic", "let", "if", "codataField", "codataCallable", "codataMultiParam", "codataNested"]
 
 /-- List of type inference test cases -/
 def inferTests : List String :=
@@ -113,6 +113,7 @@ def inferTests : List String :=
    "match_var_pattern", "match_literal_pattern", "match_bool_scrutinee", "match_annotated_pattern",
    "record_simple", "record_field_access", "record_let_binding", "record_nested",
    "pipe_operator",
+   "codata_field", "codata_callable", "codata_multi_param", "codata_nested",
    "unbound_variable", "type_mismatch"]
 
 /-- Run all tests in a category -/

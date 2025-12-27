@@ -238,29 +238,7 @@ def map : (a -> b) -> List a -> Stream b = {
 }
 ```
 
----
-
-## Referencing `#` in Expressions
-
-```ziku
--- # can appear on RHS to reference the object being defined (for recursion)
-def ones : Stream Int = {
-  #.head => 1
-  #.tail => #    -- # refers to ones itself
-}
-
--- Equivalent to
-def ones : Stream Int = {
-  #.head => 1
-  #.tail => ones
-}
-
--- Useful for self-referential structures
-def cycle : a -> Stream a = \x => {
-  #.head => x
-  #.tail => #
-}
-```
+**Note**: `#` can only appear in copattern positions (to the left of `=>`). For self-reference in expressions, you must explicitly use the defined name (e.g., `ones` instead of `#`).
 
 ---
 

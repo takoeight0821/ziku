@@ -4,6 +4,7 @@
         "lake build": true,
         "lake exe ziku": true,
         "hexdump": true,
+        "timeout": true,
         "cd": true,
         "sed": true,
         "echo": true,

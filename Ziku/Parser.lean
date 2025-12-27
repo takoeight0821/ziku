@@ -504,8 +504,8 @@ mutual
     | some (.char c) => .ok (Expr.lit pos (.char c), s.advance)
     | some .kTrue => .ok (Expr.lit pos (.bool true), s.advance)
     | some .kFalse => .ok (Expr.lit pos (.bool false), s.advance)
-    -- Hash (self-reference)
-    | some .hash => .ok (Expr.hash pos, s.advance)
+    -- Hash (self-reference) - only allowed in copattern positions
+    | some .hash => .error "# can only appear in copattern positions, not in expressions"
     -- Variable or constructor
     | some (.ident id) => .ok (Expr.var pos id, s.advance)
     | some (.conId id) => .ok (Expr.var pos id, s.advance)
@@ -548,7 +548,7 @@ mutual
     | some tok => .error s!"expected expression but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
     | none => .error "expected expression but found EOF"
 
-  -- Parse lambda: \x, y => e
+  -- Parse lambda: \x, y => e (desugared to \x => \y => e)
   partial def parseLambda : Parser Expr := fun s =>
     let pos := s.currentPos
     let s := s.advance  -- skip \
@@ -557,7 +557,10 @@ mutual
       match expect .fatArrow s' with
       | .ok (_, s'') =>
         match parseExpr s'' with
-        | .ok (body, s''') => .ok (Expr.lam pos params body, s''')
+        | .ok (body, s''') =>
+          -- Desugar multi-param lambda to nested single-param lambdas
+          let result := params.foldr (fun param acc => Expr.lam pos param acc) body
+          .ok (result, s''')
         | .error msg => .error msg
       | .error msg => .error msg
     | .error msg => .error msg
@@ -1259,7 +1262,7 @@ mutual
     | some (.char c) => .ok (Expr.lit pos (.char c), s.advance)
     | some .kTrue => .ok (Expr.lit pos (.bool true), s.advance)
     | some .kFalse => .ok (Expr.lit pos (.bool false), s.advance)
-    | some .hash => .ok (Expr.hash pos, s.advance)
+    | some .hash => .error "# can only appear in copattern positions, not in expressions"
     | some (.ident id) => .ok (Expr.var pos id, s.advance)
     | some (.conId id) => .ok (Expr.var pos id, s.advance)
     | some .backslash => parseLambda s
