@@ -1,0 +1,4 @@
+let rec map = \f, xs => xs in
+let applyTwice = \f, x => f (f x) in
+let add1 = \x => x + 1 in
+applyTwice add1 5

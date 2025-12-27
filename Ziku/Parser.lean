@@ -142,26 +142,37 @@ mutual
   partial def parseType : Parser Ty := parseArrowType
 
   -- Parse arrow type (right associative)
-  partial def parseArrowType : Parser Ty := do
-    let left ← parseAppType
-    let hasArrow ← tryToken .arrow
-    if hasArrow then
-      let right ← parseArrowType
-      return .arrow left right
-    else
-      return left
+  partial def parseArrowType : Parser Ty := fun s =>
+    let pos := s.currentPos
+    match parseAppType s with
+    | .ok (left, s') =>
+      match tryToken .arrow s' with
+      | .ok (hasArrow, s'') =>
+        if hasArrow then
+          match parseArrowType s'' with
+          | .ok (right, s''') => .ok (Ty.arrow pos left right, s''')
+          | .error msg => .error msg
+        else
+          .ok (left, s'')
+      | .error msg => .error msg
+    | .error msg => .error msg
 
   -- Parse type application
-  partial def parseAppType : Parser Ty := do
-    let base ← parseAtomType
-    let args ← many parseAtomType
-    return args.foldl Ty.app base
+  partial def parseAppType : Parser Ty := fun s =>
+    let pos := s.currentPos
+    match parseAtomType s with
+    | .ok (base, s') =>
+      match many parseAtomType s' with
+      | .ok (args, s'') => .ok (args.foldl (Ty.app pos) base, s'')
+      | .error msg => .error msg
+    | .error msg => .error msg
 
   -- Parse atomic type
   partial def parseAtomType : Parser Ty := fun s =>
+    let pos := s.currentPos
     match s.peekToken? with
-    | some (.ident id) => .ok (.var id, s.advance)
-    | some (.conId id) => .ok (.con id, s.advance)
+    | some (.ident id) => .ok (.var pos id, s.advance)
+    | some (.conId id) => .ok (.con pos id, s.advance)
     | some .kForall =>
       let s := s.advance
       match parseTypeVars s with
@@ -170,7 +181,7 @@ mutual
         | .ok (_, s'') =>
           match parseType s'' with
           | .ok (ty, s''') =>
-            let result := vars.foldr (fun v acc => Ty.forall_ v acc) ty
+            let result := vars.foldr (fun v acc => Ty.forall_ pos v acc) ty
             .ok (result, s''')
           | .error msg => .error msg
         | .error msg => .error msg
@@ -189,7 +200,7 @@ mutual
       match parseRecordTypeFields s with
       | .ok (fields, s') =>
         match expect .rbrace s' with
-        | .ok (_, s'') => .ok (.record fields, s'')
+        | .ok (_, s'') => .ok (.record pos fields, s'')
         | .error msg => .error msg
       | .error msg => .error msg
     | some tok => .error s!"expected type but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
@@ -210,20 +221,21 @@ mutual
   partial def parsePattern : Parser Pat := parsePatternAtom
 
   partial def parsePatternAtom : Parser Pat := fun s =>
+    let pos := s.currentPos
     match s.peekToken? with
-    | some (.ident id) => .ok (.var id, s.advance)
+    | some (.ident id) => .ok (.var pos id, s.advance)
     | some (.conId id) =>
       -- Constructor pattern, possibly with arguments
       let s := s.advance
       match many parsePatternAtom s with
-      | .ok (args, s') => .ok (.con id args, s')
+      | .ok (args, s') => .ok (.con pos id args, s')
       | .error msg => .error msg
-    | some (.int n) => .ok (.lit (.int n), s.advance)
-    | some (.string str) => .ok (.lit (.string str), s.advance)
-    | some (.char c) => .ok (.lit (.char c), s.advance)
-    | some .kTrue => .ok (.lit (.bool true), s.advance)
-    | some .kFalse => .ok (.lit (.bool false), s.advance)
-    | some .underscore => .ok (.wild, s.advance)
+    | some (.int n) => .ok (.lit pos (.int n), s.advance)
+    | some (.string str) => .ok (.lit pos (.string str), s.advance)
+    | some (.char c) => .ok (.lit pos (.char c), s.advance)
+    | some .kTrue => .ok (.lit pos (.bool true), s.advance)
+    | some .kFalse => .ok (.lit pos (.bool false), s.advance)
+    | some .underscore => .ok (.wild pos, s.advance)
     | some .lparen =>
       let s := s.advance
       match parsePattern s with
@@ -235,10 +247,10 @@ mutual
           match parseType s' with
           | .ok (ty, s'') =>
             match expect .rparen s'' with
-            | .ok (_, s''') => .ok (.ann p ty, s''')
+            | .ok (_, s''') => .ok (.ann pos p ty, s''')
             | .error msg => .error msg
           | .error msg => .error msg
-        | some .rparen => .ok (.paren p, s'.advance)
+        | some .rparen => .ok (.paren pos p, s'.advance)
         | some tok => .error s!"expected ')' or ':' but found {tok}"
         | none => .error "unexpected EOF in pattern"
       | .error msg => .error msg
@@ -279,12 +291,13 @@ mutual
     parsePipeRest left
 
   partial def parsePipeRest (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .pipeGt =>
       let s := s.advance
       match parseOrExpr s with
       | .ok (right, s') =>
-        parsePipeRest (Expr.binOp .pipe left right) s'
+        parsePipeRest (Expr.binOp pos .pipe left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -294,12 +307,13 @@ mutual
     parseOrRest left
 
   partial def parseOrRest (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .pipeOr =>
       let s := s.advance
       match parseAndExpr s with
       | .ok (right, s') =>
-        parseOrRest (Expr.binOp .or left right) s'
+        parseOrRest (Expr.binOp pos .or left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -309,12 +323,13 @@ mutual
     parseAndRest left
 
   partial def parseAndRest (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .ampAmp =>
       let s := s.advance
       match parseCompareExpr s with
       | .ok (right, s') =>
-        parseAndRest (Expr.binOp .and left right) s'
+        parseAndRest (Expr.binOp pos .and left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -324,37 +339,38 @@ mutual
     parseCompareRest left
 
   partial def parseCompareRest (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .eqEq =>
       let s := s.advance
       match parseConcatExpr s with
-      | .ok (right, s') => .ok (Expr.binOp .eq left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .eq left right, s')
       | .error msg => .error msg
     | some .neq =>
       let s := s.advance
       match parseConcatExpr s with
-      | .ok (right, s') => .ok (Expr.binOp .ne left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .ne left right, s')
       | .error msg => .error msg
     | some .langle =>
       -- Check it's not part of something else
       let s := s.advance
       match parseConcatExpr s with
-      | .ok (right, s') => .ok (Expr.binOp .lt left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .lt left right, s')
       | .error msg => .error msg
     | some .le =>
       let s := s.advance
       match parseConcatExpr s with
-      | .ok (right, s') => .ok (Expr.binOp .le left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .le left right, s')
       | .error msg => .error msg
     | some .rangle =>
       let s := s.advance
       match parseConcatExpr s with
-      | .ok (right, s') => .ok (Expr.binOp .gt left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .gt left right, s')
       | .error msg => .error msg
     | some .ge =>
       let s := s.advance
       match parseConcatExpr s with
-      | .ok (right, s') => .ok (Expr.binOp .ge left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .ge left right, s')
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -364,11 +380,12 @@ mutual
     parseConcatRest left
 
   partial def parseConcatRest (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .plusPlus =>
       let s := s.advance
       match parseConcatExpr s with  -- Right associative
-      | .ok (right, s') => .ok (Expr.binOp .concat left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .concat left right, s')
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -378,18 +395,19 @@ mutual
     parseAddRest left
 
   partial def parseAddRest (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .plus =>
       let s := s.advance
       match parseMulExpr s with
       | .ok (right, s') =>
-        parseAddRest (Expr.binOp .add left right) s'
+        parseAddRest (Expr.binOp pos .add left right) s'
       | .error msg => .error msg
     | some .minus =>
       let s := s.advance
       match parseMulExpr s with
       | .ok (right, s') =>
-        parseAddRest (Expr.binOp .sub left right) s'
+        parseAddRest (Expr.binOp pos .sub left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -399,33 +417,35 @@ mutual
     parseMulRest left
 
   partial def parseMulRest (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .star =>
       let s := s.advance
       match parseUnaryExpr s with
       | .ok (right, s') =>
-        parseMulRest (Expr.binOp .mul left right) s'
+        parseMulRest (Expr.binOp pos .mul left right) s'
       | .error msg => .error msg
     | some .slash =>
       let s := s.advance
       match parseUnaryExpr s with
       | .ok (right, s') =>
-        parseMulRest (Expr.binOp .div left right) s'
+        parseMulRest (Expr.binOp pos .div left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
   -- Unary expression
   partial def parseUnaryExpr : Parser Expr := fun s =>
+    let pos := s.currentPos
     match s.peekToken? with
     | some .minus =>
       let s := s.advance
       match parseUnaryExpr s with
-      | .ok (e, s') => .ok (Expr.unaryOp .neg e, s')
+      | .ok (e, s') => .ok (Expr.unaryOp pos .neg e, s')
       | .error msg => .error msg
     | some .kNot =>
       let s := s.advance
       match parseUnaryExpr s with
-      | .ok (e, s') => .ok (Expr.unaryOp .not e, s')
+      | .ok (e, s') => .ok (Expr.unaryOp pos .not e, s')
       | .error msg => .error msg
     | _ => parseAppExpr s
 
@@ -435,6 +455,7 @@ mutual
     parseAppArgs base
 
   partial def parseAppArgs (base : Expr) : Parser Expr := fun s =>
+    let pos := base.pos
     match s.peekToken? with
     | some .lparen =>
       -- Parenthesized arguments: f(x) or f(x, y)
@@ -444,7 +465,7 @@ mutual
         match expect .rparen s' with
         | .ok (_, s'') =>
           -- Apply arguments as curried: f(x, y) becomes (f x) y
-          let result := args.foldl Expr.app base
+          let result := args.foldl (Expr.app pos) base
           parseAppArgs result s''
         | .error msg => .error msg
       | .error msg => .error msg
@@ -453,7 +474,7 @@ mutual
       match parseFieldExpr s with
       | .ok (arg, s') =>
         -- Check if this is really an argument or a different expression
-        parseAppArgs (Expr.app base arg) s'
+        parseAppArgs (Expr.app pos base arg) s'
       | .error _ => .ok (base, s)
 
   -- Field access
@@ -464,28 +485,30 @@ mutual
   partial def parseFieldRest (base : Expr) : Parser Expr := fun s =>
     match s.peekToken?, s.peekN 1 with
     | some .dot, some ptok =>
+      let pos := base.pos
       match ptok.token with
       | .ident field =>
         let s := s.advance.advance
-        parseFieldRest (Expr.field base field) s
+        parseFieldRest (Expr.field pos base field) s
       | _ => .ok (base, s)
     | _, _ => .ok (base, s)
 
   -- Atomic expression
   partial def parseAtomExpr : Parser Expr := fun s =>
+    let pos := s.currentPos
     match s.peekToken? with
     -- Literals
-    | some (.int n) => .ok (Expr.lit (.int n), s.advance)
-    | some (.float f) => .ok (Expr.lit (.float f), s.advance)
-    | some (.string str) => .ok (Expr.lit (.string str), s.advance)
-    | some (.char c) => .ok (Expr.lit (.char c), s.advance)
-    | some .kTrue => .ok (Expr.lit (.bool true), s.advance)
-    | some .kFalse => .ok (Expr.lit (.bool false), s.advance)
+    | some (.int n) => .ok (Expr.lit pos (.int n), s.advance)
+    | some (.float f) => .ok (Expr.lit pos (.float f), s.advance)
+    | some (.string str) => .ok (Expr.lit pos (.string str), s.advance)
+    | some (.char c) => .ok (Expr.lit pos (.char c), s.advance)
+    | some .kTrue => .ok (Expr.lit pos (.bool true), s.advance)
+    | some .kFalse => .ok (Expr.lit pos (.bool false), s.advance)
     -- Hash (self-reference)
-    | some .hash => .ok (Expr.hash, s.advance)
+    | some .hash => .ok (Expr.hash pos, s.advance)
     -- Variable or constructor
-    | some (.ident id) => .ok (Expr.var id, s.advance)
-    | some (.conId id) => .ok (Expr.var id, s.advance)
+    | some (.ident id) => .ok (Expr.var pos id, s.advance)
+    | some (.conId id) => .ok (Expr.var pos id, s.advance)
     -- Lambda
     | some .backslash => parseLambda s
     -- Let
@@ -502,7 +525,7 @@ mutual
     | some .lparen =>
       let s := s.advance
       match s.peekToken? with
-      | some .rparen => .ok (Expr.lit .unit, s.advance)
+      | some .rparen => .ok (Expr.lit pos .unit, s.advance)
       | _ =>
         match parseExpr s with
         | .ok (e, s') =>
@@ -513,7 +536,7 @@ mutual
             match parseType s' with
             | .ok (ty, s'') =>
               match expect .rparen s'' with
-              | .ok (_, s''') => .ok (Expr.ann e ty, s''')
+              | .ok (_, s''') => .ok (Expr.ann pos e ty, s''')
               | .error msg => .error msg
             | .error msg => .error msg
           | some .rparen => .ok (e, s'.advance)
@@ -527,19 +550,21 @@ mutual
 
   -- Parse lambda: \x, y => e
   partial def parseLambda : Parser Expr := fun s =>
+    let pos := s.currentPos
     let s := s.advance  -- skip \
     match sepBy1 expectIdent (expect .comma) s with
     | .ok (params, s') =>
       match expect .fatArrow s' with
       | .ok (_, s'') =>
         match parseExpr s'' with
-        | .ok (body, s''') => .ok (Expr.lam params body, s''')
+        | .ok (body, s''') => .ok (Expr.lam pos params body, s''')
         | .error msg => .error msg
       | .error msg => .error msg
     | .error msg => .error msg
 
   -- Parse let: let x = e in body or let rec f = e in body
   partial def parseLet : Parser Expr := fun s =>
+    let pos := s.currentPos
     let s := s.advance  -- skip 'let'
     match s.peekToken? with
     | some .kRec =>
@@ -559,7 +584,7 @@ mutual
             match expect .kIn s''' with
             | .ok (_, s'''') =>
               match parseExpr s'''' with
-              | .ok (body, s''''') => .ok (Expr.letRec name tyOpt value body, s''''')
+              | .ok (body, s''''') => .ok (Expr.letRec pos name tyOpt value body, s''''')
               | .error msg => .error msg
             | .error msg => .error msg
           | .error msg => .error msg
@@ -581,7 +606,7 @@ mutual
             match expect .kIn s''' with
             | .ok (_, s'''') =>
               match parseExpr s'''' with
-              | .ok (body, s''''') => .ok (Expr.let_ name tyOpt value body, s''''')
+              | .ok (body, s''''') => .ok (Expr.let_ pos name tyOpt value body, s''''')
               | .error msg => .error msg
             | .error msg => .error msg
           | .error msg => .error msg
@@ -590,6 +615,7 @@ mutual
 
   -- Parse match: match e with | p => e end
   partial def parseMatch : Parser Expr := fun s =>
+    let pos := s.currentPos
     let s := s.advance  -- skip 'match'
     match parseExpr s with
     | .ok (scrutinee, s') =>
@@ -598,7 +624,7 @@ mutual
         match parseMatchCases s'' with
         | .ok (cases, s''') =>
           match expect .kEnd s''' with
-          | .ok (_, s'''') => .ok (Expr.match_ scrutinee cases, s'''')
+          | .ok (_, s'''') => .ok (Expr.match_ pos scrutinee cases, s'''')
           | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
@@ -622,6 +648,7 @@ mutual
 
   -- Parse if: if c then t else f
   partial def parseIf : Parser Expr := fun s =>
+    let pos := s.currentPos
     let s := s.advance  -- skip 'if'
     match parseExpr s with
     | .ok (cond, s') =>
@@ -632,7 +659,7 @@ mutual
           match expect .kElse s''' with
           | .ok (_, s'''') =>
             match parseExpr s'''' with
-            | .ok (elseBranch, s''''') => .ok (Expr.if_ cond thenBranch elseBranch, s''''')
+            | .ok (elseBranch, s''''') => .ok (Expr.if_ pos cond thenBranch elseBranch, s''''')
             | .error msg => .error msg
           | .error msg => .error msg
         | .error msg => .error msg
@@ -641,19 +668,21 @@ mutual
 
   -- Parse mu: μk => e or mu k => e
   partial def parseMu : Parser Expr := fun s =>
+    let pos := s.currentPos
     let s := s.advance  -- skip 'μ' or 'mu'
     match expectIdent s with
     | .ok (name, s') =>
       match expect .fatArrow s' with
       | .ok (_, s'') =>
         match parseExpr s'' with
-        | .ok (body, s''') => .ok (Expr.mu name body, s''')
+        | .ok (body, s''') => .ok (Expr.mu pos name body, s''')
         | .error msg => .error msg
       | .error msg => .error msg
     | .error msg => .error msg
 
   -- Parse brace expression: codata block { #.f => e } or record { x = 1 }
   partial def parseBraceExpr : Parser Expr := fun s =>
+    let pos := s.currentPos
     let s := s.advance  -- skip '{'
     match s.peekToken? with
     | some .hash =>
@@ -661,7 +690,7 @@ mutual
       match parseCodataBlock s with
       | .ok (clauses, s') =>
         match expect .rbrace s' with
-        | .ok (_, s'') => .ok (Expr.codata clauses, s'')
+        | .ok (_, s'') => .ok (Expr.codata pos clauses, s'')
         | .error msg => .error msg
       | .error msg => .error msg
     | some .pipe =>
@@ -669,7 +698,7 @@ mutual
       match parseCodataBlock s with
       | .ok (clauses, s') =>
         match expect .rbrace s' with
-        | .ok (_, s'') => .ok (Expr.codata clauses, s'')
+        | .ok (_, s'') => .ok (Expr.codata pos clauses, s'')
         | .error msg => .error msg
       | .error msg => .error msg
     | some (.ident _) =>
@@ -682,7 +711,7 @@ mutual
           match parseRecordFields s with
           | .ok (fields, s') =>
             match expect .rbrace s' with
-            | .ok (_, s'') => .ok (Expr.record fields, s'')
+            | .ok (_, s'') => .ok (Expr.record pos fields, s'')
             | .error msg => .error msg
           | .error msg => .error msg
         else
@@ -690,16 +719,16 @@ mutual
           match parseCodataBlock s with
           | .ok (clauses, s') =>
             match expect .rbrace s' with
-            | .ok (_, s'') => .ok (Expr.codata clauses, s'')
+            | .ok (_, s'') => .ok (Expr.codata pos clauses, s'')
             | .error msg => .error msg
           | .error msg => .error msg
       | none => .error "unexpected EOF"
-    | some .rbrace => .ok (Expr.record [], s.advance)
+    | some .rbrace => .ok (Expr.record pos [], s.advance)
     | _ =>
       match parseCodataBlock s with
       | .ok (clauses, s') =>
         match expect .rbrace s' with
-        | .ok (_, s'') => .ok (Expr.codata clauses, s'')
+        | .ok (_, s'') => .ok (Expr.codata pos clauses, s'')
         | .error msg => .error msg
       | .error msg => .error msg
 
@@ -1015,6 +1044,7 @@ mutual
   -- Parse cut: cut <producer | consumer>
   -- Uses parseExprStop to avoid ambiguity with > comparison operator
   partial def parseCut : Parser Expr := fun s =>
+    let pos := s.currentPos
     let s := s.advance  -- skip 'cut'
     match expect .langle s with
     | .ok (_, s') =>
@@ -1025,7 +1055,7 @@ mutual
           match parseExprStop s''' with
           | .ok (consumer, s'''') =>
             match expect .rangle s'''' with
-            | .ok (_, s''''') => .ok (Expr.cut producer consumer, s''''')
+            | .ok (_, s''''') => .ok (Expr.cut pos producer consumer, s''''')
             | .error msg => .error msg
           | .error msg => .error msg
         | .error msg => .error msg
@@ -1039,12 +1069,13 @@ mutual
     parsePipeRestStop left
 
   partial def parsePipeRestStop (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .pipeGt =>
       let s := s.advance
       match parseOrExprStop s with
       | .ok (right, s') =>
-        parsePipeRestStop (Expr.binOp .pipe left right) s'
+        parsePipeRestStop (Expr.binOp pos .pipe left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -1053,12 +1084,13 @@ mutual
     parseOrRestStop left
 
   partial def parseOrRestStop (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .pipeOr =>
       let s := s.advance
       match parseAndExprStop s with
       | .ok (right, s') =>
-        parseOrRestStop (Expr.binOp .or left right) s'
+        parseOrRestStop (Expr.binOp pos .or left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -1067,12 +1099,13 @@ mutual
     parseAndRestStop left
 
   partial def parseAndRestStop (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .ampAmp =>
       let s := s.advance
       match parseCompareExprStop s with
       | .ok (right, s') =>
-        parseAndRestStop (Expr.binOp .and left right) s'
+        parseAndRestStop (Expr.binOp pos .and left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -1081,26 +1114,27 @@ mutual
     parseCompareRestStop left
 
   partial def parseCompareRestStop (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .eqEq =>
       let s := s.advance
       match parseConcatExprStop s with
-      | .ok (right, s') => .ok (Expr.binOp .eq left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .eq left right, s')
       | .error msg => .error msg
     | some .neq =>
       let s := s.advance
       match parseConcatExprStop s with
-      | .ok (right, s') => .ok (Expr.binOp .ne left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .ne left right, s')
       | .error msg => .error msg
     | some .langle =>
       let s := s.advance
       match parseConcatExprStop s with
-      | .ok (right, s') => .ok (Expr.binOp .lt left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .lt left right, s')
       | .error msg => .error msg
     | some .le =>
       let s := s.advance
       match parseConcatExprStop s with
-      | .ok (right, s') => .ok (Expr.binOp .le left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .le left right, s')
       | .error msg => .error msg
     | some .rangle =>
       -- Stop here; treat '>' as the end of cut
@@ -1108,7 +1142,7 @@ mutual
     | some .ge =>
       let s := s.advance
       match parseConcatExprStop s with
-      | .ok (right, s') => .ok (Expr.binOp .ge left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .ge left right, s')
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -1117,11 +1151,12 @@ mutual
     parseConcatRestStop left
 
   partial def parseConcatRestStop (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .plusPlus =>
       let s := s.advance
       match parseConcatExprStop s with
-      | .ok (right, s') => .ok (Expr.binOp .concat left right, s')
+      | .ok (right, s') => .ok (Expr.binOp pos .concat left right, s')
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -1130,16 +1165,17 @@ mutual
     parseAddRestStop left
 
   partial def parseAddRestStop (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .plus =>
       let s := s.advance
       match parseMulExprStop s with
-      | .ok (right, s') => parseAddRestStop (Expr.binOp .add left right) s'
+      | .ok (right, s') => parseAddRestStop (Expr.binOp pos .add left right) s'
       | .error msg => .error msg
     | some .minus =>
       let s := s.advance
       match parseMulExprStop s with
-      | .ok (right, s') => parseAddRestStop (Expr.binOp .sub left right) s'
+      | .ok (right, s') => parseAddRestStop (Expr.binOp pos .sub left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
@@ -1148,30 +1184,32 @@ mutual
     parseMulRestStop left
 
   partial def parseMulRestStop (left : Expr) : Parser Expr := fun s =>
+    let pos := left.pos
     match s.peekToken? with
     | some .star =>
       let s := s.advance
       match parseUnaryExprStop s with
-      | .ok (right, s') => parseMulRestStop (Expr.binOp .mul left right) s'
+      | .ok (right, s') => parseMulRestStop (Expr.binOp pos .mul left right) s'
       | .error msg => .error msg
     | some .slash =>
       let s := s.advance
       match parseUnaryExprStop s with
-      | .ok (right, s') => parseMulRestStop (Expr.binOp .div left right) s'
+      | .ok (right, s') => parseMulRestStop (Expr.binOp pos .div left right) s'
       | .error msg => .error msg
     | _ => .ok (left, s)
 
   partial def parseUnaryExprStop : Parser Expr := fun s =>
+    let pos := s.currentPos
     match s.peekToken? with
     | some .minus =>
       let s := s.advance
       match parseUnaryExprStop s with
-      | .ok (e, s') => .ok (Expr.unaryOp .neg e, s')
+      | .ok (e, s') => .ok (Expr.unaryOp pos .neg e, s')
       | .error msg => .error msg
     | some .kNot =>
       let s := s.advance
       match parseUnaryExprStop s with
-      | .ok (e, s') => .ok (Expr.unaryOp .not e, s')
+      | .ok (e, s') => .ok (Expr.unaryOp pos .not e, s')
       | .error msg => .error msg
     | _ => parseAppExprStop s
 
@@ -1180,6 +1218,7 @@ mutual
     parseAppArgsStop base
 
   partial def parseAppArgsStop (base : Expr) : Parser Expr := fun s =>
+    let pos := base.pos
     match s.peekToken? with
     | some .lparen =>
       let s := s.advance
@@ -1187,13 +1226,13 @@ mutual
       | .ok (args, s') =>
         match expect .rparen s' with
         | .ok (_, s'') =>
-          let result := args.foldl Expr.app base
+          let result := args.foldl (Expr.app pos) base
           parseAppArgsStop result s''
         | .error msg => .error msg
       | .error msg => .error msg
     | _ =>
       match parseFieldExprStop s with
-      | .ok (arg, s') => parseAppArgsStop (Expr.app base arg) s'
+      | .ok (arg, s') => parseAppArgsStop (Expr.app pos base arg) s'
       | .error _ => .ok (base, s)
 
   partial def parseFieldExprStop : Parser Expr := do
@@ -1201,26 +1240,28 @@ mutual
     parseFieldRestStop base
 
   partial def parseFieldRestStop (base : Expr) : Parser Expr := fun s =>
+    let pos := base.pos
     match s.peekToken?, s.peekN 1 with
     | some .dot, some ptok =>
       match ptok.token with
       | .ident field =>
         let s := s.advance.advance
-        parseFieldRestStop (Expr.field base field) s
+        parseFieldRestStop (Expr.field pos base field) s
       | _ => .ok (base, s)
     | _, _ => .ok (base, s)
 
   partial def parseAtomExprStop : Parser Expr := fun s =>
+    let pos := s.currentPos
     match s.peekToken? with
-    | some (.int n) => .ok (Expr.lit (.int n), s.advance)
-    | some (.float f) => .ok (Expr.lit (.float f), s.advance)
-    | some (.string str) => .ok (Expr.lit (.string str), s.advance)
-    | some (.char c) => .ok (Expr.lit (.char c), s.advance)
-    | some .kTrue => .ok (Expr.lit (.bool true), s.advance)
-    | some .kFalse => .ok (Expr.lit (.bool false), s.advance)
-    | some .hash => .ok (Expr.hash, s.advance)
-    | some (.ident id) => .ok (Expr.var id, s.advance)
-    | some (.conId id) => .ok (Expr.var id, s.advance)
+    | some (.int n) => .ok (Expr.lit pos (.int n), s.advance)
+    | some (.float f) => .ok (Expr.lit pos (.float f), s.advance)
+    | some (.string str) => .ok (Expr.lit pos (.string str), s.advance)
+    | some (.char c) => .ok (Expr.lit pos (.char c), s.advance)
+    | some .kTrue => .ok (Expr.lit pos (.bool true), s.advance)
+    | some .kFalse => .ok (Expr.lit pos (.bool false), s.advance)
+    | some .hash => .ok (Expr.hash pos, s.advance)
+    | some (.ident id) => .ok (Expr.var pos id, s.advance)
+    | some (.conId id) => .ok (Expr.var pos id, s.advance)
     | some .backslash => parseLambda s
     | some .kLet => parseLet s
     | some .kMatch => parseMatch s
@@ -1230,7 +1271,7 @@ mutual
     | some .lparen =>
       let s := s.advance
       match s.peekToken? with
-      | some .rparen => .ok (Expr.lit .unit, s.advance)
+      | some .rparen => .ok (Expr.lit pos .unit, s.advance)
       | _ =>
         match parseExprStop s with
         | .ok (e, s') =>
@@ -1240,7 +1281,7 @@ mutual
             match parseType s' with
             | .ok (ty, s'') =>
               match expect .rparen s'' with
-              | .ok (_, s''') => .ok (Expr.ann e ty, s''')
+              | .ok (_, s''') => .ok (Expr.ann pos e ty, s''')
               | .error msg => .error msg
             | .error msg => .error msg
           | some .rparen => .ok (e, s'.advance)

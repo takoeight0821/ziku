@@ -1,0 +1,4 @@
+match 42 with
+| 0 => true
+| _ => false
+end

@@ -6,29 +6,63 @@ namespace Ziku
 /-!
 # Type Inference
 
-This module provides type inference for Ziku expressions.
-Currently a simplified version that handles basic cases.
+This module provides type inference for Ziku expressions with detailed error reporting.
+Uses Hindley-Milner with let-polymorphism via Scheme types.
 -/
 
--- Type environment mapping variables to types
-abbrev TyEnv := List (Ident × Ty)
+-- Type environment mapping variables to type schemes
+abbrev TyEnv := List (Ident × Scheme)
 
 -- Inference state with fresh variable counter
 structure InferState where
   nextVar : Nat := 0
+  deriving Inhabited
+
+-- Type error with source location and detailed message
+inductive TypeError where
+  | unificationError (pos : SourcePos) (expected : Ty) (actual : Ty) (msg : String)
+  | unboundVariable (pos : SourcePos) (name : Ident)
+  | occursCheck (pos : SourcePos) (varName : Ident) (ty : Ty)
+  | notImplemented (pos : SourcePos) (feature : String)
+  | customError (pos : SourcePos) (msg : String)
+  deriving Repr
+
+def TypeError.toString : TypeError → String
+  | .unificationError pos expected actual msg =>
+    s!"Type error at {pos.line}:{pos.col}: {msg}\n  Expected: {expected}\n  Actual: {actual}"
+  | .unboundVariable pos name =>
+    s!"Unbound variable '{name}' at {pos.line}:{pos.col}"
+  | .occursCheck pos varName ty =>
+    s!"Occurs check failed at {pos.line}:{pos.col}: type variable '{varName}' occurs in {ty}"
+  | .notImplemented pos feature =>
+    s!"Type inference not yet implemented for {feature} at {pos.line}:{pos.col}"
+  | .customError pos msg =>
+    s!"Error at {pos.line}:{pos.col}: {msg}"
+
+instance : ToString TypeError := ⟨TypeError.toString⟩
+
+-- Inference monad: State + Error
+abbrev InferM := StateT InferState (Except TypeError)
+
+-- Provide Inhabited instance for InferM (Ty × Subst)
+instance : Inhabited (InferM (Ty × Subst)) where
+  default := throw (.customError { line := 0, col := 0 } "Uninhabited type inference result")
 
 -- Generate fresh type variable
-def freshTyVar (s : InferState) : Ty × InferState :=
+def freshTyVar : InferM Ty := do
+  let s ← get
   let name := s!"_t{s.nextVar}"
-  (.var name, { s with nextVar := s.nextVar + 1 })
+  set { s with nextVar := s.nextVar + 1 }
+  return .var { line := 0, col := 0 } name
 
--- Standard types
-def tyInt : Ty := .con "Int"
-def tyBool : Ty := .con "Bool"
-def tyUnit : Ty := .con "Unit"
-def tyString : Ty := .con "String"
-def tyChar : Ty := .con "Char"
-def tyFloat : Ty := .con "Float"
+-- Standard types (using dummy position)
+def dummyPos : SourcePos := { line := 0, col := 0 }
+def tyInt : Ty := .con dummyPos "Int"
+def tyBool : Ty := .con dummyPos "Bool"
+def tyUnit : Ty := .con dummyPos "Unit"
+def tyString : Ty := .con dummyPos "String"
+def tyChar : Ty := .con dummyPos "Char"
+def tyFloat : Ty := .con dummyPos "Float"
 
 -- Get expected and result types for binary operators
 def binOpTypes : BinOp → Ty × Ty
@@ -43,148 +77,248 @@ def unaryOpTypes : UnaryOp → Ty × Ty
   | .neg => (tyInt, tyInt)
   | .not => (tyBool, tyBool)
 
--- Basic unification (simplified)
-partial def unify (t1 t2 : Ty) : Option Subst :=
-  match t1, t2 with
-  | .con c1, .con c2 =>
-    if c1 == c2 then some [] else none
-  | .var x, t =>
-    some [(x, t)]
-  | t, .var x =>
-    some [(x, t)]
-  | .arrow a1 b1, .arrow a2 b2 =>
-    match unify a1 a2 with
-    | some s1 =>
-      match unify (b1.applySubst s1) (b2.applySubst s1) with
-      | some s2 => some (s1 ++ s2)
-      | none => none
-    | none => none
-  | .app t1 t2, .app t1' t2' =>
-    match unify t1 t1' with
-    | some s1 =>
-      match unify (t2.applySubst s1) (t2'.applySubst s1) with
-      | some s2 => some (s1 ++ s2)
-      | none => none
-    | none => none
-  | _, _ => none
+-- Occurs check: does a type variable occur in a type?
+partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
+  match ty with
+  | .var _ x => x == varName
+  | .con _ _ => false
+  | .app _ t1 t2 => occursIn varName t1 || occursIn varName t2
+  | .arrow _ t1 t2 => occursIn varName t1 || occursIn varName t2
+  | .forall_ _ x t => if x == varName then false else occursIn varName t
+  | .record _ fields => fields.any (fun (_, t) => occursIn varName t)
 
--- Type inference (simplified version)
-partial def infer (env : TyEnv) (expr : Expr) (s : InferState) : Option (Ty × Subst × InferState) :=
+-- Unification with error reporting
+partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) : InferM Subst :=
+  match t1, t2 with
+  | .con _ c1, .con _ c2 =>
+    if c1 == c2 then
+      return []
+    else
+      throw $ .unificationError pos t1 t2 s!"Cannot unify type constructors '{c1}' and '{c2}'"
+  | .var _ x, t =>
+    if occursIn x t then
+      throw $ .occursCheck pos x t
+    else
+      return [(x, t)]
+  | t, .var _ x =>
+    if occursIn x t then
+      throw $ .occursCheck pos x t
+    else
+      return [(x, t)]
+  | .arrow _ a1 b1, .arrow _ a2 b2 => do
+    let s1 ← unifyAt pos a1 a2
+    let s2 ← unifyAt pos (b1.applySubst s1) (b2.applySubst s1)
+    return s1 ++ s2
+  | .app _ t1 t2, .app _ t1' t2' => do
+    let s1 ← unifyAt pos t1 t1'
+    let s2 ← unifyAt pos (t2.applySubst s1) (t2'.applySubst s1)
+    return s1 ++ s2
+  | _, _ =>
+    throw $ .unificationError pos t1 t2 s!"Cannot unify types"
+
+-- Apply substitution to environment
+def TyEnv.applySubst (subst : Subst) (env : TyEnv) : TyEnv :=
+  env.map (fun (x, scheme) => (x, scheme.applySubst subst))
+
+-- Free variables in environment
+def TyEnv.freeVars (env : TyEnv) : List Ident :=
+  (env.map (fun (_, scheme) => scheme.freeVars)).flatten
+
+-- Generalize: convert a type to a scheme by quantifying over free variables
+def generalize (env : TyEnv) (ty : Ty) : Scheme :=
+  let envVars := env.freeVars
+  let vars := ty.freeVars.filter (fun v => !envVars.contains v)
+  { vars := vars, ty := ty }
+
+-- Instantiate: convert a scheme to a type by replacing quantified variables with fresh ones
+def instantiate (scheme : Scheme) : InferM Ty := do
+  let mut subst : Subst := []
+  for v in scheme.vars do
+    let fresh ← freshTyVar
+    subst := (v, fresh) :: subst
+  return scheme.ty.applySubst subst
+
+-- Pattern type checking: returns variable bindings and substitution
+-- Given a pattern and expected type, extract variable bindings and unification constraints
+partial def checkPattern (pat : Pat) (expectedTy : Ty) : InferM (List (Ident × Scheme) × Subst) :=
+  match pat with
+  | .var _ x =>
+    -- Variable pattern: bind x to expected type (monomorphic)
+    return ([(x, { vars := [], ty := expectedTy })], [])
+  | .lit pos lit =>
+    -- Literal pattern: unify with literal type
+    let litTy := match lit with
+      | .int _ => tyInt
+      | .bool _ => tyBool
+      | .string _ => tyString
+      | .char _ => tyChar
+      | .float _ => tyFloat
+      | .unit => tyUnit
+    do
+      let subst ← unifyAt pos litTy expectedTy
+      return ([], subst)
+  | .wild _ =>
+    -- Wildcard: no bindings, matches anything
+    return ([], [])
+  | .con pos conName args =>
+    -- Constructor pattern: need to look up constructor type
+    -- For now, throw not implemented
+    throw $ .notImplemented pos s!"constructor pattern '{conName}'"
+  | .paren _ p =>
+    -- Parenthesized: recurse
+    checkPattern p expectedTy
+  | .ann pos p ty => do
+    -- Annotated: unify annotation with expected type, then check inner pattern
+    let subst ← unifyAt pos ty expectedTy
+    let (bindings, subst') ← checkPattern p (ty.applySubst subst)
+    return (bindings, subst ++ subst')
+
+-- Type inference with detailed errors
+partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
   match expr with
-  | .lit (.int _) => some (tyInt, [], s)
-  | .lit (.bool _) => some (tyBool, [], s)
-  | .lit .unit => some (tyUnit, [], s)
-  | .lit (.string _) => some (tyString, [], s)
-  | .lit (.char _) => some (tyChar, [], s)
-  | .lit (.float _) => some (tyFloat, [], s)
-  | .var x =>
+  | .lit _ (.int _) => return (tyInt, [])
+  | .lit _ (.bool _) => return (tyBool, [])
+  | .lit _ .unit => return (tyUnit, [])
+  | .lit _ (.string _) => return (tyString, [])
+  | .lit _ (.char _) => return (tyChar, [])
+  | .lit _ (.float _) => return (tyFloat, [])
+  | .var pos x =>
     match env.lookup x with
-    | some ty => some (ty, [], s)
-    | none => none
-  | .hash => none  -- Cannot infer type of # without context
-  | .binOp op e1 e2 =>
+    | some scheme => do
+      let ty ← instantiate scheme
+      return (ty, [])
+    | none => throw $ .unboundVariable pos x
+  | .hash pos =>
+    throw $ .notImplemented pos "self-reference (#)"
+  | .binOp pos op e1 e2 => do
     let (expectedTy, resultTy) := binOpTypes op
-    match infer env e1 s with
-    | some (t1, subst1, s1) =>
-      match unify t1 expectedTy with
-      | some subst1' =>
-        match infer env e2 s1 with
-        | some (t2, subst2, s2) =>
-          match unify t2 expectedTy with
-          | some subst2' =>
-            some (resultTy, subst1 ++ subst1' ++ subst2 ++ subst2', s2)
-          | none => none
-        | none => none
-      | none => none
-    | none => none
-  | .unaryOp op e =>
+    let (t1, subst1) ← infer env e1
+    let subst1' ← unifyAt (e1.pos) t1 expectedTy
+    let (t2, subst2) ← infer (env.applySubst (subst1 ++ subst1')) e2
+    let subst2' ← unifyAt (e2.pos) t2 expectedTy
+    return (resultTy, subst1 ++ subst1' ++ subst2 ++ subst2')
+  | .unaryOp pos op e => do
     let (expectedTy, resultTy) := unaryOpTypes op
-    match infer env e s with
-    | some (t, subst, s') =>
-      match unify t expectedTy with
-      | some subst' => some (resultTy, subst ++ subst', s')
-      | none => none
-    | none => none
-  | .lam params body =>
+    let (t, subst) ← infer env e
+    let subst' ← unifyAt (e.pos) t expectedTy
+    return (resultTy, subst ++ subst')
+  | .lam pos params body => do
     -- Generate fresh type variables for parameters
-    let (paramTys, s') := params.foldl (fun (tys, st) _ =>
-      let (ty, st') := freshTyVar st
-      (tys ++ [ty], st')
-    ) ([], s)
-    let env' := (params.zip paramTys) ++ env
-    match infer env' body s' with
-    | some (bodyTy, subst, s'') =>
-      let funTy := paramTys.foldr (fun t acc => .arrow t acc) bodyTy
-      some (funTy.applySubst subst, subst, s'')
-    | none => none
-  | .app fn arg =>
-    match infer env fn s with
-    | some (fnTy, subst1, s1) =>
-      match infer env arg s1 with
-      | some (argTy, subst2, s2) =>
-        let (resultTy, s3) := freshTyVar s2
-        match unify (fnTy.applySubst subst2) (.arrow argTy resultTy) with
-        | some subst3 =>
-          some (resultTy.applySubst subst3, subst1 ++ subst2 ++ subst3, s3)
-        | none => none
-      | none => none
-    | none => none
-  | .let_ x tyOpt e1 e2 =>
-    match infer env e1 s with
-    | some (t1, subst1, s1) =>
-      let t1' := match tyOpt with
-        | some ty => ty  -- Use declared type
-        | none => t1
-      let env' := (x, t1') :: env
-      match infer env' e2 s1 with
-      | some (t2, subst2, s2) =>
-        some (t2, subst1 ++ subst2, s2)
-      | none => none
-    | none => none
-  | .letRec x tyOpt e1 e2 =>
-    let (initTy, s0) := match tyOpt with
-      | some ty => (ty, s)
-      | none => freshTyVar s
-    let env' := (x, initTy) :: env
-    match infer env' e1 s0 with
-    | some (t1, subst1, s1) =>
-      match unify initTy t1 with
-      | some substRec =>
-        match infer ((x, t1.applySubst substRec) :: env) e2 s1 with
-        | some (t2, subst2, s2) =>
-          some (t2, subst1 ++ substRec ++ subst2, s2)
-        | none => none
-      | none => none
-    | none => none
-  | .if_ cond thenE elseE =>
-    match infer env cond s with
-    | some (tCond, subst1, s1) =>
-      match unify tCond tyBool with
-      | some subst1' =>
-        match infer env thenE s1 with
-        | some (tThen, subst2, s2) =>
-          match infer env elseE s2 with
-          | some (tElse, subst3, s3) =>
-            match unify tThen tElse with
-            | some subst4 =>
-              some (tThen.applySubst subst4, subst1 ++ subst1' ++ subst2 ++ subst3 ++ subst4, s3)
-            | none => none
-          | none => none
-        | none => none
-      | none => none
-    | none => none
-  | .ann e ty =>
-    match infer env e s with
-    | some (inferredTy, subst, s') =>
-      match unify inferredTy ty with
-      | some subst' => some (ty, subst ++ subst', s')
-      | none => none
-    | none => none
-  | .match_ _ _ => none  -- Pattern matching type inference not yet implemented
-  | .codata _ => none    -- Codata type inference not yet implemented
-  | .field _ _ => none   -- Field access type inference not yet implemented
-  | .record _ => none    -- Record type inference not yet implemented
-  | .cut _ _ => none     -- Cut type inference not yet implemented
-  | .mu _ _ => none      -- Mu type inference not yet implemented
+    let mut paramTys : List Ty := []
+    for _ in params do
+      let ty ← freshTyVar
+      paramTys := paramTys ++ [ty]
+    let paramSchemes := paramTys.map (fun ty => { vars := [], ty := ty })
+    let env' := (params.zip paramSchemes) ++ env
+    let (bodyTy, subst) ← infer env' body
+    let funTy := paramTys.foldr (fun t acc => .arrow pos t acc) bodyTy
+    return (funTy.applySubst subst, subst)
+  | .app pos fn arg => do
+    let (fnTy, subst1) ← infer env fn
+    let (argTy, subst2) ← infer (env.applySubst subst1) arg
+    let resultTy ← freshTyVar
+    let subst3 ← unifyAt pos (fnTy.applySubst subst2) (.arrow pos argTy resultTy)
+    return (resultTy.applySubst subst3, subst1 ++ subst2 ++ subst3)
+  | .let_ _ x tyOpt e1 e2 => do
+    let (t1, subst1) ← infer env e1
+    let t1' := match tyOpt with
+      | some ty => ty  -- Use declared type
+      | none => t1
+    -- Generalize the type for let-polymorphism
+    let scheme := generalize (env.applySubst subst1) t1'
+    let env' := (x, scheme) :: env.applySubst subst1
+    let (t2, subst2) ← infer env' e2
+    return (t2, subst1 ++ subst2)
+  | .letRec _ x tyOpt e1 e2 => do
+    let initTy ← match tyOpt with
+      | some ty => pure ty
+      | none => freshTyVar
+    -- For recursive bindings, use a monomorphic scheme
+    let env' := (x, { vars := [], ty := initTy }) :: env
+    let (t1, subst1) ← infer env' e1
+    let substRec ← unifyAt (e1.pos) initTy t1
+    let env'' := (x, { vars := [], ty := t1.applySubst substRec }) :: env.applySubst (subst1 ++ substRec)
+    let (t2, subst2) ← infer env'' e2
+    return (t2, subst1 ++ substRec ++ subst2)
+  | .if_ pos cond thenE elseE => do
+    let (tCond, subst1) ← infer env cond
+    let subst1' ← unifyAt (cond.pos) tCond tyBool
+    let env' := env.applySubst (subst1 ++ subst1')
+    let (tThen, subst2) ← infer env' thenE
+    let (tElse, subst3) ← infer (env'.applySubst subst2) elseE
+    let subst4 ← unifyAt pos tThen tElse
+    return (tThen.applySubst subst4, subst1 ++ subst1' ++ subst2 ++ subst3 ++ subst4)
+  | .ann pos e ty => do
+    let (inferredTy, subst) ← infer env e
+    let subst' ← unifyAt pos inferredTy ty
+    return (ty, subst ++ subst')
+  | .match_ pos scrutinee cases => do
+    -- Infer type of scrutinee
+    let (scrutineeTy, subst0) ← infer env scrutinee
+    let env0 := env.applySubst subst0
+
+    -- Check each case
+    let mut resultTy : Option Ty := none
+    let mut accSubst := subst0
+
+    for (pat, body) in cases do
+      -- Check pattern against scrutinee type
+      let (bindings, substPat) ← checkPattern pat (scrutineeTy.applySubst accSubst)
+      let envCase := bindings ++ env0.applySubst (accSubst ++ substPat)
+
+      -- Infer type of case body
+      let (bodyTy, substBody) ← infer envCase body
+      accSubst := accSubst ++ substPat ++ substBody
+
+      -- Unify with previous case results
+      match resultTy with
+      | none => resultTy := some bodyTy
+      | some prevTy =>
+        let substUnify ← unifyAt pos (prevTy.applySubst substBody) bodyTy
+        accSubst := accSubst ++ substUnify
+        resultTy := some (bodyTy.applySubst substUnify)
+
+    match resultTy with
+    | some ty => return (ty, accSubst)
+    | none => throw $ .customError pos "match expression has no cases"
+  | .codata pos _ =>
+    throw $ .notImplemented pos "codata blocks"
+  | .field pos e field => do
+    -- Infer type of the record expression
+    let (recTy, subst) ← infer env e
+
+    -- Fresh type variable for the field type
+    let fieldTy ← freshTyVar
+
+    -- The record must have type { field : fieldTy, ... }
+    -- For simplicity, we just check if it's a record type with the field
+    match recTy.applySubst subst with
+    | .record _ fields =>
+      match fields.lookup field with
+      | some ty => return (ty, subst)
+      | none => throw $ .customError pos s!"field '{field}' not found in record"
+    | _ => throw $ .customError pos s!"field access on non-record type"
+  | .record pos fields => do
+    -- Infer type for each field value
+    let mut fieldTypes : List (Ident × Ty) := []
+    let mut accSubst : Subst := []
+
+    for (name, value) in fields do
+      let (ty, subst) ← infer (env.applySubst accSubst) value
+      fieldTypes := fieldTypes ++ [(name, ty)]
+      accSubst := accSubst ++ subst
+
+    return (.record pos fieldTypes, accSubst)
+  | .cut pos _ _ =>
+    throw $ .notImplemented pos "sequent cut"
+  | .mu pos _ _ =>
+    throw $ .notImplemented pos "mu abstraction"
+
+-- Run inference with initial state
+def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) :=
+  let m := infer env expr
+  match m.run { nextVar := 0 } with
+  | .ok ((ty, subst), _) => .ok (ty, subst)
+  | .error e => .error e
 
 end Ziku

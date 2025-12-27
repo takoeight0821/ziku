@@ -53,23 +53,41 @@ inductive Lit where
 
 -- Types
 inductive Ty where
-  | var     : Ident → Ty                      -- Type variable: a
-  | con     : Ident → Ty                      -- Type constructor: Int, Bool
-  | app     : Ty → Ty → Ty                    -- Type application: List a
-  | arrow   : Ty → Ty → Ty                    -- Function type: a -> b
-  | forall_ : Ident → Ty → Ty                 -- Polymorphic: forall a. a -> a
-  | record  : List (Ident × Ty) → Ty          -- Record type: { x : Int, y : Int }
+  | var     : SourcePos → Ident → Ty                      -- Type variable: a
+  | con     : SourcePos → Ident → Ty                      -- Type constructor: Int, Bool
+  | app     : SourcePos → Ty → Ty → Ty                    -- Type application: List a
+  | arrow   : SourcePos → Ty → Ty → Ty                    -- Function type: a -> b
+  | forall_ : SourcePos → Ident → Ty → Ty                 -- Polymorphic: forall a. a -> a
+  | record  : SourcePos → List (Ident × Ty) → Ty          -- Record type: { x : Int, y : Int }
   deriving Repr, BEq
+
+-- Get source position from Ty
+def Ty.pos : Ty → SourcePos
+  | var p _ => p
+  | con p _ => p
+  | app p _ _ => p
+  | arrow p _ _ => p
+  | forall_ p _ _ => p
+  | record p _ => p
 
 -- Patterns (for data destructuring)
 inductive Pat where
-  | var     : Ident → Pat                     -- Variable pattern: x
-  | lit     : Lit → Pat                       -- Literal pattern: 42, "hello"
-  | wild    : Pat                             -- Wildcard: _
-  | con     : Ident → List Pat → Pat          -- Constructor: Cons x xs
-  | paren   : Pat → Pat                       -- Parenthesized: (p)
-  | ann     : Pat → Ty → Pat                  -- Annotated: (p : ty)
+  | var     : SourcePos → Ident → Pat                     -- Variable pattern: x
+  | lit     : SourcePos → Lit → Pat                       -- Literal pattern: 42, "hello"
+  | wild    : SourcePos → Pat                             -- Wildcard: _
+  | con     : SourcePos → Ident → List Pat → Pat          -- Constructor: Cons x xs
+  | paren   : SourcePos → Pat → Pat                       -- Parenthesized: (p)
+  | ann     : SourcePos → Pat → Ty → Pat                  -- Annotated: (p : ty)
   deriving Repr, BEq
+
+-- Get source position from Pat
+def Pat.pos : Pat → SourcePos
+  | var p _ => p
+  | lit p _ => p
+  | wild p => p
+  | con p _ _ => p
+  | paren p _ => p
+  | ann p _ _ => p
 
 -- Copattern accessor (for codata construction)
 inductive Accessor where
@@ -84,24 +102,44 @@ abbrev Copattern := List Accessor
 
 -- Expressions
 inductive Expr where
-  | lit       : Lit → Expr                              -- Literal: 42
-  | var       : Ident → Expr                            -- Variable: x
-  | hash      : Expr                                    -- The # symbol (self-reference)
-  | binOp     : BinOp → Expr → Expr → Expr              -- Binary op: a + b
-  | unaryOp   : UnaryOp → Expr → Expr                   -- Unary op: -x, not p
-  | lam       : List Ident → Expr → Expr                -- Lambda: \x, y => e
-  | app       : Expr → Expr → Expr                      -- Application: f x
-  | let_      : Ident → Option Ty → Expr → Expr → Expr  -- Let: let x : ty = e in body
-  | letRec    : Ident → Option Ty → Expr → Expr → Expr  -- Let rec: let rec f = e in body
-  | match_    : Expr → List (Pat × Expr) → Expr         -- Match: match e with | p => e end
-  | codata    : List (List Pat × Copattern × Expr) → Expr  -- Codata block: { patterns # copat => e, ... }
-  | field     : Expr → Ident → Expr                     -- Field access: e.field
-  | ann       : Expr → Ty → Expr                        -- Type annotation: (e : ty)
-  | record    : List (Ident × Expr) → Expr              -- Anonymous record: { x = 1, y = 2 }
-  | if_       : Expr → Expr → Expr → Expr               -- If: if c then t else f
-  | cut       : Expr → Expr → Expr                      -- Sequent cut: cut <producer | consumer>
-  | mu        : Ident → Expr → Expr                     -- μ-abstraction: μk => e
+  | lit       : SourcePos → Lit → Expr                              -- Literal: 42
+  | var       : SourcePos → Ident → Expr                            -- Variable: x
+  | hash      : SourcePos → Expr                                    -- The # symbol (self-reference)
+  | binOp     : SourcePos → BinOp → Expr → Expr → Expr              -- Binary op: a + b
+  | unaryOp   : SourcePos → UnaryOp → Expr → Expr                   -- Unary op: -x, not p
+  | lam       : SourcePos → List Ident → Expr → Expr                -- Lambda: \x, y => e
+  | app       : SourcePos → Expr → Expr → Expr                      -- Application: f x
+  | let_      : SourcePos → Ident → Option Ty → Expr → Expr → Expr  -- Let: let x : ty = e in body
+  | letRec    : SourcePos → Ident → Option Ty → Expr → Expr → Expr  -- Let rec: let rec f = e in body
+  | match_    : SourcePos → Expr → List (Pat × Expr) → Expr         -- Match: match e with | p => e end
+  | codata    : SourcePos → List (List Pat × Copattern × Expr) → Expr  -- Codata block: { patterns # copat => e, ... }
+  | field     : SourcePos → Expr → Ident → Expr                     -- Field access: e.field
+  | ann       : SourcePos → Expr → Ty → Expr                        -- Type annotation: (e : ty)
+  | record    : SourcePos → List (Ident × Expr) → Expr              -- Anonymous record: { x = 1, y = 2 }
+  | if_       : SourcePos → Expr → Expr → Expr → Expr               -- If: if c then t else f
+  | cut       : SourcePos → Expr → Expr → Expr                      -- Sequent cut: cut <producer | consumer>
+  | mu        : SourcePos → Ident → Expr → Expr                     -- μ-abstraction: μk => e
   deriving Repr, BEq
+
+-- Get source position from Expr
+def Expr.pos : Expr → SourcePos
+  | lit p _ => p
+  | var p _ => p
+  | hash p => p
+  | binOp p _ _ _ => p
+  | unaryOp p _ _ => p
+  | lam p _ _ => p
+  | app p _ _ => p
+  | let_ p _ _ _ _ => p
+  | letRec p _ _ _ _ => p
+  | match_ p _ _ => p
+  | codata p _ => p
+  | field p _ _ => p
+  | ann p _ _ => p
+  | record p _ => p
+  | if_ p _ _ _ => p
+  | cut p _ _ => p
+  | mu p _ _ => p
 
 -- Data constructor declaration
 structure ConDecl where
@@ -139,46 +177,46 @@ abbrev Program := List Decl
 
 -- Expression size (manual implementation)
 partial def Expr.exprSize : Expr → Nat
-  | lit _ => 1
-  | var _ => 1
-  | hash => 1
-  | binOp _ e1 e2 => 1 + e1.exprSize + e2.exprSize
-  | unaryOp _ e => 1 + e.exprSize
-  | lam _ e => 1 + e.exprSize
-  | app e1 e2 => 1 + e1.exprSize + e2.exprSize
-  | let_ _ _ e1 e2 => 1 + e1.exprSize + e2.exprSize
-  | letRec _ _ e1 e2 => 1 + e1.exprSize + e2.exprSize
-  | match_ e _ => 1 + e.exprSize
-  | codata _ => 1
-  | field e _ => 1 + e.exprSize
-  | ann e _ => 1 + e.exprSize
-  | record _ => 1
-  | if_ c t f => 1 + c.exprSize + t.exprSize + f.exprSize
-  | cut e1 e2 => 1 + e1.exprSize + e2.exprSize
-  | mu _ e => 1 + e.exprSize
+  | lit _ _ => 1
+  | var _ _ => 1
+  | hash _ => 1
+  | binOp _ _ e1 e2 => 1 + e1.exprSize + e2.exprSize
+  | unaryOp _ _ e => 1 + e.exprSize
+  | lam _ _ e => 1 + e.exprSize
+  | app _ e1 e2 => 1 + e1.exprSize + e2.exprSize
+  | let_ _ _ _ e1 e2 => 1 + e1.exprSize + e2.exprSize
+  | letRec _ _ _ e1 e2 => 1 + e1.exprSize + e2.exprSize
+  | match_ _ e _ => 1 + e.exprSize
+  | codata _ _ => 1
+  | field _ e _ => 1 + e.exprSize
+  | ann _ e _ => 1 + e.exprSize
+  | record _ _ => 1
+  | if_ _ c t f => 1 + c.exprSize + t.exprSize + f.exprSize
+  | cut _ e1 e2 => 1 + e1.exprSize + e2.exprSize
+  | mu _ _ e => 1 + e.exprSize
 
 -- Free variables in an expression
 partial def Expr.freeVars : Expr → List Ident
-  | lit _ => []
-  | var x => [x]
-  | hash => []
-  | binOp _ e1 e2 => e1.freeVars ++ e2.freeVars
-  | unaryOp _ e => e.freeVars
-  | lam xs e => e.freeVars.filter (fun v => !xs.contains v)
-  | app e1 e2 => e1.freeVars ++ e2.freeVars
-  | let_ x _ e1 e2 => e1.freeVars ++ e2.freeVars.filter (· != x)
-  | letRec x _ e1 e2 =>
+  | lit _ _ => []
+  | var _ x => [x]
+  | hash _ => []
+  | binOp _ _ e1 e2 => e1.freeVars ++ e2.freeVars
+  | unaryOp _ _ e => e.freeVars
+  | lam _ xs e => e.freeVars.filter (fun v => !xs.contains v)
+  | app _ e1 e2 => e1.freeVars ++ e2.freeVars
+  | let_ _ x _ e1 e2 => e1.freeVars ++ e2.freeVars.filter (· != x)
+  | letRec _ x _ e1 e2 =>
     e1.freeVars.filter (· != x) ++ e2.freeVars.filter (· != x)
-  | match_ e cases =>
+  | match_ _ e cases =>
     e.freeVars ++ (cases.map (fun (_, body) => body.freeVars)).flatten
-  | codata clauses =>
+  | codata _ clauses =>
     (clauses.map (fun (_, _, body) => body.freeVars)).flatten
-  | field e _ => e.freeVars
-  | ann e _ => e.freeVars
-  | record fields => (fields.map (fun (_, e) => e.freeVars)).flatten
-  | if_ c t f => c.freeVars ++ t.freeVars ++ f.freeVars
-  | cut e1 e2 => e1.freeVars ++ e2.freeVars
-  | mu x e => e.freeVars.filter (· != x)
+  | field _ e _ => e.freeVars
+  | ann _ e _ => e.freeVars
+  | record _ fields => (fields.map (fun (_, e) => e.freeVars)).flatten
+  | if_ _ c t f => c.freeVars ++ t.freeVars ++ f.freeVars
+  | cut _ e1 e2 => e1.freeVars ++ e2.freeVars
+  | mu _ x e => e.freeVars.filter (· != x)
 
 -- Closed expression (no free variables)
 def Expr.closed (e : Expr) : Prop := e.freeVars = []
@@ -220,12 +258,12 @@ instance : ToString Lit := ⟨Lit.toString⟩
 
 -- Pretty print types
 partial def Ty.toString : Ty → String
-  | .var x => x
-  | .con c => c
-  | .app t1 t2 => s!"({t1.toString} {t2.toString})"
-  | .arrow t1 t2 => s!"({t1.toString} -> {t2.toString})"
-  | .forall_ x t => s!"(forall {x}. {t.toString})"
-  | .record fields =>
+  | .var _ x => x
+  | .con _ c => c
+  | .app _ t1 t2 => s!"({t1.toString} {t2.toString})"
+  | .arrow _ t1 t2 => s!"({t1.toString} -> {t2.toString})"
+  | .forall_ _ x t => s!"(forall {x}. {t.toString})"
+  | .record _ fields =>
     let fs := fields.map (fun (n, t) => s!"{n} : {t.toString}")
     "{ " ++ String.intercalate ", " fs ++ " }"
 
@@ -233,13 +271,13 @@ instance : ToString Ty := ⟨Ty.toString⟩
 
 -- Pretty print patterns
 partial def Pat.toString : Pat → String
-  | .var x => x
-  | .lit l => l.toString
-  | .wild => "_"
-  | .con c [] => c
-  | .con c ps => s!"({c} {String.intercalate " " (ps.map Pat.toString)})"
-  | .paren p => s!"({p.toString})"
-  | .ann p ty => s!"({p.toString} : {ty})"
+  | .var _ x => x
+  | .lit _ l => l.toString
+  | .wild _ => "_"
+  | .con _ c [] => c
+  | .con _ c ps => s!"({c} {String.intercalate " " (ps.map Pat.toString)})"
+  | .paren _ p => s!"({p.toString})"
+  | .ann _ p ty => s!"({p.toString} : {ty})"
 
 instance : ToString Pat := ⟨Pat.toString⟩
 
@@ -256,35 +294,35 @@ def Copattern.toString (cp : Copattern) : String :=
 
 -- Pretty print expressions
 partial def Expr.toString : Expr → String
-  | .lit l => s!"(Lit {l})"
-  | .var x => s!"(Var \"{x}\")"
-  | .hash => "#"
-  | .binOp op e1 e2 => s!"(BinOp {op} {e1.toString} {e2.toString})"
-  | .unaryOp op e => s!"(UnaryOp {op} {e.toString})"
-  | .lam ps body => s!"(Lam [{String.intercalate ", " (ps.map (s!"\"{·}\""))}] {body.toString})"
-  | .app e1 e2 => s!"(App {e1.toString} {e2.toString})"
-  | .let_ x ty e1 e2 =>
+  | .lit _ l => s!"(Lit {l})"
+  | .var _ x => s!"(Var \"{x}\")"
+  | .hash _ => "#"
+  | .binOp _ op e1 e2 => s!"(BinOp {op} {e1.toString} {e2.toString})"
+  | .unaryOp _ op e => s!"(UnaryOp {op} {e.toString})"
+  | .lam _ ps body => s!"(Lam [{String.intercalate ", " (ps.map (s!"\"{·}\""))}] {body.toString})"
+  | .app _ e1 e2 => s!"(App {e1.toString} {e2.toString})"
+  | .let_ _ x ty e1 e2 =>
     let tyStr := match ty with | some t => s!" : {t}" | none => ""
     s!"(Let \"{x}\"{tyStr} {e1.toString} {e2.toString})"
-  | .letRec x ty e1 e2 =>
+  | .letRec _ x ty e1 e2 =>
     let tyStr := match ty with | some t => s!" : {t}" | none => ""
     s!"(LetRec \"{x}\"{tyStr} {e1.toString} {e2.toString})"
-  | .match_ e cases =>
+  | .match_ _ e cases =>
     let cs := cases.map (fun (p, body) => s!"({p} => {body.toString})")
     s!"(Match {e.toString} [{String.intercalate ", " cs}])"
-  | .codata clauses =>
+  | .codata _ clauses =>
     let cs := clauses.map (fun (ps, cp, body) =>
       let psStr := if ps.isEmpty then "" else String.intercalate " " (ps.map Pat.toString) ++ " "
       s!"({psStr}#{Copattern.toString cp} => {body.toString})")
     s!"(Codata [{String.intercalate ", " cs}])"
-  | .field e f => s!"(Field {e.toString} \"{f}\")"
-  | .ann e ty => s!"(Ann {e.toString} {ty})"
-  | .record fields =>
+  | .field _ e f => s!"(Field {e.toString} \"{f}\")"
+  | .ann _ e ty => s!"(Ann {e.toString} {ty})"
+  | .record _ fields =>
     let fs := fields.map (fun (n, e) => s!"{n} = {e.toString}")
     "(Record { " ++ String.intercalate ", " fs ++ " })"
-  | .if_ c t f => s!"(If {c.toString} {t.toString} {f.toString})"
-  | .cut e1 e2 => s!"(Cut {e1.toString} {e2.toString})"
-  | .mu x e => s!"(Mu \"{x}\" {e.toString})"
+  | .if_ _ c t f => s!"(If {c.toString} {t.toString} {f.toString})"
+  | .cut _ e1 e2 => s!"(Cut {e1.toString} {e2.toString})"
+  | .mu _ x e => s!"(Mu \"{x}\" {e.toString})"
 
 instance : ToString Expr := ⟨Expr.toString⟩
 

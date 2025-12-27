@@ -87,41 +87,41 @@ def evalUnaryOp (op : UnaryOp) (v : Value) : Option Value :=
 -- Simple evaluator (handles basic arithmetic expressions)
 -- Note: Lambdas and application not yet supported in this simplified version
 partial def eval (env : Env) : Expr → Option Value
-  | .lit (.int n) => some (.int n)
-  | .lit (.bool b) => some (.bool b)
-  | .lit .unit => some .unit
-  | .lit (.string s) => some (.string s)
-  | .lit (.char c) => some (.char c)
-  | .lit (.float _) => none  -- Float not yet supported
-  | .var x => env.lookup x
-  | .hash => none  -- Self-reference needs special handling
-  | .binOp op e1 e2 =>
+  | .lit _ (.int n) => some (.int n)
+  | .lit _ (.bool b) => some (.bool b)
+  | .lit _ .unit => some .unit
+  | .lit _ (.string s) => some (.string s)
+  | .lit _ (.char c) => some (.char c)
+  | .lit _ (.float _) => none  -- Float not yet supported
+  | .var _ x => env.lookup x
+  | .hash _ => none  -- Self-reference needs special handling
+  | .binOp _ op e1 e2 =>
     match eval env e1, eval env e2 with
     | some v1, some v2 => evalBinOp op v1 v2
     | _, _ => none
-  | .unaryOp op e =>
+  | .unaryOp _ op e =>
     match eval env e with
     | some v => evalUnaryOp op v
     | none => none
-  | .lam _ _ => none  -- Lambdas not yet supported
-  | .app _ _ => none  -- Application not yet supported
-  | .let_ x _ e1 e2 =>
+  | .lam _ _ _ => none  -- Lambdas not yet supported
+  | .app _ _ _ => none  -- Application not yet supported
+  | .let_ _ x _ e1 e2 =>
     match eval env e1 with
     | some v => eval ((x, v) :: env) e2
     | none => none
-  | .letRec _ _ _ _ => none  -- Recursive let not yet supported
-  | .if_ cond thenBranch elseBranch =>
+  | .letRec _ _ _ _ _ => none  -- Recursive let not yet supported
+  | .if_ _ cond thenBranch elseBranch =>
     match eval env cond with
     | some (.bool true) => eval env thenBranch
     | some (.bool false) => eval env elseBranch
     | _ => none
-  | .match_ _ _ => none  -- Pattern matching not yet implemented
-  | .codata _ => none    -- Codata blocks not yet implemented
-  | .field _ _ => none   -- Field access not yet implemented
-  | .ann e _ => eval env e
-  | .record _ => none    -- Records not yet implemented
-  | .cut _ _ => none     -- Sequent cut not yet implemented
-  | .mu _ _ => none      -- Mu abstraction not yet implemented
+  | .match_ _ _ _ => none  -- Pattern matching not yet implemented
+  | .codata _ _ => none    -- Codata blocks not yet implemented
+  | .field _ _ _ => none   -- Field access not yet implemented
+  | .ann _ e _ => eval env e
+  | .record _ _ => none    -- Records not yet implemented
+  | .cut _ _ _ => none     -- Sequent cut not yet implemented
+  | .mu _ _ _ => none      -- Mu abstraction not yet implemented
 
 -- Pretty print value
 def Value.toString : Value → String
