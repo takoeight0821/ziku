@@ -161,25 +161,20 @@ structure PosToken where
 -- Lexer state
 structure LexState where
   input : String
-  pos : Nat := 0
+  chars : List Char  -- Character list for proper UTF-8 handling
+  pos : Nat := 0     -- Position in character list (not bytes)
   line : Nat := 1
   col : Nat := 1
   deriving Repr
 
 def LexState.eof (s : LexState) : Bool :=
-  s.pos >= s.input.length
+  s.pos >= s.chars.length
 
 def LexState.peek? (s : LexState) : Option Char :=
-  if s.pos < s.input.length then
-    some (s.input.get ⟨s.pos⟩)
-  else
-    none
+  s.chars[s.pos]?
 
 def LexState.peekN (s : LexState) (n : Nat) : Option Char :=
-  if s.pos + n < s.input.length then
-    some (s.input.get ⟨s.pos + n⟩)
-  else
-    none
+  s.chars[s.pos + n]?
 
 def LexState.advance (s : LexState) : LexState :=
   match s.peek? with
@@ -245,18 +240,38 @@ where
       | some _, _ => skipBlockComment s.advance depth
       | none, _ => s  -- Unclosed comment, will be caught later
 
--- Lex an integer (float support deferred)
+-- Lex a number: integer or float
 partial def lexNumber (s : LexState) : Except String (Token × LexState) := do
   let startPos := s.sourcePos
+  -- Optional leading minus for negative numbers
   let (negative, s) := match s.peek? with
     | some '-' => (true, s.advance)
     | _ => (false, s)
-  let (digits, s) := lexDigits s ""
-  if digits.isEmpty then
+  -- Integral part (at least one digit)
+  let (intDigits, s) := lexDigits s ""
+  if intDigits.isEmpty then
     .error s!"expected digit at {startPos.line}:{startPos.col}"
   else
-    let n := digits.toInt!
-    .ok (.int (if negative then -n else n), s)
+    match s.peek?, s.peekN 1 with
+    -- Float if we see a dot followed by a digit
+    | some '.', some c2 =>
+      if c2.isDigit then
+        let s := s.advance -- skip '.'
+        let (fracDigits, s) := lexDigits s ""
+        if fracDigits.isEmpty then
+          .error s!"expected digit after '.' at {s.sourcePos.line}:{s.sourcePos.col}"
+        else
+          let intVal := stringDigitsToFloat intDigits
+          let fracVal := stringFracToFloat fracDigits
+          let f := (if negative then -1.0 else 1.0) * (intVal + fracVal)
+          .ok (.float f, s)
+      else
+        -- It's just an int followed by '.' (handled elsewhere as dot token)
+        let n := intDigits.toInt!
+        .ok (.int (if negative then -n else n), s)
+    | _, _ =>
+      let n := intDigits.toInt!
+      .ok (.int (if negative then -n else n), s)
 where
   lexDigits (s : LexState) (acc : String) : String × LexState :=
     match s.peek? with
@@ -264,6 +279,26 @@ where
       if c.isDigit then lexDigits s.advance (acc.push c)
       else (acc, s)
     | none => (acc, s)
+
+  -- Convert a string of decimal digits to Float
+  stringDigitsToFloat (ds : String) : Float :=
+    let rec go (cs : List Char) (acc : Float) : Float :=
+      match cs with
+      | [] => acc
+      | c :: cs' =>
+        let d : Float := (Char.toNat c - Char.toNat '0') |>.toFloat
+        go cs' (acc * 10.0 + d)
+    go ds.data 0.0
+
+  -- Convert fractional digits "abc" into value abc / 10^len as Float
+  stringFracToFloat (ds : String) : Float :=
+    let numer := stringDigitsToFloat ds
+    let rec pow10 (n : Nat) (acc : Float) : Float :=
+      match n with
+      | 0 => acc
+      | n+1 => pow10 n (acc * 10.0)
+    let denom := pow10 ds.length 1.0
+    numer / denom
 
 -- Lex an identifier or keyword
 partial def lexIdent (s : LexState) : Except String (Token × LexState) := do
@@ -395,7 +430,7 @@ partial def lexToken (s : LexState) : Except String (PosToken × LexState) := do
 
 -- Tokenize entire input
 partial def tokenize (input : String) : Except String (List PosToken) := do
-  let s : LexState := { input := input }
+  let s : LexState := { input := input, chars := input.toList }
   go s []
 where
   go (s : LexState) (acc : List PosToken) : Except String (List PosToken) := do

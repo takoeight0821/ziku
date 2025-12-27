@@ -1,6 +1,7 @@
 name = "ziku"
 version = "0.1.0"
 defaultTargets = ["ziku"]
+testDriver = "golden-test"
 
 [[lean_lib]]
 name = "Ziku"

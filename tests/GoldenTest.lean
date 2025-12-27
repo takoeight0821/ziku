@@ -23,43 +23,67 @@ def readFileOrEmpty (path : String) : IO String := do
     pure ""
 
 /-- Run a parser test -/
-def runParserTest (input : String) : String :=
+def runParserTest (input : String) : Except String String :=
   match Ziku.parseExprString input.trim with
-  | .ok expr => toString expr
-  | .error e => s!"Parse error: {e}"
+  | .ok expr => .ok (toString expr)
+  | .error e => .error e
 
 /-- Run an eval test -/
-def runEvalTest (input : String) : String :=
+def runEvalTest (input : String) : Except String String :=
   match Ziku.parseExprString input.trim with
   | .ok expr =>
     match Ziku.eval {} expr with
-    | some v => toString v
-    | none => "Evaluation error"
-  | .error e => s!"Parse error: {e}"
+    | some v => .ok (toString v)
+    | none => .ok "Evaluation error"
+  | .error e => .error e
 
 /-- Run a single test case -/
 def runTest (tc : TestCase) : IO TestResult := do
   let input ← IO.FS.readFile tc.inputPath
   let golden ← readFileOrEmpty tc.goldenPath
 
-  let actual := match tc.testType with
+  let result := match tc.testType with
     | "eval" => runEvalTest input
     | _ => runParserTest input
 
-  if golden.isEmpty then
-    -- No golden file yet, create it
-    IO.FS.writeFile tc.goldenPath actual
-    IO.println s!"  Created golden file: {tc.goldenPath}"
-    pure TestResult.pass
-  else if actual.trim == golden.trim then
-    pure TestResult.pass
-  else
-    pure (TestResult.fail golden.trim actual.trim)
+  match result with
+  | .error e =>
+    -- Parse error - do not create golden file, fail the test
+    pure (TestResult.error s!"Parse error: {e}")
+  | .ok actual =>
+    if golden.isEmpty then
+      -- No golden file yet, create it
+      IO.FS.writeFile tc.goldenPath actual
+      IO.println s!"  Created golden file: {tc.goldenPath}"
+      pure TestResult.pass
+    else if actual.trim == golden.trim then
+      pure TestResult.pass
+    else
+      pure (TestResult.fail golden.trim actual.trim)
 
 /-- List of parser test cases -/
 def parserTests : List String :=
   ["arithmetic", "precedence", "comparison", "let", "lambda",
-   "if", "nested_let", "application", "unary", "record", "field_access"]
+   "if", "nested_let", "application", "unary", "record", "field_access",
+   "match", "letRec", "logical", "codata", "multiParamLambda", "hash",
+   "codataMultiline", "stringLiteral", "charLiteral", "floatLiteral",
+   "boolLiteral", "unitLiteral", "pipeOperator", "pipeChain", "concatOperator",
+   "concatStrings", "notEqual", "lessEqual", "greaterEqual", "lessThan",
+   "greaterThan", "equality", "codataSingleClause", "codataNestedAccessor",
+   "codataCallable", "codataCallableNested", "codataMixedAccessors",
+   "codataTripleNested", "codataNewlineSeparated", "codataConsumerSyntax",
+   "applicationParens", "applicationComma", "applicationMixed",
+   "applicationMethod", "recordSingleField", "recordNested", "recordMultiline",
+   "recordComplexValues", "recordEmpty", "matchWildcard", "matchLiteral",
+  "matchNestedPattern", "matchConstructorNoArgs", "matchSingleCase",
+   "typeAnnotation", "typeAnnotationLambda",
+   "muAbstraction", "muAbstractionAscii", "muAbstractionSimple", "muUnicode",
+   "fieldAccessChain", "fieldAccessDeep", "lambdaNested", "lambdaComplexBody",
+   "lambdaThreeParams", "letWithAnnotation", "letRecWithAnnotation",
+   "negativeNumber", "parenthesesOnly", "parenthesesNested",
+   "expressionMixedOperators", "divisionByZero", "variableSnakeCase",
+   "variableCamelCase", "operatorNoSpaces", "operatorExtraSpaces",
+   "cutSimple", "cutExpression"]
 
 /-- List of eval test cases -/
 def evalTests : List String :=

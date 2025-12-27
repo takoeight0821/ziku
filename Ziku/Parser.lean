@@ -639,25 +639,6 @@ mutual
       | .error msg => .error msg
     | .error msg => .error msg
 
-  -- Parse cut: cut <producer | consumer>
-  partial def parseCut : Parser Expr := fun s =>
-    let s := s.advance  -- skip 'cut'
-    match expect .langle s with
-    | .ok (_, s') =>
-      match parseExpr s' with
-      | .ok (producer, s'') =>
-        match expect .pipe s'' with
-        | .ok (_, s''') =>
-          match parseExpr s''' with
-          | .ok (consumer, s'''') =>
-            match expect .rangle s'''' with
-            | .ok (_, s''''') => .ok (Expr.cut producer consumer, s''''')
-            | .error msg => .error msg
-          | .error msg => .error msg
-        | .error msg => .error msg
-      | .error msg => .error msg
-    | .error msg => .error msg
-
   -- Parse mu: μk => e or mu k => e
   partial def parseMu : Parser Expr := fun s =>
     let s := s.advance  -- skip 'μ' or 'mu'
@@ -722,8 +703,30 @@ mutual
         | .error msg => .error msg
       | .error msg => .error msg
 
-  partial def parseCodataBlock : Parser (List (List Pat × Copattern × Expr)) :=
-    many1 parseCodataClause
+  -- Parse a codata/consumer block with clauses separated by comma, pipe, or newlines
+  partial def parseCodataBlock : Parser (List (List Pat × Copattern × Expr)) := fun s =>
+    -- parse the first clause
+    match parseCodataClause s with
+    | .ok (cl, s') =>
+      -- keep parsing subsequent clauses if present
+      let rec loop (acc : List (List Pat × Copattern × Expr)) (st : ParseState)
+        : Except String (List (List Pat × Copattern × Expr) × ParseState) :=
+        -- stop when we reach '}'
+        match st.peekToken? with
+        | some .rbrace => .ok (acc.reverse, st)
+        | _ =>
+          -- consume optional comma; if consumed but no following clause, it's an error
+          let st1 := match tryToken .comma st with
+            | .ok (true, stc) => stc
+            | .ok (false, _) => st
+            | .error _ => st
+          match parseCodataClause st1 with
+          | .ok (cl2, st2) => loop (cl2 :: acc) st2
+          | .error msg => .error msg
+      match loop [cl] s' with
+      | .ok (cls, st) => .ok (cls, st)
+      | .error msg => .error msg
+    | .error msg => .error msg
 
   partial def parseCodataClause : Parser (List Pat × Copattern × Expr) := fun s =>
     -- Parse optional leading pipe for consumer syntax
@@ -1004,6 +1007,249 @@ mutual
     | none => .error "unexpected EOF"
 
   partial def parseDecls : Parser (List Decl) := many parseDecl
+
+  -- A variant of expression parser that stops when encountering '>' (rangle).
+  -- This is used inside `cut <producer | consumer>` so that the inner expression
+  -- does not greedily consume the closing bracket as a comparison operator.
+
+  -- Parse cut: cut <producer | consumer>
+  -- Uses parseExprStop to avoid ambiguity with > comparison operator
+  partial def parseCut : Parser Expr := fun s =>
+    let s := s.advance  -- skip 'cut'
+    match expect .langle s with
+    | .ok (_, s') =>
+      match parseExprStop s' with
+      | .ok (producer, s'') =>
+        match expect .pipe s'' with
+        | .ok (_, s''') =>
+          match parseExprStop s''' with
+          | .ok (consumer, s'''') =>
+            match expect .rangle s'''' with
+            | .ok (_, s''''') => .ok (Expr.cut producer consumer, s''''')
+            | .error msg => .error msg
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  partial def parseExprStop : Parser Expr := parsePipeExprStop
+
+  partial def parsePipeExprStop : Parser Expr := do
+    let left ← parseOrExprStop
+    parsePipeRestStop left
+
+  partial def parsePipeRestStop (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .pipeGt =>
+      let s := s.advance
+      match parseOrExprStop s with
+      | .ok (right, s') =>
+        parsePipeRestStop (Expr.binOp .pipe left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  partial def parseOrExprStop : Parser Expr := do
+    let left ← parseAndExprStop
+    parseOrRestStop left
+
+  partial def parseOrRestStop (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .pipeOr =>
+      let s := s.advance
+      match parseAndExprStop s with
+      | .ok (right, s') =>
+        parseOrRestStop (Expr.binOp .or left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  partial def parseAndExprStop : Parser Expr := do
+    let left ← parseCompareExprStop
+    parseAndRestStop left
+
+  partial def parseAndRestStop (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .ampAmp =>
+      let s := s.advance
+      match parseCompareExprStop s with
+      | .ok (right, s') =>
+        parseAndRestStop (Expr.binOp .and left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  partial def parseCompareExprStop : Parser Expr := do
+    let left ← parseConcatExprStop
+    parseCompareRestStop left
+
+  partial def parseCompareRestStop (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .eqEq =>
+      let s := s.advance
+      match parseConcatExprStop s with
+      | .ok (right, s') => .ok (Expr.binOp .eq left right, s')
+      | .error msg => .error msg
+    | some .neq =>
+      let s := s.advance
+      match parseConcatExprStop s with
+      | .ok (right, s') => .ok (Expr.binOp .ne left right, s')
+      | .error msg => .error msg
+    | some .langle =>
+      let s := s.advance
+      match parseConcatExprStop s with
+      | .ok (right, s') => .ok (Expr.binOp .lt left right, s')
+      | .error msg => .error msg
+    | some .le =>
+      let s := s.advance
+      match parseConcatExprStop s with
+      | .ok (right, s') => .ok (Expr.binOp .le left right, s')
+      | .error msg => .error msg
+    | some .rangle =>
+      -- Stop here; treat '>' as the end of cut
+      .ok (left, s)
+    | some .ge =>
+      let s := s.advance
+      match parseConcatExprStop s with
+      | .ok (right, s') => .ok (Expr.binOp .ge left right, s')
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  partial def parseConcatExprStop : Parser Expr := do
+    let left ← parseAddExprStop
+    parseConcatRestStop left
+
+  partial def parseConcatRestStop (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .plusPlus =>
+      let s := s.advance
+      match parseConcatExprStop s with
+      | .ok (right, s') => .ok (Expr.binOp .concat left right, s')
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  partial def parseAddExprStop : Parser Expr := do
+    let left ← parseMulExprStop
+    parseAddRestStop left
+
+  partial def parseAddRestStop (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .plus =>
+      let s := s.advance
+      match parseMulExprStop s with
+      | .ok (right, s') => parseAddRestStop (Expr.binOp .add left right) s'
+      | .error msg => .error msg
+    | some .minus =>
+      let s := s.advance
+      match parseMulExprStop s with
+      | .ok (right, s') => parseAddRestStop (Expr.binOp .sub left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  partial def parseMulExprStop : Parser Expr := do
+    let left ← parseUnaryExprStop
+    parseMulRestStop left
+
+  partial def parseMulRestStop (left : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .star =>
+      let s := s.advance
+      match parseUnaryExprStop s with
+      | .ok (right, s') => parseMulRestStop (Expr.binOp .mul left right) s'
+      | .error msg => .error msg
+    | some .slash =>
+      let s := s.advance
+      match parseUnaryExprStop s with
+      | .ok (right, s') => parseMulRestStop (Expr.binOp .div left right) s'
+      | .error msg => .error msg
+    | _ => .ok (left, s)
+
+  partial def parseUnaryExprStop : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .minus =>
+      let s := s.advance
+      match parseUnaryExprStop s with
+      | .ok (e, s') => .ok (Expr.unaryOp .neg e, s')
+      | .error msg => .error msg
+    | some .kNot =>
+      let s := s.advance
+      match parseUnaryExprStop s with
+      | .ok (e, s') => .ok (Expr.unaryOp .not e, s')
+      | .error msg => .error msg
+    | _ => parseAppExprStop s
+
+  partial def parseAppExprStop : Parser Expr := do
+    let base ← parseFieldExprStop
+    parseAppArgsStop base
+
+  partial def parseAppArgsStop (base : Expr) : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some .lparen =>
+      let s := s.advance
+      match sepBy parseExprStop (expect .comma) s with
+      | .ok (args, s') =>
+        match expect .rparen s' with
+        | .ok (_, s'') =>
+          let result := args.foldl Expr.app base
+          parseAppArgsStop result s''
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | _ =>
+      match parseFieldExprStop s with
+      | .ok (arg, s') => parseAppArgsStop (Expr.app base arg) s'
+      | .error _ => .ok (base, s)
+
+  partial def parseFieldExprStop : Parser Expr := do
+    let base ← parseAtomExprStop
+    parseFieldRestStop base
+
+  partial def parseFieldRestStop (base : Expr) : Parser Expr := fun s =>
+    match s.peekToken?, s.peekN 1 with
+    | some .dot, some ptok =>
+      match ptok.token with
+      | .ident field =>
+        let s := s.advance.advance
+        parseFieldRestStop (Expr.field base field) s
+      | _ => .ok (base, s)
+    | _, _ => .ok (base, s)
+
+  partial def parseAtomExprStop : Parser Expr := fun s =>
+    match s.peekToken? with
+    | some (.int n) => .ok (Expr.lit (.int n), s.advance)
+    | some (.float f) => .ok (Expr.lit (.float f), s.advance)
+    | some (.string str) => .ok (Expr.lit (.string str), s.advance)
+    | some (.char c) => .ok (Expr.lit (.char c), s.advance)
+    | some .kTrue => .ok (Expr.lit (.bool true), s.advance)
+    | some .kFalse => .ok (Expr.lit (.bool false), s.advance)
+    | some .hash => .ok (Expr.hash, s.advance)
+    | some (.ident id) => .ok (Expr.var id, s.advance)
+    | some (.conId id) => .ok (Expr.var id, s.advance)
+    | some .backslash => parseLambda s
+    | some .kLet => parseLet s
+    | some .kMatch => parseMatch s
+    | some .kIf => parseIf s
+    | some .kCut => parseCut s
+    | some .kMu => parseMu s
+    | some .lparen =>
+      let s := s.advance
+      match s.peekToken? with
+      | some .rparen => .ok (Expr.lit .unit, s.advance)
+      | _ =>
+        match parseExprStop s with
+        | .ok (e, s') =>
+          match s'.peekToken? with
+          | some .colon =>
+            let s' := s'.advance
+            match parseType s' with
+            | .ok (ty, s'') =>
+              match expect .rparen s'' with
+              | .ok (_, s''') => .ok (Expr.ann e ty, s''')
+              | .error msg => .error msg
+            | .error msg => .error msg
+          | some .rparen => .ok (e, s'.advance)
+          | some tok => .error s!"expected ')' or ':' but found {tok}"
+          | none => .error "unexpected EOF"
+        | .error msg => .error msg
+    | some .lbrace => parseBraceExpr s
+    | some tok => .error s!"expected expression but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+    | none => .error "expected expression but found EOF"
 end
 
 -- Parse a complete program
