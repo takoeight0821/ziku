@@ -112,6 +112,7 @@ def inferTests : List String :=
    "if_then_else", "type_annotation",
    "match_var_pattern", "match_literal_pattern", "match_bool_scrutinee", "match_annotated_pattern",
    "record_simple", "record_field_access", "record_let_binding", "record_nested",
+   "pipe_operator",
    "unbound_variable", "type_mismatch"]
 
 /-- Run all tests in a category -/

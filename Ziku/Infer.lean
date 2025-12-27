@@ -65,12 +65,16 @@ def tyChar : Ty := .con dummyPos "Char"
 def tyFloat : Ty := .con dummyPos "Float"
 
 -- Get expected and result types for binary operators
+-- Note: Comparison operators (.eq, .ne, .lt, .le, .gt, .ge) are currently
+-- monomorphic on Int. True polymorphic equality would require type class
+-- constraints (Eq, Ord), which are not yet implemented in the type system.
+-- The .pipe operator is handled separately as a special case (see infer function).
 def binOpTypes : BinOp → Ty × Ty
   | .add | .sub | .mul | .div => (tyInt, tyInt)
   | .eq | .ne | .lt | .le | .gt | .ge => (tyInt, tyBool)
   | .and | .or => (tyBool, tyBool)
   | .concat => (tyString, tyString)
-  | .pipe => (tyInt, tyInt)  -- Placeholder, needs proper handling
+  | .pipe => (tyInt, tyInt)  -- Not used; .pipe has special handling in infer
 
 -- Get expected and result types for unary operators
 def unaryOpTypes : UnaryOp → Ty × Ty
@@ -160,7 +164,7 @@ partial def checkPattern (pat : Pat) (expectedTy : Ty) : InferM (List (Ident × 
   | .wild _ =>
     -- Wildcard: no bindings, matches anything
     return ([], [])
-  | .con pos conName args =>
+  | .con pos conName _args =>
     -- Constructor pattern: need to look up constructor type
     -- For now, throw not implemented
     throw $ .notImplemented pos s!"constructor pattern '{conName}'"
@@ -190,14 +194,22 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     | none => throw $ .unboundVariable pos x
   | .hash pos =>
     throw $ .notImplemented pos "self-reference (#)"
-  | .binOp pos op e1 e2 => do
+  -- Special case for pipe operator: e1 |> e2  ≡  e2(e1)
+  -- Type rule: Γ ⊢ e1 : α, Γ ⊢ e2 : α → β  ⇒  e1 |> e2 : β
+  | .binOp pos .pipe e1 e2 => do
+    let (t1, subst1) ← infer env e1
+    let (t2, subst2) ← infer (env.applySubst subst1) e2
+    let resultTy ← freshTyVar
+    let subst3 ← unifyAt pos (t2.applySubst subst2) (.arrow pos (t1.applySubst subst2) resultTy)
+    return (resultTy.applySubst subst3, subst1 ++ subst2 ++ subst3)
+  | .binOp _pos op e1 e2 => do
     let (expectedTy, resultTy) := binOpTypes op
     let (t1, subst1) ← infer env e1
     let subst1' ← unifyAt (e1.pos) t1 expectedTy
     let (t2, subst2) ← infer (env.applySubst (subst1 ++ subst1')) e2
     let subst2' ← unifyAt (e2.pos) t2 expectedTy
     return (resultTy, subst1 ++ subst1' ++ subst2 ++ subst2')
-  | .unaryOp pos op e => do
+  | .unaryOp _pos op e => do
     let (expectedTy, resultTy) := unaryOpTypes op
     let (t, subst) ← infer env e
     let subst' ← unifyAt (e.pos) t expectedTy
@@ -287,10 +299,7 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     -- Infer type of the record expression
     let (recTy, subst) ← infer env e
 
-    -- Fresh type variable for the field type
-    let fieldTy ← freshTyVar
-
-    -- The record must have type { field : fieldTy, ... }
+    -- The record must have type { field : ty, ... }
     -- For simplicity, we just check if it's a record type with the field
     match recTy.applySubst subst with
     | .record _ fields =>

@@ -1,0 +1,5 @@
+-- Test pipe operator type inference
+-- e1 |> e2  means  e2(e1)
+-- Type rule: Γ ⊢ e1 : α, Γ ⊢ e2 : α → β  ⇒  e1 |> e2 : β
+
+1 |> \x => x + 1 |> \y => y * 2

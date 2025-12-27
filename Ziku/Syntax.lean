@@ -340,14 +340,14 @@ partial def Decl.toString : Decl → String
     s!"(Codata {name}{ps} " ++ "{ " ++ String.intercalate ", " ss ++ " })"
   | .def_ name ty body =>
     s!"(Def \"{name}\" {ty} {body.toString})"
-  | .defPat name ty clauses =>
+  | .defPat name ty _clauses =>
     s!"(DefPat \"{name}\" {ty} [...])"
   | .infix_ prec rightAssoc op =>
     let assoc := if rightAssoc then "right" else "left"
     s!"(Infix {prec} {assoc} \"{op}\")"
-  | .module_ name decls =>
+  | .module_ name _decls =>
     s!"(Module {name} [...])"
-  | .import_ name items alias =>
+  | .import_ name _items _alias =>
     s!"(Import {name})"
 
 instance : ToString Decl := ⟨Decl.toString⟩
