@@ -1,6 +1,7 @@
 # Ziku Syntax Design
 
 Ziku is the successor of malgo and anma, featuring:
+
 - Duality-aware design with explicit data/codata symmetry
 - Sequent calculus foundation
 - Copattern matching for codata construction
@@ -315,21 +316,102 @@ c.increment.add(5).value  -- evaluates to 6
 
 ---
 
-## Sequent Calculus Connection
+## Sequent Calculus Features
+
+Ziku provides first-class support for sequent calculus constructs, enabling powerful control flow patterns.
+
+### Cut Expression
+
+The `cut <producer | consumer>` form represents the fundamental interaction between producers and consumers in sequent calculus.
 
 ```ziku
--- # in copatterns corresponds to the "hole" in evaluation contexts
--- Consumer syntax uses | for pattern matching
-{ | Left x  => x
-  | Right y => y }
+-- Basic cut: bind producer value to consumer pattern
+cut <42 | { | x => x + 1 }>                    -- evaluates to 43
 
--- Producer/Consumer cut
-cut <Left 42 | { | Left x => x + 1 | Right _ => 0 }>
+-- Cut with Either type
+cut <Left 42 | { | Left x => x + 1 | Right _ => 0 }>  -- 43
 
--- μ-abstraction binds continuation
-μk => {
-  #(v) => <v | k>
+-- Cut with complex producer
+cut <1 + 2 | { | x => x * 10 }>                -- 30
+
+-- Cut with continuation
+cut <getValue() | k>
+
+-- Nested cuts
+cut <getEither() | { | Left x => cut <x | process> | Right y => cut <y | handle> }>
+```
+
+**Important limitation**: The `>` character cannot be used as a comparison operator inside cut expressions without parentheses:
+
+```ziku
+-- This works:
+cut <x | y>
+cut <(a > b) | c>          -- comparison in parentheses
+
+-- This doesn't work (parser ambiguity):
+cut <a > b | c>            -- '>' would terminate the cut
+```
+
+### μ-Abstraction (Continuations)
+
+The `μ` operator (or `mu` keyword) binds a continuation variable, enabling explicit control over evaluation contexts.
+
+```ziku
+-- Basic mu: bind continuation to variable k
+mu k => expr
+
+-- Using the continuation
+mu k => someValue              -- continuation k is bound but not used
+mu k => cut <42 | k>          -- pass 42 to continuation k
+
+-- Identity continuation
+let id = mu k => cut <x | k>
+
+-- Continuation passing style
+def callcc : ((a -> b) -> a) -> a = \f =>
+  mu k => f (mu _ => cut <k | result>)
+```
+
+**ASCII alternative**: Use `mu` keyword instead of `μ` symbol:
+
+```ziku
+-- These are equivalent
+μk => expr
+mu k => expr
+```
+
+### Consumer Blocks
+
+Consumer blocks use `|` for pattern matching on producers:
+
+```ziku
+-- Anonymous consumer
+{ | Zero   => 0
+  | Succ n => n + 1
 }
+
+-- Consumer in cut
+cut <someNat | { | Zero => 0 | Succ n => n + 1 }>
+
+-- Multiple cases
+{ | Left x  => processLeft x
+  | Right y => processRight y
+  | _       => defaultCase
+}
+```
+
+### Combining Cut and Mu
+
+```ziku
+-- Explicit control flow with cut and mu
+def withContinuation : ((a -> r) -> r) -> r = \f =>
+  mu k => cut <f (\x => mu _ => cut <x | k>) | k>
+
+-- Exception handling with continuations
+def try : a -> (Exception -> a) -> a = \computation, handler =>
+  mu k =>
+    cut <computation | k>
+      handle err => cut <handler err | k>
 ```
 
 ---
@@ -540,6 +622,9 @@ expr        = atom
             | expr "." IDENT                                  -- field access
             | expr atom+                                      -- application (space)
             | expr "(" args ")"                               -- application (parens)
+            | "cut" "<" expr "|" expr ">"                     -- sequent cut
+            | ("μ" | "mu") IDENT "=>" expr                    -- mu abstraction
+            | "if" expr "then" expr "else" expr               -- conditional
             | "#"
             | "(" expr ")"
 
@@ -562,17 +647,20 @@ binop       = "+" | "-" | "*" | "/" | "==" | "<" | ">" | "<=" | ">="
 
 ## Visual Summary
 
-| Syntax | Meaning |
-|--------|---------|
-| `#` | The object being defined (this/self) |
-| `#.field` | When field is accessed |
-| `#(x)` | When called with argument x (callable codata) |
-| `#.tail.head` | Nested: when `.tail.head` is accessed |
-| `{ #.x => e }` | Codata block defining field x |
-| `{ #(x) => e }` | Function block (callable codata) |
-| `\x => e` | Lambda (sugar for `{ #(x) => e }`) |
-| `\| p => e` | Pattern match clause |
-| `f(x, y)` | Curried application: `f(x)(y)` |
-| `f x y` | Same as above |
-| `{ a = x, b = y }` | Anonymous record |
-| `r.field` | Field access |
+| Syntax                   | Meaning                                        |
+| ------------------------ | ---------------------------------------------- |
+| `#`                      | The object being defined (this/self)           |
+| `#.field`                | When field is accessed                         |
+| `#(x)`                   | When called with argument x (callable codata)  |
+| `#.tail.head`            | Nested: when `.tail.head` is accessed          |
+| `{ #.x => e }`           | Codata block defining field x                  |
+| `{ #(x) => e }`          | Function block (callable codata)               |
+| `\x => e`                | Lambda (sugar for `{ #(x) => e }`)             |
+| `\| p => e`              | Pattern match clause                           |
+| `{ \| p => e }`          | Consumer block (pattern matching on producers) |
+| `f(x, y)`                | Curried application: `f(x)(y)`                 |
+| `f x y`                  | Same as above                                  |
+| `{ a = x, b = y }`       | Anonymous record                               |
+| `r.field`                | Field access                                   |
+| `cut <p \| c>`           | Sequent cut: producer p to consumer c          |
+| `μk => e` or `mu k => e` | Mu abstraction: bind continuation k            |
