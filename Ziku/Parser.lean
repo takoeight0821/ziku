@@ -466,9 +466,25 @@ mutual
         | .ok (_, s'') =>
           -- Apply arguments as curried: f(x, y) becomes (f x) y
           let result := args.foldl (Expr.app pos) base
-          parseAppArgs result s''
+          -- After parenthesized application, allow field access: f(1).x
+          match parseFieldRest result s'' with
+          | .ok (withFields, s''') => parseAppArgs withFields s'''
+          | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
+    | some .hash =>
+      -- Don't consume # followed by . or ( as application argument
+      -- since it likely starts a new codata clause
+      match s.peekN 1 with
+      | some ptok =>
+        if ptok.token == .dot || ptok.token == .lparen then
+          .ok (base, s)
+        else
+          -- Bare # can be an argument
+          match parseFieldExpr s with
+          | .ok (arg, s') => parseAppArgs (Expr.app pos base arg) s'
+          | .error _ => .ok (base, s)
+      | none => .ok (base, s)
     | _ =>
       -- Try space-separated application
       match parseFieldExpr s with
@@ -504,8 +520,8 @@ mutual
     | some (.char c) => .ok (Expr.lit pos (.char c), s.advance)
     | some .kTrue => .ok (Expr.lit pos (.bool true), s.advance)
     | some .kFalse => .ok (Expr.lit pos (.bool false), s.advance)
-    -- Hash (self-reference) - only allowed in copattern positions
-    | some .hash => .error "# can only appear in copattern positions, not in expressions"
+    -- Hash (self-reference) for codata
+    | some .hash => .ok (Expr.hash pos, s.advance)
     -- Variable or constructor
     | some (.ident id) => .ok (Expr.var pos id, s.advance)
     | some (.conId id) => .ok (Expr.var pos id, s.advance)
@@ -1230,9 +1246,23 @@ mutual
         match expect .rparen s' with
         | .ok (_, s'') =>
           let result := args.foldl (Expr.app pos) base
-          parseAppArgsStop result s''
+          -- After parenthesized application, allow field access: f(1).x
+          match parseFieldRestStop result s'' with
+          | .ok (withFields, s''') => parseAppArgsStop withFields s'''
+          | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
+    | some .hash =>
+      -- Don't consume # followed by . or ( as application argument
+      match s.peekN 1 with
+      | some ptok =>
+        if ptok.token == .dot || ptok.token == .lparen then
+          .ok (base, s)
+        else
+          match parseFieldExprStop s with
+          | .ok (arg, s') => parseAppArgsStop (Expr.app pos base arg) s'
+          | .error _ => .ok (base, s)
+      | none => .ok (base, s)
     | _ =>
       match parseFieldExprStop s with
       | .ok (arg, s') => parseAppArgsStop (Expr.app pos base arg) s'
@@ -1262,7 +1292,7 @@ mutual
     | some (.char c) => .ok (Expr.lit pos (.char c), s.advance)
     | some .kTrue => .ok (Expr.lit pos (.bool true), s.advance)
     | some .kFalse => .ok (Expr.lit pos (.bool false), s.advance)
-    | some .hash => .error "# can only appear in copattern positions, not in expressions"
+    | some .hash => .ok (Expr.hash pos, s.advance)
     | some (.ident id) => .ok (Expr.var pos id, s.advance)
     | some (.conId id) => .ok (Expr.var pos id, s.advance)
     | some .backslash => parseLambda s
