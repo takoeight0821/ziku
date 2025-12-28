@@ -118,6 +118,7 @@ inductive Expr where
   | if_       : SourcePos → Expr → Expr → Expr → Expr               -- If: if c then t else f
   | cut       : SourcePos → Expr → Expr → Expr                      -- Sequent cut: cut <producer | consumer>
   | mu        : SourcePos → Ident → Expr → Expr                     -- μ-abstraction: μk => e
+  | hash      : SourcePos → Expr                                    -- Self-reference: # (for codata)
   deriving Repr, BEq
 
 -- Get source position from Expr
@@ -138,6 +139,7 @@ def Expr.pos : Expr → SourcePos
   | if_ p _ _ _ => p
   | cut p _ _ => p
   | mu p _ _ => p
+  | hash p => p
 
 -- Data constructor declaration
 structure ConDecl where
@@ -191,6 +193,7 @@ partial def Expr.exprSize : Expr → Nat
   | if_ _ c t f => 1 + c.exprSize + t.exprSize + f.exprSize
   | cut _ e1 e2 => 1 + e1.exprSize + e2.exprSize
   | mu _ _ e => 1 + e.exprSize
+  | hash _ => 1
 
 -- Free variables in an expression
 partial def Expr.freeVars : Expr → List Ident
@@ -213,6 +216,7 @@ partial def Expr.freeVars : Expr → List Ident
   | if_ _ c t f => c.freeVars ++ t.freeVars ++ f.freeVars
   | cut _ e1 e2 => e1.freeVars ++ e2.freeVars
   | mu _ x e => e.freeVars.filter (· != x)
+  | hash _ => []
 
 -- Closed expression (no free variables)
 def Expr.closed (e : Expr) : Prop := e.freeVars = []
@@ -318,6 +322,7 @@ partial def Expr.toString : Expr → String
   | .if_ _ c t f => s!"(If {c.toString} {t.toString} {f.toString})"
   | .cut _ e1 e2 => s!"(Cut {e1.toString} {e2.toString})"
   | .mu _ x e => s!"(Mu \"{x}\" {e.toString})"
+  | .hash _ => "#"
 
 instance : ToString Expr := ⟨Expr.toString⟩
 

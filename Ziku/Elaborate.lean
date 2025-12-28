@@ -240,6 +240,7 @@ partial def elaborateAll : Expr → Except ElaborateError Expr
   | .mu pos x e => do
     let e' ← elaborateAll e
     pure (.mu pos x e')
+  | .hash pos => pure (.hash pos)  -- Hash self-reference (passed through)
   | e => pure e  -- Literals and variables
 
 end Ziku

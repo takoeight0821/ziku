@@ -321,6 +321,8 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     throw $ .notImplemented pos "sequent cut"
   | .mu pos _ _ =>
     throw $ .notImplemented pos "mu abstraction"
+  | .hash pos =>
+    throw $ .notImplemented pos "hash self-reference (should be substituted during elaboration)"
 
 -- Run inference with initial state
 def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) :=

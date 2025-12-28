@@ -157,6 +157,7 @@ partial def eval (env : Env) : Expr → Option Value
     some (.record lazyFields)
   | .cut _ _ _ => none     -- Sequent cut not yet implemented
   | .mu _ _ _ => none      -- Mu abstraction not yet implemented
+  | .hash _ => none        -- Hash self-reference (should be substituted during elaboration)
 
 -- Pretty print value
 def Value.toString : Value → String
