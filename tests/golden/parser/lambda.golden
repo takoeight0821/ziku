@@ -1,1 +1,1 @@
-(Lam ["x"] (BinOp + (Var "x") (Lit 1)))
+(Lam "x" (BinOp + (Var "x") (Lit 1)))

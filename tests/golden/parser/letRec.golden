@@ -1,1 +1,1 @@
-(LetRec "factorial" (Lam ["n"] (If (BinOp == (Var "n") (Lit 0)) (Lit 1) (BinOp * (Var "n") (App (Var "factorial") (BinOp - (Var "n") (Lit 1)))))) (App (Var "factorial") (Lit 5)))
+(LetRec "factorial" (Lam "n" (If (BinOp == (Var "n") (Lit 0)) (Lit 1) (BinOp * (Var "n") (App (Var "factorial") (BinOp - (Var "n") (Lit 1)))))) (App (Var "factorial") (Lit 5)))

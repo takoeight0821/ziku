@@ -76,7 +76,7 @@ def runTest (tc : TestCase) : IO TestResult := do
 def parserTests : List String :=
   ["arithmetic", "precedence", "comparison", "let", "lambda",
    "if", "nested_let", "application", "unary", "record", "field_access",
-   "match", "letRec", "logical", "codata", "multiParamLambda", "hash",
+   "match", "letRec", "logical", "codata", "multiParamLambda",
    "codataMultiline", "stringLiteral", "charLiteral", "floatLiteral",
    "boolLiteral", "unitLiteral", "pipeOperator", "pipeChain", "concatOperator",
    "concatStrings", "notEqual", "lessEqual", "greaterEqual", "lessThan",
@@ -94,7 +94,7 @@ def parserTests : List String :=
    "negativeNumber", "parenthesesOnly", "parenthesesNested",
    "expressionMixedOperators", "divisionByZero", "variableSnakeCase",
    "variableCamelCase", "operatorNoSpaces", "operatorExtraSpaces",
-   "cutSimple", "cutExpression"]
+   "cutSimple", "cutExpression", "hash"]
 
 /-- List of eval test cases -/
 def evalTests : List String :=

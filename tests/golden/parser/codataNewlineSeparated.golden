@@ -1,1 +1,1 @@
-(Codata [(#.x => (App (Lit 1) (Field # "y"))), (# => (Lit 2))])
+(Codata [(#.x => (Lit 1)), (#.y => (Lit 2))])
