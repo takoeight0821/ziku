@@ -235,6 +235,35 @@ def mult'(l; α, β) :=
 - **Abel et al. (2013)**: Copatterns
 - **Downen et al. (2019)**: Codata in Action
 
+## Type Soundness
+
+The paper proves:
+- **Progress**: Well-typed focused statements either terminate or reduce
+- **Preservation**: Reduction preserves well-typedness
+- **Translation preserves types**: If `Γ ⊢ t : τ` in Fun, then `Γ ⊢ ⟦t⟧ :^prd τ` in Core
+
+## Advantages over CPS
+
+1. **Cleaner types**: No need for "type acrobatics" of CPS
+2. **Direct consumers**: Can distinguish direct consumers (destructors) from indirect ones
+3. **Flexible evaluation order**: CPS fixes evaluation order; sequent calculus allows choice
+4. **Natural optimizations**: Case-of-case emerges from basic reduction rules
+
+## Implementation in Ziku
+
+Ziku implements the λμμ̃-calculus as described in this paper:
+
+### IR Syntax (`Ziku/IR/Syntax.lean`)
+- `Producer`: var, lit, mu, cocase, record
+- `Consumer`: covar, muTilde, case, destructor
+- `Statement`: cut, binOp, ifz, call
+
+### Translation (`Ziku/Translate.lean`)
+Implements the translation rules from the paper, converting Surface.Expr to IR.Statement.
+
+### Evaluation (`Ziku/IR/Eval.lean`)
+Implements μ/μ̃-reduction as described in the paper.
+
 ## Limitations & Future Work
 
 1. **Type Inference**: The paper uses Hindley-Milner without let-generalization
