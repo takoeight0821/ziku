@@ -294,102 +294,93 @@ c.increment.add(5).value  -- evaluates to 6
 
 ---
 
-## Sequent Calculus Features
+## Control Flow: Label and Goto
 
-Ziku provides first-class support for sequent calculus constructs, enabling powerful control flow patterns.
+Ziku provides `label` and `goto` for non-local control flow, which are translated to sequent calculus constructs internally.
 
-### Cut Expression
+### Label Expression
 
-The `cut <producer | consumer>` form represents the fundamental interaction between producers and consumers in sequent calculus.
+The `label name { body }` form creates a control point that can be jumped to:
 
 ```ziku
--- Basic cut: bind producer value to consumer pattern
-cut <42 | { | x => x + 1 }>                    -- evaluates to 43
+-- Basic label: if body completes normally, return its value
+label result { 42 }                    -- evaluates to 42
 
--- Cut with Either type
-cut <Left 42 | { | Left x => x + 1 | Right _ => 0 }>  -- 43
+-- Label with early exit via goto
+label result {
+  if condition then goto(42, result)
+  else expensive_computation()
+}
 
--- Cut with complex producer
-cut <1 + 2 | { | x => x * 10 }>                -- 30
-
--- Cut with continuation
-cut <getValue() | k>
-
--- Nested cuts
-cut <getEither() | { | Left x => cut <x | process> | Right y => cut <y | handle> }>
+-- Nested labels
+label outer {
+  label inner {
+    if x > 0 then goto(x, outer)       -- jump to outer
+    else goto(0, inner)                 -- jump to inner
+  }
+}
 ```
 
-**Important limitation**: The `>` character cannot be used as a comparison operator inside cut expressions without parentheses:
+### Goto Expression
+
+The `goto(value, label)` form jumps to a label with a value:
+
+```ziku
+-- Jump with computed value
+label sum {
+  let x = 10 in
+  goto(x + 5, sum)                     -- returns 15
+}
+
+-- Conditional early return
+label validate {
+  if input < 0 then goto("negative", validate)
+  else if input > 100 then goto("too large", validate)
+  else "valid"
+}
+```
+
+**Scoping**: Labels are statically scoped. A `goto` can only reference labels that are lexically enclosing:
 
 ```ziku
 -- This works:
-cut <x | y>
-cut <(a > b) | c>          -- comparison in parentheses
+label outer { goto(42, outer) }
 
--- This doesn't work (parser ambiguity):
-cut <a > b | c>            -- '>' would terminate the cut
+-- This is an error (undefined label):
+goto(42, undefined)
 ```
 
-### μ-Abstraction (Continuations)
+---
 
-The `μ` operator (or `mu` keyword) binds a continuation variable, enabling explicit control over evaluation contexts.
+## Sequent Calculus IR (Internal)
+
+Internally, Ziku compiles to a λμμ̃-calculus based intermediate representation. The surface language constructs are translated as follows:
+
+| Surface               | IR Translation                           |
+| --------------------- | ---------------------------------------- |
+| `label α { t }`       | `μα.⟨⟦t⟧ \| α⟩`                          |
+| `goto(t, α)`          | `μβ.⟨⟦t⟧ \| α⟩` (β fresh)                |
+| `let x = t₁ in t₂`    | `μα.⟨⟦t₁⟧ \| μ̃x.⟨⟦t₂⟧ \| α⟩⟩`            |
+| `if t₁ then t₂ else t₃` | `μα.ifz(⟦t₁⟧, ⟨⟦t₂⟧ \| α⟩, ⟨⟦t₃⟧ \| α⟩)` |
+| `λx.t`                | `cocase {ap(x; α) ⇒ ⟨⟦t⟧ \| α⟩}`         |
+| `t₁ t₂`               | `μα.⟨⟦t₁⟧ \| ap(⟦t₂⟧; α)⟩`               |
+
+The IR has three syntactic categories:
+- **Producers**: values that produce data (`var`, `lit`, `μα.s`, `cocase`)
+- **Consumers**: contexts that consume data (`covar`, `μ̃x.s`, `case`, `destructor`)
+- **Statements**: computations that drive evaluation (`⟨p | c⟩`, `binOp`, `ifz`)
+
+### Advanced: Direct IR Access
+
+For advanced users, Ziku also supports direct IR syntax (primarily for testing):
 
 ```ziku
--- Basic mu: bind continuation to variable k
+-- Cut expression (IR)
+cut <producer | consumer>
+
+-- Mu abstraction (IR)
 mu k => expr
-
--- Using the continuation
-mu k => someValue              -- continuation k is bound but not used
-mu k => cut <42 | k>          -- pass 42 to continuation k
-
--- Identity continuation
-let id = mu k => cut <x | k>
-
--- Continuation passing style
-def callcc : ((a -> b) -> a) -> a = \f =>
-  mu k => f (mu _ => cut <k | result>)
-```
-
-**ASCII alternative**: Use `mu` keyword instead of `μ` symbol:
-
-```ziku
--- These are equivalent
 μk => expr
-mu k => expr
-```
-
-### Consumer Blocks
-
-Consumer blocks use `|` for pattern matching on producers:
-
-```ziku
--- Anonymous consumer
-{ | Zero   => 0
-  | Succ n => n + 1
-}
-
--- Consumer in cut
-cut <someNat | { | Zero => 0 | Succ n => n + 1 }>
-
--- Multiple cases
-{ | Left x  => processLeft x
-  | Right y => processRight y
-  | _       => defaultCase
-}
-```
-
-### Combining Cut and Mu
-
-```ziku
--- Explicit control flow with cut and mu
-def withContinuation : ((a -> r) -> r) -> r = \f =>
-  mu k => cut <f (\x => mu _ => cut <x | k>) | k>
-
--- Exception handling with continuations
-def try : a -> (Exception -> a) -> a = \computation, handler =>
-  mu k =>
-    cut <computation | k>
-      handle err => cut <handler err | k>
 ```
 
 ---
@@ -600,8 +591,10 @@ expr        = atom
             | expr "." IDENT                                  -- field access
             | expr atom+                                      -- application (space)
             | expr "(" args ")"                               -- application (parens)
-            | "cut" "<" expr "|" expr ">"                     -- sequent cut
-            | ("μ" | "mu") IDENT "=>" expr                    -- mu abstraction
+            | "label" IDENT "{" expr "}"                      -- label (control point)
+            | "goto" "(" expr "," IDENT ")"                   -- goto (jump to label)
+            | "cut" "<" expr "|" expr ">"                     -- sequent cut (IR)
+            | ("μ" | "mu") IDENT "=>" expr                    -- mu abstraction (IR)
             | "if" expr "then" expr "else" expr               -- conditional
             | "#"
             | "(" expr ")"
@@ -640,5 +633,7 @@ binop       = "+" | "-" | "*" | "/" | "==" | "<" | ">" | "<=" | ">="
 | `f x y`                  | Same as above                                  |
 | `{ a = x, b = y }`       | Anonymous record                               |
 | `r.field`                | Field access                                   |
-| `cut <p \| c>`           | Sequent cut: producer p to consumer c          |
-| `μk => e` or `mu k => e` | Mu abstraction: bind continuation k            |
+| `label n { e }`          | Control point: creates jumpable label n        |
+| `goto(e, n)`             | Jump to label n with value e                   |
+| `cut <p \| c>`           | Sequent cut (IR): producer p to consumer c     |
+| `μk => e` or `mu k => e` | Mu abstraction (IR): bind continuation k       |
