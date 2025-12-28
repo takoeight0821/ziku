@@ -1,0 +1,1 @@
+label exit { if true then goto(10, exit) else 20 }

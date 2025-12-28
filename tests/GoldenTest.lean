@@ -1,5 +1,4 @@
 import Ziku.Parser
-import Ziku.Eval
 import Ziku.Infer
 import Ziku.Translate
 import Ziku.IR.Eval
@@ -31,14 +30,6 @@ def runParserTest (input : String) : Except String String :=
   | .ok expr => .ok (toString expr)
   | .error e => .error e
 
-/-- Run an eval test -/
-def runEvalTest (input : String) : Except String String :=
-  match Ziku.parseExprString input.trim with
-  | .ok expr =>
-    match Ziku.eval {} expr with
-    | some v => .ok (toString v)
-    | none => .ok "Evaluation error"
-  | .error e => .error e
 
 /-- Run a type inference test -/
 def runInferTest (input : String) : Except String String :=
@@ -71,7 +62,6 @@ def runTest (tc : TestCase) : IO TestResult := do
   let golden ← readFileOrEmpty tc.goldenPath
 
   let result := match tc.testType with
-    | "eval" => runEvalTest input
     | "infer" => runInferTest input
     | "ir-eval" => runIREvalTest input
     | _ => runParserTest input
@@ -115,9 +105,6 @@ def parserTests : List String :=
    "variableCamelCase", "operatorNoSpaces", "operatorExtraSpaces",
    "cutSimple", "cutExpression", "hash", "labelSimple", "labelNested", "gotoSimple", "labelGoto"]
 
-/-- List of eval test cases -/
-def evalTests : List String :=
-  ["arithmetic", "let", "if", "codataField", "codataCallable", "codataMultiParam", "codataNested"]
 
 /-- List of type inference test cases -/
 def inferTests : List String :=
@@ -133,6 +120,7 @@ def inferTests : List String :=
    "record_simple", "record_field_access", "record_let_binding", "record_nested",
    "pipe_operator",
    "codata_field", "codata_callable", "codata_multi_param", "codata_nested",
+   "label_simple", "label_goto",
    "unbound_variable", "type_mismatch"]
 
 /-- List of IR evaluation test cases -/
@@ -177,12 +165,11 @@ def main : IO UInt32 := do
   IO.println "Running golden tests..."
 
   let (parserPassed, parserFailed) ← runCategory "parser" parserTests "parser"
-  let (evalPassed, evalFailed) ← runCategory "eval" evalTests "eval"
   let (inferPassed, inferFailed) ← runCategory "infer" inferTests "infer"
   let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" irEvalTests "ir-eval"
 
-  let totalPassed := parserPassed + evalPassed + inferPassed + irEvalPassed
-  let totalFailed := parserFailed + evalFailed + inferFailed + irEvalFailed
+  let totalPassed := parserPassed + inferPassed + irEvalPassed
+  let totalFailed := parserFailed + inferFailed + irEvalFailed
 
   IO.println s!"\n=== Summary ==="
   IO.println s!"Passed: {totalPassed}"

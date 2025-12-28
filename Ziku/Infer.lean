@@ -323,10 +323,18 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     throw $ .notImplemented pos "mu abstraction"
   | .hash pos =>
     throw $ .notImplemented pos "hash self-reference (should be substituted during elaboration)"
-  | .label pos _ _ =>
-    throw $ .notImplemented pos "label (requires continuation typing)"
-  | .goto pos _ _ =>
-    throw $ .notImplemented pos "goto (requires continuation typing)"
+  | .label _pos _name body => do
+    -- label name { body }: The type is the type of the body.
+    -- Within body, goto(v, name) expects v to have the same type.
+    -- For now, we simply infer the body's type without tracking labels.
+    -- This is a simplification - full typing would track label types.
+    infer env body
+  | .goto pos _value _name => do
+    -- goto(value, name): Jumps to the label, never returns.
+    -- Returns a fresh type variable since the expression never produces a value.
+    -- Full typing would check that value's type matches the label's expected type.
+    let ty ← freshTyVar
+    return (ty, [])
 
 -- Run inference with initial state
 def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) :=

@@ -1,4 +1,4 @@
-import Ziku.Eval
+import Ziku.IR.Eval
 import Ziku.Infer
 
 namespace Ziku.Proofs

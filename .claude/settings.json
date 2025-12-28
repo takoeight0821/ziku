@@ -2,6 +2,9 @@
   "permissions": {
     "ask": [
       "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Bash(rm:*)"
     ]
   },
   "enabledPlugins": {
