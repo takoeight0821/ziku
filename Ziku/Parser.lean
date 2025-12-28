@@ -537,6 +537,10 @@ mutual
     | some .kCut => parseCut s
     -- Mu
     | some .kMu => parseMu s
+    -- Label
+    | some .kLabel => parseLabel s
+    -- Goto
+    | some .kGoto => parseGoto s
     -- Parenthesized or unit
     | some .lparen =>
       let s := s.advance
@@ -695,6 +699,43 @@ mutual
       | .ok (_, s'') =>
         match parseExpr s'' with
         | .ok (body, s''') => .ok (Expr.mu pos name body, s''')
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse label: label name { body }
+  partial def parseLabel : Parser Expr := fun s =>
+    let pos := s.currentPos
+    let s := s.advance  -- skip 'label'
+    match expectIdent s with
+    | .ok (name, s') =>
+      match expect .lbrace s' with
+      | .ok (_, s'') =>
+        match parseExpr s'' with
+        | .ok (body, s''') =>
+          match expect .rbrace s''' with
+          | .ok (_, s'''') => .ok (Expr.label pos name body, s'''')
+          | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Parse goto: goto(expr, name)
+  partial def parseGoto : Parser Expr := fun s =>
+    let pos := s.currentPos
+    let s := s.advance  -- skip 'goto'
+    match expect .lparen s with
+    | .ok (_, s') =>
+      match parseExpr s' with
+      | .ok (value, s'') =>
+        match expect .comma s'' with
+        | .ok (_, s''') =>
+          match expectIdent s''' with
+          | .ok (name, s'''') =>
+            match expect .rparen s'''' with
+            | .ok (_, s''''') => .ok (Expr.goto pos value name, s''''')
+            | .error msg => .error msg
+          | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
     | .error msg => .error msg
@@ -1301,6 +1342,8 @@ mutual
     | some .kIf => parseIf s
     | some .kCut => parseCut s
     | some .kMu => parseMu s
+    | some .kLabel => parseLabel s
+    | some .kGoto => parseGoto s
     | some .lparen =>
       let s := s.advance
       match s.peekToken? with

@@ -1,0 +1,1 @@
+(Label "outer" (Label "inner" (BinOp + (Lit 1) (Lit 2))))

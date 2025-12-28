@@ -44,6 +44,8 @@ inductive Token where
   | kInfixl : Token     -- infixl
   | kCut    : Token     -- cut
   | kMu     : Token     -- μ or mu
+  | kLabel  : Token     -- label
+  | kGoto   : Token     -- goto
   -- Punctuation
   | lparen  : Token     -- (
   | rparen  : Token     -- )
@@ -115,6 +117,8 @@ def Token.toString : Token → String
   | .kInfixl => "infixl"
   | .kCut => "cut"
   | .kMu => "μ"
+  | .kLabel => "label"
+  | .kGoto => "goto"
   | .lparen => "("
   | .rparen => ")"
   | .lbrace => "{"
@@ -203,6 +207,7 @@ def keywords : List (String × Token) :=
   , ("import", .kImport), ("as", .kAs)
   , ("infix", .kInfix), ("infixr", .kInfixr), ("infixl", .kInfixl)
   , ("cut", .kCut), ("mu", .kMu)
+  , ("label", .kLabel), ("goto", .kGoto)
   ]
 
 def lookupKeyword (s : String) : Option Token :=

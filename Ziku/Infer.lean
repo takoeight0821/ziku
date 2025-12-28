@@ -323,6 +323,10 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     throw $ .notImplemented pos "mu abstraction"
   | .hash pos =>
     throw $ .notImplemented pos "hash self-reference (should be substituted during elaboration)"
+  | .label pos _ _ =>
+    throw $ .notImplemented pos "label (requires continuation typing)"
+  | .goto pos _ _ =>
+    throw $ .notImplemented pos "goto (requires continuation typing)"
 
 -- Run inference with initial state
 def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) :=

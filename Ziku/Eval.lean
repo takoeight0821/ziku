@@ -158,6 +158,8 @@ partial def eval (env : Env) : Expr → Option Value
   | .cut _ _ _ => none     -- Sequent cut not yet implemented
   | .mu _ _ _ => none      -- Mu abstraction not yet implemented
   | .hash _ => none        -- Hash self-reference (should be substituted during elaboration)
+  | .label _ _ _ => none   -- Label not yet implemented (requires continuation support)
+  | .goto _ _ _ => none    -- Goto not yet implemented (requires continuation support)
 
 -- Pretty print value
 def Value.toString : Value → String

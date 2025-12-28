@@ -94,7 +94,7 @@ def parserTests : List String :=
    "negativeNumber", "parenthesesOnly", "parenthesesNested",
    "expressionMixedOperators", "divisionByZero", "variableSnakeCase",
    "variableCamelCase", "operatorNoSpaces", "operatorExtraSpaces",
-   "cutSimple", "cutExpression", "hash"]
+   "cutSimple", "cutExpression", "hash", "labelSimple", "labelNested", "gotoSimple", "labelGoto"]
 
 /-- List of eval test cases -/
 def evalTests : List String :=
