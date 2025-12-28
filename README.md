@@ -1,75 +1,65 @@
 # Ziku
 
-Lean 4で実装された算術式評価器（型推論付き）
+A functional programming language exploring the duality between data and codata.
 
-## 概要
+## Features
 
-- **AST**: 整数リテラル、変数、四則演算（+、-、*、/）
-- **パーサー**: 手書きパーサー（演算子優先順位対応）
-- **評価器**: 環境ベースの評価
-- **型システム**: Int型のみの単純な型推論基盤（将来の拡張用）
+- **Pattern matching** for data types
+- **Copattern matching** for codata types using `#` (self-reference)
+- **First-class control** with `label`/`goto`
+- **Hindley-Milner type inference** with let-polymorphism
 
-## ファイル構成
-
-```
-ziku/
-├── lakefile.toml
-├── lean-toolchain
-├── Main.lean            # REPLエントリポイント
-├── Ziku.lean           # ライブラリルート
-└── Ziku/
-    ├── Syntax.lean     # AST定義
-    ├── Parser.lean     # パーサー
-    ├── Type.lean       # 型定義
-    ├── Infer.lean      # 型推論
-    └── Eval.lean       # 評価器
-```
-
-## ビルド
+## Quick Start
 
 ```bash
-lake build
+lake build         # Build
+lake exe ziku      # Run REPL
+lake test          # Run tests
 ```
 
-## 実行
+## Examples
 
-```bash
-./.lake/build/bin/ziku
+```ziku
+// Arithmetic and let bindings
+let x = 10 in x + 1
+
+// Functions
+let double = \x => x * 2 in double 5
+
+// Recursion
+let rec factorial = \n =>
+  if n == 0 then 1
+  else n * factorial (n - 1)
+in factorial 5
+
+// Codata: define by behavior, not construction
+// #.x => 10 means "when .x is accessed, return 10"
+let point = { #.x => 10, #.y => 20 } in
+point.x + point.y
+
+// Callable codata (functions are codata!)
+// #(x) => ... means "when called with x, return ..."
+let square = { #(x) => x * x } in
+square(5)
+
+// Early return with label/goto
+label done {
+  if condition then goto(result, done)
+  else continue
+}
 ```
 
-REPLが起動します：
+## Documentation
 
-```
-Ziku REPL
-Type :quit or :q to exit
-> 1 + 2
-3
-> 3 * 4
-12
-> 10 - 5
-5
-> 20 / 4
-5
-> :quit
-Goodbye!
-```
+- [Getting Started](docs/getting-started.md) - Installation and first steps
+- [Tutorial](docs/tutorial.md) - Learn Ziku step by step
+- [Reference](docs/reference.md) - Complete language reference
+- [Internals](INTERNALS.md) - Implementation details
 
-## 演算子優先順位
+## Background
 
-- `*`, `/` > `+`, `-`
-- 括弧 `()` でグルーピング可能
+Ziku is inspired by ["Grokking the Sequent Calculus" (ICFP 2024)](https://dl.acm.org/doi/10.1145/3674639), implementing a λμμ̃-calculus based intermediate representation that makes the duality between data and codata explicit.
 
-## 拡張方針
+## License
 
-型推論基盤（Type.lean、Infer.lean）は将来的な多相型対応を想定した設計。現状は算術式のみなのでInt型固定だが、以下のような拡張が容易：
-
-- let束縛
-- ラムダ抽象
-- 関数適用
-- Hindley-Milner型推論
-
-## 実装のポイント
-
-- **パーサー**: Std.Internal.ParsecのAPI問題により手書きパーサーを採用
-- **partial関数**: 停止性証明が困難な再帰関数にpartialを使用
-- **mutual recursion**: parseExpr、parseFactor、parseAtomの相互再帰
+See [LICENSE](LICENSE) file.
