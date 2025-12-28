@@ -142,15 +142,24 @@ partial def step : Statement → Option Statement
       if p.isValue then some (s.substVar x p)
       else none
     -- Destructor application: ⟨cocase {...} | D(p̄; c)⟩
+    -- vars = [arg1, ..., argN, continuation_covar]
+    -- args = [p1, ..., pN]
+    -- cont = continuation consumer
     | .cocase _ branches, .destructor _ d args cont =>
       match branches.find? (fun (d', _, _) => d' == d) with
       | some (_, vars, body) =>
-        -- Substitute arguments for variables
-        let body' := vars.zip args |>.foldl (fun s (x, p) => s.substVar x p) body
-        -- Substitute continuation
-        -- Find the continuation variable (last in vars list for ap style)
-        -- For simplicity, assume continuation is passed in cont
-        some (.cut pos (.mu pos "_k" body') cont)
+        -- Arity check: vars should have one more element than args (the continuation covar)
+        if vars.length != args.length + 1 then none
+        else
+          match vars.getLast? with
+          | none => none
+          | some contCovar =>
+            let argVars := vars.dropLast
+            -- Substitute argument producers for argument variables
+            let body' := argVars.zip args |>.foldl (fun s (x, p) => s.substVar x p) body
+            -- Substitute continuation consumer for continuation covariable
+            let body'' := body'.substCovar contCovar cont
+            some body''
       | none => none
     | _, _ => none
   -- Binary operation: ⊙(p₁, p₂; c)
