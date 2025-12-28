@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Ziku is a programming language implementation in Lean 4 featuring:
 
 - **Duality-aware design**: explicit data/codata symmetry
-- **Sequent calculus foundation**: producers and consumers as first-class concepts
+- **Sequent calculus IR**: λμμ̃-calculus based intermediate representation
+- **Surface/IR separation**: user-friendly surface syntax translated to sequent calculus
 - **Copattern matching**: for codata construction using `#` (self-reference)
 - **Hindley-Milner type inference** with let-polymorphism
 
@@ -15,7 +16,7 @@ Ziku is a programming language implementation in Lean 4 featuring:
 
 ```bash
 lake build              # Build everything
-lake test               # Run golden tests (parser, eval, infer)
+lake test               # Run golden tests (parser, eval, infer, ir-eval)
 lake exe ziku           # Run REPL
 ```
 
@@ -23,40 +24,87 @@ lake exe ziku           # Run REPL
 
 ```
 Ziku/
-├── Syntax.lean    # Complete AST: Expr, Pat, Ty, Decl, Accessor, Copattern
-├── Lexer.lean     # Hand-written lexer with UTF-8 support
-├── Parser.lean    # Hand-written recursive descent parser
-├── Type.lean      # Type utilities: Subst, Scheme, substitution application
-├── Infer.lean     # HM type inference with InferM monad
-├── Eval.lean      # Environment-based interpreter
-└── Proofs/        # Lean proofs (Arithmetic, Eval, Identities, Soundness)
+├── Syntax.lean         # Shared types: SourcePos, Ident, Lit, BinOp, Pat, Ty
+├── Surface/
+│   └── Syntax.lean     # Surface AST with label/goto
+├── IR/
+│   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
+│   └── Eval.lean       # IR evaluator with μ/μ̃-reduction
+├── Translate.lean      # Surface → IR translation
+├── Lexer.lean          # Hand-written lexer with UTF-8 support
+├── Parser.lean         # Hand-written recursive descent parser
+├── Type.lean           # Type utilities: Subst, Scheme
+├── Infer.lean          # HM type inference
+├── Eval.lean           # Surface language interpreter
+├── Elaborate.lean      # Codata elaboration
+└── Proofs/             # Lean proofs (Arithmetic, Eval, Identities, Soundness)
+```
+
+### Pipeline
+
+```
+Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
+                        ↓
+                   [Elaborate] → [Infer]
 ```
 
 ### Key Types
 
-- `Expr`: Expressions include `lit`, `var`, `hash` (#), `binOp`, `lam`, `app`, `let_`, `letRec`, `match_`, `codata`, `field`, `record`, `if_`, `cut`, `mu`
-- `Ty`: Types include `var`, `con`, `app`, `arrow`, `forall_`, `record`
-- `Pat`: Patterns for destructuring data
-- `Copattern`: List of `Accessor` (.field or (arg)) for codata construction
-- `InferM`: StateT InferState (Except TypeError) for type inference
+**Surface Language (Ziku.Expr)**:
+- `lit`, `var`, `hash` (#), `binOp`, `unaryOp`
+- `lam`, `app`, `let_`, `letRec`, `if_`
+- `match_`, `codata`, `field`, `record`
+- `label`, `goto` - control flow primitives
+- `ann` - type annotation
+
+**Sequent Calculus IR**:
+- `Producer`: `var`, `lit`, `mu`, `cocase`, `record`
+- `Consumer`: `covar`, `muTilde`, `case`, `destructor`
+- `Statement`: `cut`, `binOp`, `ifz`, `call`
 
 ### Core Design
 
-The language distinguishes:
-
+**Surface Language**:
 - **Pattern matching** (`|` clauses): destructs data types
 - **Copattern matching** (`{}` blocks): constructs codata types
 - **`#`**: represents the object being defined (like `this`/`self`)
-- **`cut <producer | consumer>`**: sequent calculus cut
-- **`mu k => e`**: continuation binding
+- **`label name { body }`**: creates a control point
+- **`goto(value, name)`**: jumps to label with value
+
+**IR (λμμ̃-calculus)**:
+- **`μα.s`**: producer abstraction, captures continuation α
+- **`μ̃x.s`**: consumer abstraction, binds value x
+- **`⟨p | c⟩`**: cut, connects producer p with consumer c
+
+### Translation Rules (Grokking the Sequent Calculus)
+
+```
+⟦x⟧                     =  x
+⟦⌜n⌝⟧                   =  ⌜n⌝
+⟦t₁ ⊙ t₂⟧               =  μα. ⊙(⟦t₁⟧, ⟦t₂⟧; α)
+⟦if t₁ then t₂ else t₃⟧ =  μα.ifz(⟦t₁⟧, ⟨⟦t₂⟧ | α⟩, ⟨⟦t₃⟧ | α⟩)
+⟦let x = t₁ in t₂⟧      =  μα.⟨⟦t₁⟧ | μ̃x.⟨⟦t₂⟧ | α⟩⟩
+⟦λx.t⟧                  =  cocase {ap(x; α) ⇒ ⟨⟦t⟧ | α⟩}
+⟦t₁ t₂⟧                 =  μα.⟨⟦t₁⟧ | ap(⟦t₂⟧; α)⟩
+⟦label α {t}⟧           =  μα.⟨⟦t⟧ | α⟩
+⟦goto(t; α)⟧            =  μβ.⟨⟦t⟧ | α⟩  (β fresh)
+```
+
+### IR Reduction Rules
+
+```
+⟨μα.s | c̄⟩    ⊲  s[c̄/α]     (μ-reduction)
+⟨v̄ | μ̃x.s⟩    ⊲  s[v̄/x]     (μ̃-reduction, v is value)
+```
 
 ## Testing
 
 Golden tests in `tests/golden/`:
 
 - `parser/`: Parser output tests (.ziku -> .golden)
-- `eval/`: Evaluation tests
+- `eval/`: Surface language evaluation tests
 - `infer/`: Type inference tests
+- `ir-eval/`: IR evaluation tests (via translation)
 
 Tests are listed in `tests/GoldenTest.lean`. Add new test by:
 
@@ -70,3 +118,4 @@ Tests are listed in `tests/GoldenTest.lean`. Add new test by:
 - The parser is hand-written due to Std.Internal.Parsec API issues
 - Use `partial` for recursive functions where termination is hard to prove
 - Source positions are tracked throughout AST for error reporting
+- Use explicit function calls (e.g., `Producer.substVar x p prod`) instead of dot notation in mutual recursive functions to avoid argument order issues

@@ -3,6 +3,8 @@
 import Ziku.Syntax
 import Ziku.Surface.Syntax
 import Ziku.IR.Syntax
+import Ziku.IR.Eval
+import Ziku.Translate
 import Ziku.Lexer
 import Ziku.Type
 import Ziku.Parser

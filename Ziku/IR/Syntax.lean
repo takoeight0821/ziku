@@ -84,27 +84,27 @@ def Statement.pos : Statement → SourcePos
 -- Free variables in Producer
 mutual
 partial def Producer.freeVars : Producer → List Ident
-  | var _ x => [x]
-  | lit _ _ => []
-  | mu _ α s => s.freeVars.filter (· != α)  -- α is a covariable, bound
-  | cocase _ branches =>
+  | .var _ x => [x]
+  | .lit _ _ => []
+  | .mu _ α s => s.freeVars.filter (· != α)  -- α is a covariable, bound
+  | .cocase _ branches =>
     branches.flatMap (fun (_, vars, s) =>
       s.freeVars.filter (fun v => !vars.contains v))
-  | record _ fields => fields.flatMap (fun (_, p) => p.freeVars)
+  | .record _ fields => fields.flatMap (fun (_, p) => p.freeVars)
 
 partial def Consumer.freeVars : Consumer → List Ident
-  | covar _ α => [α]
-  | muTilde _ x s => s.freeVars.filter (· != x)
-  | case _ branches =>
+  | .covar _ α => [α]
+  | .muTilde _ x s => s.freeVars.filter (· != x)
+  | .case _ branches =>
     branches.flatMap (fun (_, vars, s) =>
       s.freeVars.filter (fun v => !vars.contains v))
-  | destructor _ _ ps c => ps.flatMap Producer.freeVars ++ c.freeVars
+  | .destructor _ _ ps c => ps.flatMap Producer.freeVars ++ c.freeVars
 
 partial def Statement.freeVars : Statement → List Ident
-  | cut _ p c => p.freeVars ++ c.freeVars
-  | binOp _ _ p1 p2 c => p1.freeVars ++ p2.freeVars ++ c.freeVars
-  | ifz _ p s1 s2 => p.freeVars ++ s1.freeVars ++ s2.freeVars
-  | call _ _ ps cs => ps.flatMap Producer.freeVars ++ cs.flatMap Consumer.freeVars
+  | .cut _ p c => p.freeVars ++ c.freeVars
+  | .binOp _ _ p1 p2 c => p1.freeVars ++ p2.freeVars ++ c.freeVars
+  | .ifz _ p s1 s2 => p.freeVars ++ s1.freeVars ++ s2.freeVars
+  | .call _ _ ps cs => ps.flatMap Producer.freeVars ++ cs.flatMap Consumer.freeVars
 end
 
 -- Pretty printing

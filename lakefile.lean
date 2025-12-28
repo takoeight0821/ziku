@@ -12,3 +12,9 @@ lean_exe ziku where
 @[test_driver]
 lean_exe «golden-test» where
   root := `tests.GoldenTest
+
+lean_exe «ir-eval-test» where
+  root := `tests.IREvalTest
+
+lean_exe «trace-test» where
+  root := `tests.TraceTest

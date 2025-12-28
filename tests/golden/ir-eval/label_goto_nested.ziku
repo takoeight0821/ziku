@@ -1,0 +1,1 @@
+label outer { let x = 10 in goto(x, outer) }
