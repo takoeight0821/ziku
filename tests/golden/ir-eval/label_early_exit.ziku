@@ -1,0 +1,5 @@
+label done {
+  let x = 5 in
+  let y = 10 in
+  if x > y then goto(x, done) else x + y
+}

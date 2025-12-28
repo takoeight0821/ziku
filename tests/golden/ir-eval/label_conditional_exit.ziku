@@ -1,0 +1,4 @@
+label result {
+  let x = 100 in
+  if x > 50 then goto(x - 50, result) else x
+}

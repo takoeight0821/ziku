@@ -1,0 +1,5 @@
+label outer {
+  label inner {
+    if 1 == 0 then goto(100, inner) else goto(42, outer)
+  }
+}

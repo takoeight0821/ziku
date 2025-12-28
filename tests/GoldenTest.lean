@@ -51,7 +51,7 @@ def runIREvalTest (input : String) : Except String String :=
       let result := Ziku.IR.eval stmt
       match result with
       | .value p => .ok (toString p)
-      | .stuck s => .ok s!"Stuck: {s}"
+      | .stuck s => .error s!"Stuck: {s}"
       | .error msg => .ok s!"Error: {msg}"
     | .error e => .ok s!"Translation error: {e}"
   | .error e => .error e
@@ -120,13 +120,17 @@ def inferTests : List String :=
    "record_simple", "record_field_access", "record_let_binding", "record_nested",
    "pipe_operator",
    "codata_field", "codata_callable", "codata_multi_param", "codata_nested",
-   "label_simple", "label_goto",
+   "label_simple", "label_goto", "label_nested", "label_function", "label_let",
+   "label_early_return", "label_match",
    "unbound_variable", "type_mismatch"]
 
 /-- List of IR evaluation test cases -/
 def irEvalTests : List String :=
   ["literal", "binop_add", "binop_comparison", "if_simple", "if_comparison",
-   "let_simple", "let_nested", "label_simple", "label_goto", "label_goto_nested"]
+   "let_simple", "let_nested", "let_computation", "let_chain",
+   "label_simple", "label_goto", "label_goto_nested",
+   "label_immediate_exit", "label_conditional_exit", "label_early_exit", "label_nested_goto",
+   "lambda_square", "lambda_nonvalue_args", "lambda_higher_order", "lambda_curried", "lambda_compose"]
 
 /-- Run all tests in a category -/
 def runCategory (category : String) (tests : List String) (testType : String) : IO (Nat × Nat) := do

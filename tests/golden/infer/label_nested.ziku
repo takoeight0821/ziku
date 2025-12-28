@@ -1,0 +1,5 @@
+label outer {
+  label inner {
+    if true then goto(1, inner) else goto(2, outer)
+  }
+}

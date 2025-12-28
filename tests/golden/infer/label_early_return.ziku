@@ -1,0 +1,5 @@
+label return {
+  let check = \n =>
+    if n < 0 then goto(0, return) else n * 2
+  in check(5)
+}
