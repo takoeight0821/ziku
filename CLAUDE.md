@@ -51,6 +51,7 @@ Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
 ### Key Types
 
 **Surface Language (Ziku.Expr)**:
+
 - `lit`, `var`, `hash` (#), `binOp`, `unaryOp`
 - `lam`, `app`, `let_`, `letRec`, `if_`
 - `match_`, `codata`, `field`, `record`
@@ -58,6 +59,7 @@ Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
 - `ann` - type annotation
 
 **Sequent Calculus IR**:
+
 - `Producer`: `var`, `lit`, `mu`, `cocase`, `record`
 - `Consumer`: `covar`, `muTilde`, `case`, `destructor`
 - `Statement`: `cut`, `binOp`, `ifz`, `call`
@@ -65,6 +67,7 @@ Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
 ### Core Design
 
 **Surface Language**:
+
 - **Pattern matching** (`|` clauses): destructs data types
 - **Copattern matching** (`{}` blocks): constructs codata types
 - **`#`**: represents the object being defined (like `this`/`self`)
@@ -72,6 +75,7 @@ Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
 - **`goto(value, name)`**: jumps to label with value
 
 **IR (λμμ̃-calculus)**:
+
 - **`μα.s`**: producer abstraction, captures continuation α
 - **`μ̃x.s`**: consumer abstraction, binds value x
 - **`⟨p | c⟩`**: cut, connects producer p with consumer c
@@ -119,3 +123,7 @@ Tests are listed in `tests/GoldenTest.lean`. Add new test by:
 - Use `partial` for recursive functions where termination is hard to prove
 - Source positions are tracked throughout AST for error reporting
 - Use explicit function calls (e.g., `Producer.substVar x p prod`) instead of dot notation in mutual recursive functions to avoid argument order issues
+
+## Hints
+
+- `rm` is denied for safety, use `trash` command instead
