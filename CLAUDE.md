@@ -121,6 +121,13 @@ Tests are listed in `tests/GoldenTest.lean`. Add new test by:
 - Use conventional commit format for commit messages
 - The parser is hand-written due to Std.Internal.Parsec API issues
 - Use `partial` for recursive functions where termination is hard to prove
+  - **When to use `partial`**: For evaluators, interpreters, and complex mutual recursions where termination proof is impractical
+  - **Alternatives to consider**:
+    - Add `termination_by` clause with explicit measure (e.g., `sizeOf`, custom metrics)
+    - Use fuel parameter (`fuel : Nat`) to bound recursion depth
+    - Implement step-based execution with explicit state machine
+    - Refactor mutual recursion into unified type + single recursive function
+  - **Trade-offs**: `partial def` enables practical implementation but cannot be used in proofs; choose based on whether the function needs to be used in formal verification
 - Source positions are tracked throughout AST for error reporting
 - Use explicit function calls (e.g., `Producer.substVar x p prod`) instead of dot notation in mutual recursive functions to avoid argument order issues
 

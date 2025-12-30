@@ -18,3 +18,6 @@ lean_exe «ir-eval-test» where
 
 lean_exe «trace-test» where
   root := `tests.TraceTest
+
+lean_exe «truncate-test» where
+  root := `tests.TruncateTest
