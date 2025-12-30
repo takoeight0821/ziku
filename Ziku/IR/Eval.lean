@@ -230,51 +230,16 @@ def defaultFuel : Nat := 100000
 def eval (s : Statement) : EvalResult :=
   evalWithFuel defaultFuel s
 
--- Helper function to build truncated record string incrementally
--- Truncation is based on VALUE length, not field name length
-partial def buildRecordFields (remaining : List (Ident × Producer)) (acc : String)
-    (pfx : String) (sfx : String) (dots : String) (maxLen : Nat) (maxValueLen : Nat) : String :=
-  match remaining with
-  | [] => acc ++ sfx
-  | (name, value) :: rest =>
-    -- Limit value string length to prevent huge outputs from nested structures
-    let valueStr := let s := value.toString
-                    if s.length > 200 then s.take 197 ++ "..." else s
-    let fieldStr := s!"{name} = {valueStr}"
-    let separator := if acc == pfx then "" else ", "
-    let newAcc := acc ++ separator ++ fieldStr
-    -- Primary check: is the VALUE too long?
-    if valueStr.length >= maxValueLen then
-      -- Show field name but truncate value
-      let truncatedField := s!"{name} = ..."
-      acc ++ separator ++ truncatedField ++ ", ... }"
-    -- Secondary check: would total exceed limit?
-    else if newAcc.length + sfx.length > maxLen then
-      -- If this is the first field and value is short, include it anyway
-      -- (don't truncate just because field name is long)
-      if acc == pfx then
-        buildRecordFields rest newAcc pfx sfx dots maxLen maxValueLen
-      else
-        acc ++ dots
-    else
-      buildRecordFields rest newAcc pfx sfx dots maxLen maxValueLen
-
--- Truncate record display if too long (over maxLen characters)
--- maxValueLen determines when a single value is considered too long
-partial def truncateRecord (p : Producer) (maxLen : Nat := 80) (maxValueLen : Nat := 40) : String :=
-  match p with
-  | .record _ fields =>
-    if fields.isEmpty then "{ }"
-    else
-      let pfx := "{ "
-      let sfx := " }"
-      let dots := ", ... }"
-      buildRecordFields fields pfx pfx sfx dots maxLen maxValueLen
-  | _ => p.toString
+-- Generic string truncation function
+-- Truncates any string to specified maximum length
+def truncate (s : String) (maxLen : Nat := 80) : String :=
+  if s.length <= maxLen then s
+  else if maxLen < 3 then "..."
+  else s.take (maxLen - 3) ++ "..."
 
 -- Pretty print evaluation result
 def EvalResult.toString : EvalResult → String
-  | .value p => s!"Value: {truncateRecord p}"
+  | .value p => s!"Value: {truncate p.toString}"
   | .stuck s => s!"Stuck: {s}"
   | .error msg => s!"Error: {msg}"
 

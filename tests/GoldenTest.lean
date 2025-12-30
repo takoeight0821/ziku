@@ -53,7 +53,7 @@ def runIREvalTest (input : String) : Except String String :=
         let stmt := Ziku.IR.Statement.cut dummyPos producer (Ziku.IR.Consumer.covar dummyPos "halt")
         let result := Ziku.IR.eval stmt
         match result with
-        | .value p => .ok (Ziku.IR.truncateRecord p)
+        | .value p => .ok (Ziku.IR.truncate p.toString)
         | .stuck s => .error s!"Stuck: {s}"
         | .error msg => .ok s!"Error: {msg}"
       | .error e => .ok s!"Translation error: {e}"

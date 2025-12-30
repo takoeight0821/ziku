@@ -1,130 +1,107 @@
 import Ziku.IR.Eval
-import Ziku.IR.Syntax
-import Ziku.Syntax
 
-open Ziku
 open Ziku.IR
 
--- Helper to create a SourcePos for testing
-def testPos : SourcePos := default
-
--- Helper to create integer literal
-def intLit (n : Int) : Producer := Producer.lit testPos (Ziku.Lit.int n)
-
--- Helper to create string for field value (simulating a long value)
-def longValue : Producer :=
-  Producer.lit testPos (Ziku.Lit.int 1234567890123456789012345678901234567890)
-
--- Helper to create a very long string value
-def veryLongStringValue : Producer :=
-  Producer.lit testPos (Ziku.Lit.string "This is a very long string value that will definitely exceed the eighty character limit for truncation")
-
--- Helper to check if a string contains a substring
-def stringContains (s : String) (sub : String) : Bool :=
-  (s.splitOn sub).length > 1
-
--- Test case structure
+-- Test case structure for string truncation
 structure TestCase where
   name : String
-  producer : Producer
-  expectedContains : List String
-  maxLen : Nat := 80
+  input : String
+  maxLen : Nat
+  expected : String
 
 def runTest (tc : TestCase) : IO Bool := do
-  let result := truncateRecord tc.producer tc.maxLen
-  let allMatch := tc.expectedContains.all (stringContains result)
+  let result := truncate tc.input tc.maxLen
+  let passed := result == tc.expected
   IO.println s!"Test: {tc.name}"
-  IO.println s!"  Result: {result}"
-  IO.println s!"  Expected to contain: {tc.expectedContains}"
-  IO.println s!"  Length: {result.length}"
-  IO.println s!"  Status: {if allMatch then "✓ PASS" else "✗ FAIL"}"
+  IO.println s!"  Input: {repr tc.input} (length: {tc.input.length})"
+  IO.println s!"  Max length: {tc.maxLen}"
+  IO.println s!"  Expected: {repr tc.expected}"
+  IO.println s!"  Actual: {repr result}"
+  IO.println s!"  Status: {if passed then "✓ PASS" else "✗ FAIL"}"
   IO.println ""
-  return allMatch
+  return passed
 
 def tests : List TestCase := [
-  -- Test 1: Empty record
-  { name := "Empty record"
-    producer := Producer.record testPos []
-    expectedContains := ["{ }"]
+  -- Test 1: Short string (no truncation needed)
+  { name := "Short string"
+    input := "hello"
+    maxLen := 80
+    expected := "hello"
   },
 
-  -- Test 2: Short record (should not truncate)
-  { name := "Short record (no truncation)"
-    producer := Producer.record testPos [
-      ("x", intLit 1),
-      ("y", intLit 2)
-    ]
-    expectedContains := ["{ x = 1, y = 2 }"]
+  -- Test 2: Empty string
+  { name := "Empty string"
+    input := ""
+    maxLen := 80
+    expected := ""
   },
 
-  -- Test 3: Long record with many fields (should truncate)
-  { name := "Long record with many fields"
-    producer := Producer.record testPos [
-      ("field1", intLit 1),
-      ("field2", intLit 2),
-      ("field3", intLit 3),
-      ("field4", intLit 4),
-      ("field5", intLit 5),
-      ("field6", intLit 6),
-      ("field7", intLit 7),
-      ("field8", intLit 8),
-      ("field9", intLit 9),
-      ("field10", intLit 10)
-    ]
-    expectedContains := [", ... }"]
+  -- Test 3: Exact boundary (exactly maxLen)
+  { name := "Exact boundary"
+    input := "12345678"
+    maxLen := 8
+    expected := "12345678"
   },
 
-  -- Test 4: First field is very long
-  { name := "First field is very long"
-    producer := Producer.record testPos [
-      ("very_long_field_name_that_exceeds_limit", longValue),
-      ("y", intLit 2)
-    ]
-    expectedContains := ["{ very_long_field_name_that_exceeds_limit =", "... }"]
+  -- Test 4: Just over boundary
+  { name := "Just over boundary"
+    input := "123456789"
+    maxLen := 8
+    expected := "12345..."
   },
 
-  -- Test 5: Multiple fields, truncates at second field
-  { name := "Truncate at second field"
-    producer := Producer.record testPos [
-      ("short", intLit 1),
-      ("very_long_field_with_long_value", longValue)
-    ]
-    expectedContains := [", ... }"]
-    maxLen := 30
+  -- Test 5: Much longer string
+  { name := "Much longer string"
+    input := "hello world this is a very long string that needs truncation"
+    maxLen := 20
+    expected := "hello world this ..."
   },
 
-  -- Test 6: Non-record type (should not truncate)
-  { name := "Non-record type (integer)"
-    producer := intLit 42
-    expectedContains := ["42"]
+  -- Test 6: Very short maxLen
+  { name := "Very short maxLen"
+    input := "hello"
+    maxLen := 3
+    expected := "..."
   },
 
-  -- Test 7: Single field that fits
-  { name := "Single short field"
-    producer := Producer.record testPos [("x", intLit 1)]
-    expectedContains := ["{ x = 1 }"]
+  -- Test 7: maxLen less than 3 (edge case)
+  { name := "maxLen = 2"
+    input := "hello"
+    maxLen := 2
+    expected := "..."  -- Should still show "..." even though maxLen < 3
   },
 
-  -- Test 8: Single field that's too long
-  { name := "Single long field exceeds limit"
-    producer := Producer.record testPos [
-      ("very_long_field_name_that_definitely_exceeds_the_eighty_character_limit", longValue)
-    ]
-    expectedContains := ["{ ", "... }"]
+  -- Test 8: Single character with maxLen 1
+  { name := "Single char, maxLen 1"
+    input := "a"
+    maxLen := 1
+    expected := "a"
   },
 
-  -- Test 9: Short field name but very long value
-  { name := "Short name, long value"
-    producer := Producer.record testPos [
-      ("x", veryLongStringValue),
-      ("y", intLit 2)
-    ]
-    expectedContains := [", ... }"]
+  -- Test 9: Unicode string
+  { name := "Unicode string"
+    input := "こんにちは世界"
+    maxLen := 10
+    expected := "こんにちは世界"
+  },
+
+  -- Test 10: Long unicode string
+  { name := "Long unicode string"
+    input := "これは非常に長い日本語の文字列です"
+    maxLen := 15
+    expected := "これは非常に長い日本語の..."
+  },
+
+  -- Test 11: Default maxLen (80)
+  { name := "Default maxLen"
+    input := String.ofList (List.replicate 100 'a')  -- 100 'a's
+    maxLen := 80
+    expected := String.ofList (List.replicate 77 'a') ++ "..."
   }
 ]
 
 def main : IO UInt32 := do
-  IO.println "=== Record Truncation Tests ==="
+  IO.println "=== Generic String Truncation Tests ==="
   IO.println ""
 
   let mut allPassed := true
