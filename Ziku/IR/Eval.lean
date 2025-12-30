@@ -137,9 +137,23 @@ partial def step : Statement → Option Statement
     match p, c with
     -- μ-reduction: ⟨μα.s | c̄⟩ ⊲ s[c̄/α]
     | .mu _ α s, _ => some (s.substCovar α c)
-    -- μ̃-reduction: ⟨v̄ | μ̃x.s⟩ ⊲ s[v̄/x] (v is value)
+    -- μ̃-reduction: ⟨v̄ | μ̃x.s⟩ ⊲ s[v'/x] where v' is p with enough self-substitution for recursion
     | _, .muTilde _ x s =>
-      if p.isValue then some (s.substVar x p)
+      if p.isValue then
+        -- Tie the knot: iterate substitution to handle recursive references
+        -- Each iteration unfolds one more level of recursion
+        -- Need 10+ iterations for nested lambda + codata (like Fibonacci streams)
+        let p1 := p.substVar x p
+        let p2 := p1.substVar x p1
+        let p3 := p2.substVar x p2
+        let p4 := p3.substVar x p3
+        let p5 := p4.substVar x p4
+        let p6 := p5.substVar x p5
+        let p7 := p6.substVar x p6
+        let p8 := p7.substVar x p7
+        let p9 := p8.substVar x p8
+        let p10 := p9.substVar x p9
+        some (s.substVar x p10)
       else none
     -- Destructor application: ⟨cocase {...} | D(p̄; c)⟩
     -- vars = [arg1, ..., argN, continuation_covar]
@@ -160,6 +174,11 @@ partial def step : Statement → Option Statement
             -- Substitute continuation consumer for continuation covariable
             let body'' := body'.substCovar contCovar cont
             some body''
+      | none => none
+    -- Record field access: ⟨{ ... fᵢ = vᵢ ... } | fᵢ(; c)⟩ → ⟨vᵢ | c⟩
+    | .record _ fields, .destructor pos fieldName [] cont =>
+      match fields.find? (fun (f, _) => f == fieldName) with
+      | some (_, value) => some (.cut pos value cont)
       | none => none
     | _, _ => none
   -- Binary operation: ⊙(p₁, p₂; c)
@@ -205,7 +224,7 @@ partial def evalWithFuel (fuel : Nat) (s : Statement) : EvalResult :=
       | _ => .stuck s
 
 -- Default fuel for evaluation
-def defaultFuel : Nat := 10000
+def defaultFuel : Nat := 100000
 
 -- Main evaluation function
 def eval (s : Statement) : EvalResult :=

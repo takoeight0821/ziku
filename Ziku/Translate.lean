@@ -1,5 +1,6 @@
 import Ziku.Syntax
 import Ziku.IR.Syntax
+import Ziku.IR.Eval
 
 namespace Ziku.Translate
 
@@ -115,8 +116,15 @@ mutual
       let p1 ← translateExpr e1
       let p2 ← translateExpr e2
       return .mu pos α (.cut dummyPos p1 (.muTilde dummyPos x (.cut dummyPos p2 (.covar dummyPos α))))
-    | .letRec pos _ _ _ _ => do
-      throw $ .notImplemented pos "let rec"
+    | .letRec pos x _ e1 e2 => do
+      -- ⟦let rec x = e₁ in e₂⟧ = μα.⟨⟦e₁⟧[⟦e₁⟧/x] | μ̃x.⟨⟦e₂⟧ | α⟩⟩
+      -- Pre-substitute x in e1 to handle recursion (works because cocase guards the body)
+      let α ← freshCovar
+      let p1 ← translateExpr e1
+      -- Substitute p1 for x in p1 itself to create self-reference
+      let p1' := IR.Producer.substVar x p1 p1
+      let p2 ← translateExpr e2
+      return .mu pos α (.cut dummyPos p1' (.muTilde dummyPos x (.cut dummyPos p2 (.covar dummyPos α))))
     | .if_ pos cond thenE elseE => do
       -- ⟦if t₁ then t₂ else t₃⟧ = μα.ifz(⟦t₁⟧, ⟨⟦t₂⟧ | α⟩, ⟨⟦t₃⟧ | α⟩)
       let α ← freshCovar
@@ -130,11 +138,18 @@ mutual
       throw $ .notImplemented pos "match expression"
     | .codata pos _ => do
       throw $ .notImplemented pos "codata block"
-    | .field pos _ _ => do
-      throw $ .notImplemented pos "field access"
+    | .field pos e fieldName => do
+      -- ⟦e.f⟧ = μα.⟨⟦e⟧ | f(; α)⟩
+      let α ← freshCovar
+      let prodE ← translateExpr e
+      return .mu pos α (.cut dummyPos prodE (.destructor dummyPos fieldName [] (.covar dummyPos α)))
     | .ann _ e _ => translateExpr e  -- Ignore type annotations
-    | .record pos _ => do
-      throw $ .notImplemented pos "record"
+    | .record pos fields => do
+      -- ⟦{ f₁ = e₁, ... }⟧ = { f₁ = ⟦e₁⟧, ... }
+      let fields' ← fields.mapM (fun (name, e) => do
+        let p ← translateExpr e
+        pure (name, p))
+      return .record pos fields'
     | .cut pos producer consumer => do
       -- Direct IR passthrough (for testing)
       let prodP ← translateExpr producer

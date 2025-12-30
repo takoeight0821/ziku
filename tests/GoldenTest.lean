@@ -1,5 +1,6 @@
 import Ziku.Parser
 import Ziku.Infer
+import Ziku.Elaborate
 import Ziku.Translate
 import Ziku.IR.Eval
 
@@ -40,20 +41,23 @@ def runInferTest (input : String) : Except String String :=
     | .error e => .ok (toString e)
   | .error e => .error e
 
-/-- Run an IR evaluation test (parse → translate → IR eval) -/
+/-- Run an IR evaluation test (parse → elaborate → translate → IR eval) -/
 def runIREvalTest (input : String) : Except String String :=
   match Ziku.parseExprString input.trim with
   | .ok expr =>
-    match Ziku.Translate.translate expr with
-    | .ok producer =>
-      let dummyPos : Ziku.SourcePos := { line := 0, col := 0 }
-      let stmt := Ziku.IR.Statement.cut dummyPos producer (Ziku.IR.Consumer.covar dummyPos "halt")
-      let result := Ziku.IR.eval stmt
-      match result with
-      | .value p => .ok (toString p)
-      | .stuck s => .error s!"Stuck: {s}"
-      | .error msg => .ok s!"Error: {msg}"
-    | .error e => .ok s!"Translation error: {e}"
+    match Ziku.elaborateAll expr with
+    | .ok elaborated =>
+      match Ziku.Translate.translate elaborated with
+      | .ok producer =>
+        let dummyPos : Ziku.SourcePos := { line := 0, col := 0 }
+        let stmt := Ziku.IR.Statement.cut dummyPos producer (Ziku.IR.Consumer.covar dummyPos "halt")
+        let result := Ziku.IR.eval stmt
+        match result with
+        | .value p => .ok (toString p)
+        | .stuck s => .error s!"Stuck: {s}"
+        | .error msg => .ok s!"Error: {msg}"
+      | .error e => .ok s!"Translation error: {e}"
+    | .error e => .ok s!"Elaboration error: {e}"
   | .error e => .error e
 
 /-- Run a single test case -/
@@ -130,7 +134,8 @@ def irEvalTests : List String :=
    "let_simple", "let_nested", "let_computation", "let_chain",
    "label_simple", "label_goto", "label_goto_nested",
    "label_immediate_exit", "label_conditional_exit", "label_early_exit", "label_nested_goto",
-   "lambda_square", "lambda_nonvalue_args", "lambda_higher_order", "lambda_curried", "lambda_compose"]
+   "lambda_square", "lambda_nonvalue_args", "lambda_higher_order", "lambda_curried", "lambda_compose",
+   "codata_simple", "codata_chain", "letrec_simple", "fib_codata"]
 
 /-- Run all tests in a category -/
 def runCategory (category : String) (tests : List String) (testType : String) : IO (Nat × Nat) := do
