@@ -237,7 +237,9 @@ partial def buildRecordFields (remaining : List (Ident × Producer)) (acc : Stri
   match remaining with
   | [] => acc ++ sfx
   | (name, value) :: rest =>
-    let valueStr := value.toString
+    -- Limit value string length to prevent huge outputs from nested structures
+    let valueStr := let s := value.toString
+                    if s.length > 200 then s.take 197 ++ "..." else s
     let fieldStr := s!"{name} = {valueStr}"
     let separator := if acc == pfx then "" else ", "
     let newAcc := acc ++ separator ++ fieldStr
