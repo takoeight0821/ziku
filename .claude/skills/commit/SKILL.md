@@ -28,19 +28,19 @@ Guidance for creating well-structured commit messages following the Conventional
 
 ## Commit Types
 
-| Type | When to Use |
-|------|-------------|
-| `feat` | New feature or capability added |
-| `fix` | Bug fix |
+| Type       | When to Use                                             |
+| ---------- | ------------------------------------------------------- |
+| `feat`     | New feature or capability added                         |
+| `fix`      | Bug fix                                                 |
 | `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `docs` | Documentation only changes |
-| `style` | Formatting, whitespace, semicolons (no code change) |
-| `test` | Adding or correcting tests |
-| `chore` | Build process, dependencies, auxiliary tools |
-| `perf` | Performance improvement |
-| `ci` | CI/CD configuration changes |
-| `build` | Build system or external dependency changes |
-| `revert` | Reverting a previous commit |
+| `docs`     | Documentation only changes                              |
+| `style`    | Formatting, whitespace, semicolons (no code change)     |
+| `test`     | Adding or correcting tests                              |
+| `chore`    | Build process, dependencies, auxiliary tools            |
+| `perf`     | Performance improvement                                 |
+| `ci`       | CI/CD configuration changes                             |
+| `build`    | Build system or external dependency changes             |
+| `revert`   | Reverting a previous commit                             |
 
 ## Writing Good Commit Messages
 
@@ -54,6 +54,7 @@ Guidance for creating well-structured commit messages following the Conventional
 ### Examples
 
 **Good:**
+
 ```
 feat: add user authentication endpoint
 fix: resolve null pointer in data parser
@@ -63,6 +64,7 @@ chore: update dependencies to latest versions
 ```
 
 **With scope:**
+
 ```
 feat(auth): add OAuth2 support
 fix(parser): handle empty input gracefully
@@ -70,6 +72,7 @@ refactor(api): simplify request handling
 ```
 
 **With body:**
+
 ```
 feat: add rate limiting to API endpoints
 
@@ -81,7 +84,7 @@ Closes #123
 
 ## Breaking Changes
 
-Mark breaking changes with an exclamation mark (`!`) after type/scope:
+Mark breaking changes with an exclamation mark (!) after type/scope:
 
 ```
 feat!: remove deprecated API endpoints
