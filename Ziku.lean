@@ -10,6 +10,7 @@ import Ziku.Type
 import Ziku.Parser
 import Ziku.Elaborate
 import Ziku.Infer
+import Ziku.Backend.Scheme
 import Ziku.Proofs.Eval
 import Ziku.Proofs.Arithmetic
 import Ziku.Proofs.Identities

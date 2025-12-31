@@ -3,6 +3,7 @@ import Ziku.Infer
 import Ziku.Elaborate
 import Ziku.Translate
 import Ziku.IR.Eval
+import Ziku.Backend.Scheme
 
 /-- Result of a single test case -/
 inductive TestResult where
@@ -59,6 +60,85 @@ def runIREvalTest (input : String) : Except String String :=
       | .error e => .ok s!"Translation error: {e}"
     | .error e => .ok s!"Elaboration error: {e}"
   | .error e => .error e
+
+/-- Generate Scheme code (parse → elaborate → translate → compile to Scheme) -/
+def generateScheme (input : String) : Except String String :=
+  match Ziku.parseExprString input.trim with
+  | .ok expr =>
+    match Ziku.elaborateAll expr with
+    | .ok elaborated =>
+      match Ziku.Translate.translate elaborated with
+      | .ok producer =>
+        .ok (Ziku.Backend.Scheme.compileProducer producer)
+      | .error e => .error s!"Translation error: {e}"
+    | .error e => .error s!"Elaboration error: {e}"
+  | .error e => .error e
+
+/-- Run a Scheme test (compile to Scheme, run with chez, compare output) -/
+def runSchemeTest (tc : TestCase) : IO TestResult := do
+  let input ← IO.FS.readFile tc.inputPath
+  let golden ← readFileOrEmpty tc.goldenPath
+
+  match generateScheme input with
+  | .error e =>
+    pure (TestResult.error s!"Compilation error: {e}")
+  | .ok schemeCode =>
+    -- Write scheme code to temp file
+    let tempFile := s!"/tmp/ziku_test_{tc.name}.ss"
+    IO.FS.writeFile tempFile schemeCode
+
+    -- Run with scheme interpreter
+    let result ← IO.Process.output {
+      cmd := "scheme"
+      args := #["--script", tempFile]
+    }
+
+    let actual := result.stdout.trim
+
+    if result.exitCode != 0 then
+      pure (TestResult.error s!"Scheme error: {result.stderr.trim}")
+    else if golden.isEmpty then
+      -- No golden file yet, create it
+      IO.FS.writeFile tc.goldenPath actual
+      IO.println s!"  Created golden file: {tc.goldenPath}"
+      pure TestResult.pass
+    else if actual == golden.trim then
+      pure TestResult.pass
+    else
+      pure (TestResult.fail golden.trim actual)
+
+/-- Run a consistency check: compare IR eval result with Scheme backend result -/
+def runConsistencyTest (name : String) (inputPath : String) : IO TestResult := do
+  let input ← IO.FS.readFile inputPath
+
+  -- Get IR eval result
+  let irResult := runIREvalTest input
+  match irResult with
+  | .error e =>
+    pure (TestResult.error s!"IR eval parse error: {e}")
+  | .ok irOutput =>
+    -- Get Scheme result
+    match generateScheme input with
+    | .error e =>
+      pure (TestResult.error s!"Scheme compilation error: {e}")
+    | .ok schemeCode =>
+      let tempFile := s!"/tmp/ziku_consistency_{name}.ss"
+      IO.FS.writeFile tempFile schemeCode
+
+      let result ← IO.Process.output {
+        cmd := "scheme"
+        args := #["--script", tempFile]
+      }
+
+      if result.exitCode != 0 then
+        pure (TestResult.error s!"Scheme error: {result.stderr.trim}")
+      else
+        let schemeOutput := result.stdout.trim
+        -- Compare outputs
+        if irOutput.trim == schemeOutput then
+          pure TestResult.pass
+        else
+          pure (TestResult.fail s!"IR eval: {irOutput.trim}" s!"Scheme: {schemeOutput}")
 
 /-- Run a single test case -/
 def runTest (tc : TestCase) : IO TestResult := do
@@ -144,6 +224,20 @@ def irEvalTests : List String :=
    "fib_codata", "record_nested", "codata_closure", "sum_to_n",
    "church_zero", "label_loop", "codata_counter"]
 
+/-- List of Scheme backend test cases -/
+def schemeTests : List String :=
+  ["literal", "binop_add", "binop_comparison", "if_simple", "if_comparison",
+   "let_simple", "let_nested", "let_computation", "let_chain",
+   "label_simple", "label_goto", "label_goto_nested",
+   "label_immediate_exit", "label_conditional_exit", "label_early_exit", "label_nested_goto",
+   "lambda_square", "lambda_curried", "lambda_compose", "lambda_nonvalue_args", "lambda_higher_order",
+   "codata_simple", "codata_chain", "letrec_simple",
+   "letrec_codata_simple", "letrec_codata_tail", "letrec_codata_lambda", "letrec_codata_lambda_tail",
+   "letrec_codata_minimal",
+   "let_record_access", "record_nested", "codata_closure",
+   "sum_to_n", "label_loop",
+   "fib_codata", "codata_counter", "church_zero"]
+
 /-- Run all tests in a category -/
 def runCategory (category : String) (tests : List String) (testType : String) : IO (Nat × Nat) := do
   let dir := s!"tests/golden/{category}"
@@ -177,15 +271,78 @@ def runCategory (category : String) (tests : List String) (testType : String) : 
 
   pure (passed, failed)
 
+/-- Run all scheme tests (uses ir-eval source files but compiles to Scheme) -/
+def runSchemeCategory (tests : List String) : IO (Nat × Nat) := do
+  let sourceDir := "tests/golden/ir-eval"  -- Use ir-eval source files
+  let goldenDir := "tests/golden/scheme"   -- But scheme-specific golden files
+
+  let mut passed := 0
+  let mut failed := 0
+
+  IO.println s!"\n=== scheme tests ==="
+
+  for baseName in tests do
+    let tc : TestCase := {
+      name := baseName
+      inputPath := s!"{sourceDir}/{baseName}.ziku"
+      goldenPath := s!"{goldenDir}/{baseName}.golden"
+      testType := "scheme"
+    }
+
+    let result ← runSchemeTest tc
+    match result with
+    | .pass =>
+      IO.println s!"  ✓ {baseName}"
+      passed := passed + 1
+    | .fail expected actual =>
+      IO.println s!"  ✗ {baseName}"
+      IO.println s!"    Expected: {expected}"
+      IO.println s!"    Actual:   {actual}"
+      failed := failed + 1
+    | .error msg =>
+      IO.println s!"  ✗ {baseName}: {msg}"
+      failed := failed + 1
+
+  pure (passed, failed)
+
+/-- Run consistency tests: verify Scheme backend produces same results as IR eval -/
+def runConsistencyCategory (tests : List String) : IO (Nat × Nat) := do
+  let sourceDir := "tests/golden/ir-eval"
+
+  let mut passed := 0
+  let mut failed := 0
+
+  IO.println s!"\n=== consistency tests (IR eval vs Scheme) ==="
+
+  for baseName in tests do
+    let inputPath := s!"{sourceDir}/{baseName}.ziku"
+    let result ← runConsistencyTest baseName inputPath
+    match result with
+    | .pass =>
+      IO.println s!"  ✓ {baseName}"
+      passed := passed + 1
+    | .fail expected actual =>
+      IO.println s!"  ✗ {baseName}"
+      IO.println s!"    {expected}"
+      IO.println s!"    {actual}"
+      failed := failed + 1
+    | .error msg =>
+      IO.println s!"  ✗ {baseName}: {msg}"
+      failed := failed + 1
+
+  pure (passed, failed)
+
 def main : IO UInt32 := do
   IO.println "Running golden tests..."
 
   let (parserPassed, parserFailed) ← runCategory "parser" parserTests "parser"
   let (inferPassed, inferFailed) ← runCategory "infer" inferTests "infer"
   let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" irEvalTests "ir-eval"
+  let (schemePassed, schemeFailed) ← runSchemeCategory schemeTests
+  let (consistencyPassed, consistencyFailed) ← runConsistencyCategory schemeTests
 
-  let totalPassed := parserPassed + inferPassed + irEvalPassed
-  let totalFailed := parserFailed + inferFailed + irEvalFailed
+  let totalPassed := parserPassed + inferPassed + irEvalPassed + schemePassed + consistencyPassed
+  let totalFailed := parserFailed + inferFailed + irEvalFailed + schemeFailed + consistencyFailed
 
   IO.println s!"\n=== Summary ==="
   IO.println s!"Passed: {totalPassed}"

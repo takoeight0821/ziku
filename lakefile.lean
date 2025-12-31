@@ -21,3 +21,6 @@ lean_exe «trace-test» where
 
 lean_exe «truncate-test» where
   root := `tests.TruncateTest
+
+lean_exe «scheme-backend» where
+  root := `Backend.SchemeMain
