@@ -222,7 +222,7 @@ def irEvalTests : List String :=
    "letrec_codata_simple", "letrec_codata_tail", "letrec_codata_lambda", "letrec_codata_lambda_tail",
    "let_record_access", "letrec_codata_minimal",
    "fib_codata", "record_nested", "codata_closure", "sum_to_n",
-   "church_zero", "label_loop", "codata_counter"]
+   "church_zero", "label_loop", "codata_counter", "letrec_mutual_record"]
 
 /-- List of Scheme backend test cases -/
 def schemeTests : List String :=
@@ -236,7 +236,7 @@ def schemeTests : List String :=
    "letrec_codata_minimal",
    "let_record_access", "record_nested", "codata_closure",
    "sum_to_n", "label_loop",
-   "fib_codata", "codata_counter", "church_zero"]
+   "fib_codata", "codata_counter", "church_zero", "letrec_mutual_record"]
 
 /-- Run all tests in a category -/
 def runCategory (category : String) (tests : List String) (testType : String) : IO (Nat × Nat) := do

@@ -1,0 +1,4 @@
+let rec funcs = {
+  #.isEven => \n => if n == 0 then true else funcs .isOdd (n - 1),
+  #.isOdd => \n => if n == 0 then false else funcs .isEven (n - 1)
+} in funcs .isEven 4
