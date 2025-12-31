@@ -329,7 +329,7 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     -- For now, we simply infer the body's type without tracking labels.
     -- This is a simplification - full typing would track label types.
     infer env body
-  | .goto pos _value _name => do
+  | .goto _pos _value _name => do
     -- goto(value, name): Jumps to the label, never returns.
     -- Returns a fresh type variable since the expression never produces a value.
     -- Full typing would check that value's type matches the label's expected type.

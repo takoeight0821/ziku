@@ -293,7 +293,7 @@ where
       | c :: cs' =>
         let d : Float := (Char.toNat c - Char.toNat '0') |>.toFloat
         go cs' (acc * 10.0 + d)
-    go ds.data 0.0
+    go ds.toList 0.0
 
   -- Convert fractional digits "abc" into value abc / 10^len as Float
   stringFracToFloat (ds : String) : Float :=

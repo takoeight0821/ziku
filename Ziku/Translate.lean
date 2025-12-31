@@ -93,7 +93,7 @@ mutual
       let p1 ← translateExpr e1
       let p2 ← translateExpr e2
       return .mu pos α (.binOp pos op p1 p2 (.covar pos α))
-    | .unaryOp pos op e => do
+    | .unaryOp pos _op _e => do
       -- Translate unary as binary with dummy
       throw $ .notImplemented pos "unary operator translation"
     | .lam pos param body => do
