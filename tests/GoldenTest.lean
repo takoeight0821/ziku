@@ -107,7 +107,8 @@ def parserTests : List String :=
    "negativeNumber", "parenthesesOnly", "parenthesesNested",
    "expressionMixedOperators", "divisionByZero", "variableSnakeCase",
    "variableCamelCase", "operatorNoSpaces", "operatorExtraSpaces",
-   "cutSimple", "cutExpression", "hash", "labelSimple", "labelNested", "gotoSimple", "labelGoto"]
+   "cutSimple", "cutExpression", "hash", "labelSimple", "labelNested", "gotoSimple", "labelGoto",
+   "app_field_precedence"]
 
 
 /-- List of type inference test cases -/

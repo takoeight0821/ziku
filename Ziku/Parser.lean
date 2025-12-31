@@ -449,16 +449,28 @@ mutual
       | .error msg => .error msg
     | _ => parseAppExpr s
 
-  -- Application expression
+  -- Application and field access expression (same precedence, left-to-right)
+  -- This unified parser handles both `f x y` and `f.x.y` with correct associativity
+  -- so that `f x .y` parses as `(f x).y` not `f (x.y)`
   partial def parseAppExpr : Parser Expr := do
-    let base ← parseFieldExpr
-    parseAppArgs base
+    let base ← parseAtomExpr
+    parsePostfixRest base
 
-  partial def parseAppArgs (base : Expr) : Parser Expr := fun s =>
+  -- Unified postfix parser: handles both field access and application left-to-right
+  partial def parsePostfixRest (base : Expr) : Parser Expr := fun s =>
     let pos := base.pos
-    match s.peekToken? with
-    | some .lparen =>
-      -- Parenthesized arguments: f(x) or f(x, y)
+    match s.peekToken?, s.peekN 1 with
+    -- Field access: .field (check this FIRST for left-to-right associativity)
+    | some .dot, some ptok =>
+      match ptok.token with
+      | .ident field =>
+        let s := s.advance.advance
+        parsePostfixRest (Expr.field pos base field) s
+      | _ =>
+        -- Dot not followed by identifier - try application
+        parsePostfixApp base s
+    -- Parenthesized application: f(x) or f(x, y)
+    | some .lparen, _ =>
       let s := s.advance
       match sepBy parseExpr (expect .comma) s with
       | .ok (args, s') =>
@@ -466,12 +478,16 @@ mutual
         | .ok (_, s'') =>
           -- Apply arguments as curried: f(x, y) becomes (f x) y
           let result := args.foldl (Expr.app pos) base
-          -- After parenthesized application, allow field access: f(1).x
-          match parseFieldRest result s'' with
-          | .ok (withFields, s''') => parseAppArgs withFields s'''
-          | .error msg => .error msg
+          parsePostfixRest result s''
         | .error msg => .error msg
       | .error msg => .error msg
+    -- Other tokens - try space-separated application
+    | _, _ => parsePostfixApp base s
+
+  -- Try space-separated application (used when no field access or paren found)
+  partial def parsePostfixApp (base : Expr) : Parser Expr := fun s =>
+    let pos := base.pos
+    match s.peekToken? with
     | some .hash =>
       -- Don't consume # followed by . or ( as application argument
       -- since it likely starts a new codata clause
@@ -481,19 +497,18 @@ mutual
           .ok (base, s)
         else
           -- Bare # can be an argument
-          match parseFieldExpr s with
-          | .ok (arg, s') => parseAppArgs (Expr.app pos base arg) s'
+          match parseAtomExpr s with
+          | .ok (arg, s') => parsePostfixRest (Expr.app pos base arg) s'
           | .error _ => .ok (base, s)
       | none => .ok (base, s)
     | _ =>
-      -- Try space-separated application
-      match parseFieldExpr s with
+      -- Try space-separated application with atom only (no field access)
+      match parseAtomExpr s with
       | .ok (arg, s') =>
-        -- Check if this is really an argument or a different expression
-        parseAppArgs (Expr.app pos base arg) s'
+        parsePostfixRest (Expr.app pos base arg) s'
       | .error _ => .ok (base, s)
 
-  -- Field access
+  -- Keep parseFieldExpr for backward compatibility (used by other parts of parser)
   partial def parseFieldExpr : Parser Expr := do
     let base ← parseAtomExpr
     parseFieldRest base
@@ -1273,26 +1288,42 @@ mutual
       | .error msg => .error msg
     | _ => parseAppExprStop s
 
+  -- Application and field access expression (same precedence, left-to-right)
   partial def parseAppExprStop : Parser Expr := do
-    let base ← parseFieldExprStop
-    parseAppArgsStop base
+    let base ← parseAtomExprStop
+    parsePostfixRestStop base
 
-  partial def parseAppArgsStop (base : Expr) : Parser Expr := fun s =>
+  -- Unified postfix parser: handles both field access and application left-to-right
+  partial def parsePostfixRestStop (base : Expr) : Parser Expr := fun s =>
     let pos := base.pos
-    match s.peekToken? with
-    | some .lparen =>
+    match s.peekToken?, s.peekN 1 with
+    -- Field access: .field (check this FIRST for left-to-right associativity)
+    | some .dot, some ptok =>
+      match ptok.token with
+      | .ident field =>
+        let s := s.advance.advance
+        parsePostfixRestStop (Expr.field pos base field) s
+      | _ =>
+        -- Dot not followed by identifier - try application
+        parsePostfixAppStop base s
+    -- Parenthesized application: f(x) or f(x, y)
+    | some .lparen, _ =>
       let s := s.advance
       match sepBy parseExprStop (expect .comma) s with
       | .ok (args, s') =>
         match expect .rparen s' with
         | .ok (_, s'') =>
           let result := args.foldl (Expr.app pos) base
-          -- After parenthesized application, allow field access: f(1).x
-          match parseFieldRestStop result s'' with
-          | .ok (withFields, s''') => parseAppArgsStop withFields s'''
-          | .error msg => .error msg
+          parsePostfixRestStop result s''
         | .error msg => .error msg
       | .error msg => .error msg
+    -- Other tokens - try space-separated application
+    | _, _ => parsePostfixAppStop base s
+
+  -- Try space-separated application (used when no field access or paren found)
+  partial def parsePostfixAppStop (base : Expr) : Parser Expr := fun s =>
+    let pos := base.pos
+    match s.peekToken? with
     | some .hash =>
       -- Don't consume # followed by . or ( as application argument
       match s.peekN 1 with
@@ -1300,15 +1331,17 @@ mutual
         if ptok.token == .dot || ptok.token == .lparen then
           .ok (base, s)
         else
-          match parseFieldExprStop s with
-          | .ok (arg, s') => parseAppArgsStop (Expr.app pos base arg) s'
+          match parseAtomExprStop s with
+          | .ok (arg, s') => parsePostfixRestStop (Expr.app pos base arg) s'
           | .error _ => .ok (base, s)
       | none => .ok (base, s)
     | _ =>
-      match parseFieldExprStop s with
-      | .ok (arg, s') => parseAppArgsStop (Expr.app pos base arg) s'
+      match parseAtomExprStop s with
+      | .ok (arg, s') =>
+        parsePostfixRestStop (Expr.app pos base arg) s'
       | .error _ => .ok (base, s)
 
+  -- Keep parseFieldExprStop for backward compatibility
   partial def parseFieldExprStop : Parser Expr := do
     let base ← parseAtomExprStop
     parseFieldRestStop base

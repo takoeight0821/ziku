@@ -1,4 +1,4 @@
 let rec fibs = \a => \b => {
   #.head => a,
   #.tail => fibs b (a + b)
-} in ((((((fibs 0 1) .tail) .tail) .tail) .tail) .tail) .head
+} in fibs 0 1 .tail .tail .tail .tail .tail .head

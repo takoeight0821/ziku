@@ -1,1 +1,1 @@
-let rec nats = \n => { #.head => n, #.tail => nats (n + 1) } in (nats 0) .head
+let rec nats = \n => { #.head => n, #.tail => nats (n + 1) } in nats 0 .head
