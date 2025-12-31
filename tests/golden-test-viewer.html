@@ -1,0 +1,3626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ziku Golden Test Viewer</title>
+  <style>
+    :root {
+      --bg-primary: #1e1e2e;
+      --bg-secondary: #313244;
+      --bg-tertiary: #45475a;
+      --text-primary: #cdd6f4;
+      --text-secondary: #a6adc8;
+      --accent: #89b4fa;
+      --accent-hover: #b4befe;
+      --success: #a6e3a1;
+      --border: #585b70;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    header {
+      background: var(--bg-secondary);
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 200px;
+      max-width: 400px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .category-filters {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .filter-btn.active {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border-color: var(--accent);
+    }
+
+    .stats {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    main {
+      padding: 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .category-section {
+      margin-bottom: 3rem;
+    }
+
+    .category-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--accent);
+    }
+
+    .category-header h2 {
+      font-size: 1.2rem;
+      color: var(--accent);
+    }
+
+    .category-count {
+      background: var(--bg-tertiary);
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .test-grid {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .test-card {
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .test-card:hover {
+      border-color: var(--accent);
+    }
+
+    .test-card.hidden {
+      display: none;
+    }
+
+    .test-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: var(--bg-tertiary);
+      cursor: pointer;
+    }
+
+    .test-name {
+      font-weight: 500;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.9rem;
+    }
+
+    .test-toggle {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+    }
+
+    .test-content {
+      display: none;
+      padding: 1rem;
+    }
+
+    .test-card.expanded .test-content {
+      display: block;
+    }
+
+    .test-card.expanded .test-toggle::after {
+      content: '▲';
+    }
+
+    .test-card:not(.expanded) .test-toggle::after {
+      content: '▼';
+    }
+
+    .code-panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 800px) {
+      .code-panels {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .code-panel {
+      background: var(--bg-primary);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .code-panel-header {
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-tertiary);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .code-panel pre {
+      padding: 1rem;
+      margin: 0;
+      overflow-x: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .input-panel pre {
+      color: #f9e2af;
+    }
+
+    .output-panel pre {
+      color: var(--success);
+    }
+
+    .expand-all-btn {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .expand-all-btn:hover {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .no-results {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Ziku Golden Test Viewer</h1>
+    <div class="controls">
+      <div class="search-box">
+        <input type="text" id="search" placeholder="Search tests...">
+      </div>
+      <div class="category-filters">
+        <button class="filter-btn active" data-category="all">All</button>
+        <button class="filter-btn" data-category="infer">infer (48)</button>
+        <button class="filter-btn" data-category="ir-eval">ir-eval (38)</button>
+        <button class="filter-btn" data-category="parser">parser (87)</button>
+      </div>
+      <button class="expand-all-btn" id="expandAll">Expand All</button>
+      <div class="stats" id="stats"></div>
+    </div>
+  </header>
+  <main>
+    <section class="category-section" data-category="infer">
+      <div class="category-header">
+        <h2>infer</h2>
+        <span class="category-count">48 tests</span>
+      </div>
+      <div class="test-grid">
+        <div class="test-card" data-name="application_curried" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">application_curried</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(\x, y =&gt; x + y) 3 4</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="application_simple" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">application_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(\x =&gt; x + 1) 5</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="binary_arithmetic" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">binary_arithmetic</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1 + 2 * 3</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="binary_comparison" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">binary_comparison</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>5 &lt; 10</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Bool</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="binary_logical" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">binary_logical</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>true &amp;&amp; false</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Bool</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_callable" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_callable</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #(x) =&gt; x + 1
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Int -&gt; Int)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_field_type" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_field_type</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let counter = {
+  #.value =&gt; 0,
+  #.inc =&gt; \x =&gt; x + 1
+} in counter .inc (counter .value)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_field" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_field</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #.x =&gt; 42,
+  #.y =&gt; 100
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>{ y : Int, x : Int }</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_multi_param" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_multi_param</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #(x)(y) =&gt; x + y
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Int -&gt; (Int -&gt; Int))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_nested" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_nested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #(x).value =&gt; x * 2
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Int -&gt; { value : Int })</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="compose_functions" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">compose_functions</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let compose = \f =&gt; \g =&gt; \x =&gt; f (g x) in
+let inc = \n =&gt; n + 1 in
+let double = \n =&gt; n * 2 in
+compose inc double 5</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="function_arg_mismatch" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">function_arg_mismatch</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let f = \x =&gt; x + 1 in f true</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Type error at 1:24: Cannot unify type constructors 'Int' and 'Bool'
+  Expected: Int
+  Actual: Bool</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="higher_order_function" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">higher_order_function</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let apply = \f =&gt; \x =&gt; f x in
+let double = \n =&gt; n * 2 in
+apply double 21</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="if_branch_mismatch" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">if_branch_mismatch</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>if true then 42 else &quot;hello&quot;</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Type error at 1:1: Cannot unify type constructors 'Int' and 'String'
+  Expected: Int
+  Actual: String</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="if_then_else" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">if_then_else</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>if true then 1 else 2</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_early_return" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_early_return</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label return {
+  let check = \n =&gt;
+    if n &lt; 0 then goto(0, return) else n * 2
+  in check(5)
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_function" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_function</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label exit {
+  \x =&gt; if x == 0 then goto(\y =&gt; y, exit) else \y =&gt; x + y
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Int -&gt; (Int -&gt; Int))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_goto" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_goto</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label exit { if true then goto(10, exit) else 20 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_let" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_let</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label result {
+  let x = 10 in
+  let y = 20 in
+  if x &gt; y then goto(x, result) else x + y
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_match" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_match</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label done {
+  match 42 with
+  | 0 =&gt; goto(100, done)
+  | n =&gt; n + 1
+  end
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_nested" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_nested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label outer {
+  label inner {
+    if true then goto(1, inner) else goto(2, outer)
+  }
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>_t1</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_simple" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label exit { 42 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda_multi_param" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda_multi_param</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>\x, y =&gt; x + y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Int -&gt; (Int -&gt; Int))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda_nested" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda_nested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>\x =&gt; \y =&gt; x + y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Int -&gt; (Int -&gt; Int))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda_simple" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>\x =&gt; x + 1</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Int -&gt; Int)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_polymorphic" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_polymorphic</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let id = \x =&gt; x in id 5</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_rec_factorial" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_rec_factorial</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec fact = \n =&gt; if n == 0 then 1 else n * fact (n - 1) in fact 5</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_rec_mutual" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_rec_mutual</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec isEven = \n =&gt; if n == 0 then true else isOdd (n - 1) in
+let rec isOdd = \n =&gt; if n == 0 then false else isEven (n - 1) in
+isEven 4</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Unbound variable 'isOdd' at 1:49</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_simple" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let x = 5 in x + 1</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="literal_bool" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">literal_bool</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>true</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Bool</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="literal_int" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">literal_int</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>42</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="literal_string" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">literal_string</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>&quot;hello&quot;</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>String</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="literal_unit" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">literal_unit</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>()</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Unit</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="match_annotated_pattern" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">match_annotated_pattern</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match 42 with
+| (x : Int) =&gt; x + 1
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="match_bool_scrutinee" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">match_bool_scrutinee</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match true with
+| x =&gt; x
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Bool</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="match_literal_pattern" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">match_literal_pattern</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match 42 with
+| 0 =&gt; true
+| _ =&gt; false
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Bool</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="match_var_pattern" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">match_var_pattern</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match 42 with
+| x =&gt; x
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="pipe_operator" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">pipe_operator</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>-- Test pipe operator type inference
+-- e1 |&gt; e2  means  e2(e1)
+-- Type rule: Γ ⊢ e1 : α, Γ ⊢ e2 : α → β  ⇒  e1 |&gt; e2 : β
+
+1 |&gt; \x =&gt; x + 1 |&gt; \y =&gt; y * 2</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="record_field_access" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">record_field_access</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ x = 42, y = true }.x</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="record_let_binding" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">record_let_binding</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let r = { x = 1, y = 2 } in r.x + r.y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="record_nested" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">record_nested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ a = { b = 42 } }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>{ a : { b : Int } }</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="record_simple" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">record_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ x = 42, y = true }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>{ x : Int, y : Bool }</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="too_many_args" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">too_many_args</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let f = \x =&gt; x in f 1 2</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Type error at 1:20: Cannot unify types
+  Expected: Int
+  Actual: (Int -&gt; _t4)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="type_annotation" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">type_annotation</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(5 : Int)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="type_mismatch" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">type_mismatch</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1 + true</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Type error at 1:5: Cannot unify type constructors 'Bool' and 'Int'
+  Expected: Bool
+  Actual: Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="unary_neg" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">unary_neg</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>-42</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="unary_not" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">unary_not</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>not true</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Bool</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="unbound_variable" data-category="infer">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">unbound_variable</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x + 1</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>Unbound variable 'x' at 1:1</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="category-section" data-category="ir-eval">
+      <div class="category-header">
+        <h2>ir-eval</h2>
+        <span class="category-count">38 tests</span>
+      </div>
+      <div class="test-grid">
+        <div class="test-card" data-name="binop_add" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">binop_add</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1 + 2</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>3</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="binop_comparison" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">binop_comparison</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>5 &gt; 3</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>true</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="church_zero" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">church_zero</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let zero = \f =&gt; \x =&gt; x in
+let succ = \n =&gt; \f =&gt; \x =&gt; f (n f x) in
+let toInt = \n =&gt; n (\x =&gt; x + 1) 0 in
+toInt (succ (succ (succ zero)))</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>3</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_chain" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_chain</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #.x =&gt; { #.y =&gt; 42 }
+}.x.y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>42</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_closure" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_closure</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let offset = 100 in
+let adder = { #.add =&gt; \x =&gt; x + offset } in
+adder .add 42</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>142</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_counter" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_counter</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec counter = \n =&gt; {
+  #.value =&gt; n,
+  #.next =&gt; counter (n + 1)
+} in counter 0 .next .next .next .value</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>3</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata_simple" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #.x =&gt; 42,
+  #.y =&gt; 100
+}.x</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>42</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="fib_codata" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">fib_codata</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec fibs = \a =&gt; \b =&gt; {
+  #.head =&gt; a,
+  #.tail =&gt; fibs b (a + b)
+} in fibs 0 1 .tail .tail .tail .tail .tail .head</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>5</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="if_comparison" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">if_comparison</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>if 5 &gt; 3 then 42 else 0</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>42</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="if_simple" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">if_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>if true then 1 else 0</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>1</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_conditional_exit" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_conditional_exit</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label result {
+  let x = 100 in
+  if x &gt; 50 then goto(x - 50, result) else x
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>50</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_early_exit" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_early_exit</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label done {
+  let x = 5 in
+  let y = 10 in
+  if x &gt; y then goto(x, done) else x + y
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>15</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_goto_nested" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_goto_nested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label outer { let x = 10 in goto(x, outer) }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>10</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_goto" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_goto</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label result { if true then goto(100, result) else 0 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>100</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_immediate_exit" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_immediate_exit</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label done { goto(99, done) }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>99</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_loop" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_loop</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec loop = \n =&gt; \acc =&gt;
+  label done {
+    if n == 0 then goto(acc, done)
+    else loop (n - 1) (acc + n)
+  }
+in loop 5 0</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>15</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_nested_goto" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_nested_goto</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label outer {
+  label inner {
+    if 1 == 0 then goto(100, inner) else goto(42, outer)
+  }
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>42</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="label_simple" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label result { 42 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>42</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda_compose" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda_compose</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(\f =&gt; \g =&gt; \x =&gt; f(g(x)))(\a =&gt; a + 1)(\b =&gt; b * 2)(3)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>7</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda_curried" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda_curried</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(\x =&gt; \y =&gt; \z =&gt; x + y + z)(1)(2)(3)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>6</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda_higher_order" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda_higher_order</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(\x =&gt; \y =&gt; x(y))(\z =&gt; 4 + z)(3 + 1)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>8</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda_nonvalue_args" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda_nonvalue_args</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(\x =&gt; \y =&gt; y)(1 + 2)(3 + 4)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>7</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda_square" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda_square</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(\n =&gt; n * n)(5)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>25</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_chain" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_chain</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let a = 2 in let b = a + 3 in let c = b * 2 in c + a</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>12</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_computation" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_computation</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let a = 3 + 4 in a * a</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>49</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_nested" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_nested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let x = 5 in let y = 3 in x</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>5</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_record_access" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_record_access</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let r = { #.a =&gt; 42 } in r .a</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>42</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let_simple" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let x = 10 in x</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>10</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letrec_codata_lambda_tail" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letrec_codata_lambda_tail</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec nats = \n =&gt; { #.head =&gt; n, #.tail =&gt; nats (n + 1) } in nats 0 .tail .head</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>1</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letrec_codata_lambda" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letrec_codata_lambda</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec nats = \n =&gt; { #.head =&gt; n, #.tail =&gt; nats (n + 1) } in nats 0 .head</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>0</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letrec_codata_minimal" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letrec_codata_minimal</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec x = { #.a =&gt; 1 } in x .a</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>1</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letrec_codata_simple" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letrec_codata_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec ones = { #.head =&gt; 1, #.tail =&gt; ones } in ones .head</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>1</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letrec_codata_tail" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letrec_codata_tail</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec ones = { #.head =&gt; 1, #.tail =&gt; ones } in ones .tail .head</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>1</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letrec_mutual_record" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letrec_mutual_record</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec funcs = {
+  #.isEven =&gt; \n =&gt; if n == 0 then true else funcs .isOdd (n - 1),
+  #.isOdd =&gt; \n =&gt; if n == 0 then false else funcs .isEven (n - 1)
+} in funcs .isEven 4</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>true</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letrec_simple" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letrec_simple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec f = \n =&gt; if n == 0 then 1 else n * f (n - 1) in f 5</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>120</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="literal" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">literal</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>42</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>42</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="record_nested" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">record_nested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let point = { #.x =&gt; 10, #.y =&gt; 20 } in
+let rect = { #.origin =&gt; point, #.width =&gt; 100, #.height =&gt; 50 } in
+rect .origin .x + rect .origin .y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>30</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="sum_to_n" data-category="ir-eval">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">sum_to_n</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec sum = \n =&gt; if n == 0 then 0 else n + sum (n - 1) in sum 10</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>55</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="category-section" data-category="parser">
+      <div class="category-header">
+        <h2>parser</h2>
+        <span class="category-count">87 tests</span>
+      </div>
+      <div class="test-grid">
+        <div class="test-card" data-name="app_field_precedence" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">app_field_precedence</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>fib 5 .tail .tail .head</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Field (Field (Field (App (Var &quot;fib&quot;) (Lit 5)) &quot;tail&quot;) &quot;tail&quot;) &quot;head&quot;)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="application" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">application</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>f x y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(App (App (Var &quot;f&quot;) (Var &quot;x&quot;)) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="applicationComma" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">applicationComma</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>f(x, y)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(App (App (Var &quot;f&quot;) (Var &quot;x&quot;)) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="applicationMethod" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">applicationMethod</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>obj.method x y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(App (App (Field (Var &quot;obj&quot;) &quot;method&quot;) (Var &quot;x&quot;)) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="applicationMixed" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">applicationMixed</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>f x (g y) z</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(App (App (App (Var &quot;f&quot;) (Var &quot;x&quot;)) (App (Var &quot;g&quot;) (Var &quot;y&quot;))) (Var &quot;z&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="applicationParens" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">applicationParens</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>f(x)(y)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(App (App (Var &quot;f&quot;) (Var &quot;x&quot;)) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="arithmetic" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">arithmetic</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1 + 2 * 3</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp + (Lit 1) (BinOp * (Lit 2) (Lit 3)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="boolLiteral" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">boolLiteral</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>true</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lit true)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="charLiteral" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">charLiteral</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>'c'</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lit 'c')</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codata" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codata</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ #.x =&gt; 1, #.y =&gt; 2 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.x =&gt; (Lit 1)), (#.y =&gt; (Lit 2))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataCallable" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataCallable</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ #(x) =&gt; x + 1 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#(x) =&gt; (BinOp + (Var &quot;x&quot;) (Lit 1)))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataCallableNested" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataCallableNested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ #(x) =&gt; { #(y) =&gt; x + y } }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#(x) =&gt; (Codata [(#(y) =&gt; (BinOp + (Var &quot;x&quot;) (Var &quot;y&quot;)))]))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataConsumerSyntax" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataConsumerSyntax</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ | x =&gt; 1 | y =&gt; 2 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(x # =&gt; (Lit 1)), (y # =&gt; (Lit 2))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataMixedAccessors" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataMixedAccessors</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ #.field =&gt; 1, #(x) =&gt; x }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.field =&gt; (Lit 1)), (#(x) =&gt; (Var &quot;x&quot;))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataMultiline" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataMultiline</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #.x =&gt; 10,
+  #.y =&gt; 20
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.x =&gt; (Lit 10)), (#.y =&gt; (Lit 20))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataNestedAccessor" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataNestedAccessor</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ #.tail.head =&gt; 0 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.tail.head =&gt; (Lit 0))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataNewlineSeparated" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataNewlineSeparated</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #.x =&gt; 1
+  #.y =&gt; 2
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.x =&gt; (Lit 1)), (#.y =&gt; (Lit 2))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataSingleClause" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataSingleClause</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ #.x =&gt; 42 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.x =&gt; (Lit 42))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="codataTripleNested" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">codataTripleNested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ #.tail.tail.head =&gt; 42 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.tail.tail.head =&gt; (Lit 42))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="comparison" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">comparison</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1 &lt; 2 &amp;&amp; 3 &gt; 0</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp &amp;&amp; (BinOp &lt; (Lit 1) (Lit 2)) (BinOp &gt; (Lit 3) (Lit 0)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="concatOperator" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">concatOperator</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>&quot;hello&quot; ++ &quot; world&quot;</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp ++ (Lit &quot;hello&quot;) (Lit &quot; world&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="concatStrings" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">concatStrings</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>&quot;hello&quot; ++ &quot;world&quot;</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp ++ (Lit &quot;hello&quot;) (Lit &quot;world&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="cutExpression" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">cutExpression</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>cut &lt;1 | (mu k =&gt; k)&gt;</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Cut (Lit 1) (Mu &quot;k&quot; (Var &quot;k&quot;)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="cutSimple" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">cutSimple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>cut &lt;x | (y)&gt;</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Cut (Var &quot;x&quot;) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="divisionByZero" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">divisionByZero</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1 / 0</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp / (Lit 1) (Lit 0))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="equality" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">equality</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x == y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp == (Var &quot;x&quot;) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="expressionMixedOperators" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">expressionMixedOperators</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1 + 2 * 3 - 4 / 2 == 5 &amp;&amp; 6 &lt; 7 || 8 &gt;= 9</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp || (BinOp &amp;&amp; (BinOp == (BinOp - (BinOp + (Lit 1) (BinOp * (Lit 2) (Lit 3))) (BinOp / (Lit 4) (Lit 2))) (Lit 5)) (BinOp &lt; (Lit 6) (Lit 7))) (BinOp &gt;= (Lit 8) (Lit 9)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="field_access" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">field_access</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>point.x + point.y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp + (Field (Var &quot;point&quot;) &quot;x&quot;) (Field (Var &quot;point&quot;) &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="fieldAccessChain" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">fieldAccessChain</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>obj.field1.field2.field3</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Field (Field (Field (Var &quot;obj&quot;) &quot;field1&quot;) &quot;field2&quot;) &quot;field3&quot;)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="fieldAccessDeep" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">fieldAccessDeep</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>obj.a.b.c</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Field (Field (Field (Var &quot;obj&quot;) &quot;a&quot;) &quot;b&quot;) &quot;c&quot;)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="floatLiteral" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">floatLiteral</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>3.14</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lit 3.140000)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="gotoSimple" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">gotoSimple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>goto(42, result)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Goto (Lit 42) &quot;result&quot;)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="greaterEqual" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">greaterEqual</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x &gt;= y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp &gt;= (Var &quot;x&quot;) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="greaterThan" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">greaterThan</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x &gt; y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp &gt; (Var &quot;x&quot;) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="hash" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">hash</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ #.head =&gt; 1, #.tail =&gt; # }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.head =&gt; (Lit 1)), (#.tail =&gt; #)])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="if" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">if</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>if true then 1 else 0</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(If (Lit true) (Lit 1) (Lit 0))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="labelGoto" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">labelGoto</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label result { if true then goto(42, result) else 0 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Label &quot;result&quot; (If (Lit true) (Goto (Lit 42) &quot;result&quot;) (Lit 0)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="labelInLet" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">labelInLet</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let x = label done { 42 } in x + 1</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Let &quot;x&quot; (Label &quot;done&quot; (Lit 42)) (BinOp + (Var &quot;x&quot;) (Lit 1)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="labelNested" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">labelNested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label outer { label inner { 1 + 2 } }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Label &quot;outer&quot; (Label &quot;inner&quot; (BinOp + (Lit 1) (Lit 2))))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="labelSimple" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">labelSimple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label result { 42 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Label &quot;result&quot; (Lit 42))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambda" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambda</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>\x =&gt; x + 1</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lam &quot;x&quot; (BinOp + (Var &quot;x&quot;) (Lit 1)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambdaComplexBody" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambdaComplexBody</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>\x =&gt; let y = x + 1 in y * 2</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lam &quot;x&quot; (Let &quot;y&quot; (BinOp + (Var &quot;x&quot;) (Lit 1)) (BinOp * (Var &quot;y&quot;) (Lit 2))))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambdaInRecord" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambdaInRecord</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #.f =&gt; \x =&gt; x + 1,
+  #.g =&gt; \y =&gt; y * 2
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.f =&gt; (Lam &quot;x&quot; (BinOp + (Var &quot;x&quot;) (Lit 1)))), (#.g =&gt; (Lam &quot;y&quot; (BinOp * (Var &quot;y&quot;) (Lit 2))))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambdaNested" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambdaNested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>\x =&gt; \y =&gt; x + y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lam &quot;x&quot; (Lam &quot;y&quot; (BinOp + (Var &quot;x&quot;) (Var &quot;y&quot;))))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lambdaThreeParams" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lambdaThreeParams</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>\x, y, z =&gt; x + y + z</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lam &quot;x&quot; (Lam &quot;y&quot; (Lam &quot;z&quot; (BinOp + (BinOp + (Var &quot;x&quot;) (Var &quot;y&quot;)) (Var &quot;z&quot;)))))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lessEqual" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lessEqual</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x &lt;= y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp &lt;= (Var &quot;x&quot;) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="lessThan" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">lessThan</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x &lt; y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp &lt; (Var &quot;x&quot;) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="let" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let x = 1 in x + 1</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Let &quot;x&quot; (Lit 1) (BinOp + (Var &quot;x&quot;) (Lit 1)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letRec" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letRec</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec factorial = \n =&gt; if n == 0 then 1 else n * factorial (n - 1) in factorial 5</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(LetRec &quot;factorial&quot; (Lam &quot;n&quot; (If (BinOp == (Var &quot;n&quot;) (Lit 0)) (Lit 1) (BinOp * (Var &quot;n&quot;) (App (Var &quot;factorial&quot;) (BinOp - (Var &quot;n&quot;) (Lit 1)))))) (App (Var &quot;factorial&quot;) (Lit 5)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letRecWithAnnotation" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letRecWithAnnotation</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec fact = \n =&gt; if n == 0 then 1 else n * fact (n - 1) in fact</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(LetRec &quot;fact&quot; (Lam &quot;n&quot; (If (BinOp == (Var &quot;n&quot;) (Lit 0)) (Lit 1) (BinOp * (Var &quot;n&quot;) (App (Var &quot;fact&quot;) (BinOp - (Var &quot;n&quot;) (Lit 1)))))) (Var &quot;fact&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="letWithAnnotation" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">letWithAnnotation</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let x : Int = 42 in x</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Let &quot;x&quot; : Int (Lit 42) (Var &quot;x&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="logical" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">logical</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>true &amp;&amp; false || true &amp;&amp; not false</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp || (BinOp &amp;&amp; (Lit true) (Lit false)) (BinOp &amp;&amp; (Lit true) (UnaryOp not (Lit false))))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="match" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">match</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match true with
+| true =&gt; 1
+| false =&gt; 0
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Match (Lit true) [(true =&gt; (Lit 1)), (false =&gt; (Lit 0))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="matchConstructorNoArgs" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">matchConstructorNoArgs</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match x with
+| Nil =&gt; 0
+| _ =&gt; 1
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Match (Var &quot;x&quot;) [(Nil =&gt; (Lit 0)), (_ =&gt; (Lit 1))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="matchLiteral" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">matchLiteral</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match x with
+| 0 =&gt; &quot;zero&quot;
+| 1 =&gt; &quot;one&quot;
+| _ =&gt; &quot;other&quot;
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Match (Var &quot;x&quot;) [(0 =&gt; (Lit &quot;zero&quot;)), (1 =&gt; (Lit &quot;one&quot;)), (_ =&gt; (Lit &quot;other&quot;))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="matchNestedPattern" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">matchNestedPattern</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match xs with
+| Cons (Cons x _) _ =&gt; x
+| _ =&gt; 0
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Match (Var &quot;xs&quot;) [((Cons ((Cons x _)) _) =&gt; (Var &quot;x&quot;)), (_ =&gt; (Lit 0))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="matchSingleCase" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">matchSingleCase</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match x with | Just y =&gt; y end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Match (Var &quot;x&quot;) [((Just y) =&gt; (Var &quot;y&quot;))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="matchWildcard" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">matchWildcard</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>match x with
+| Cons x _ =&gt; x
+| _ =&gt; 0
+end</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Match (Var &quot;x&quot;) [((Cons x _) =&gt; (Var &quot;x&quot;)), (_ =&gt; (Lit 0))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="muAbstraction" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">muAbstraction</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>mu k =&gt; { #(v) =&gt; v }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Mu &quot;k&quot; (Codata [(#(v) =&gt; (Var &quot;v&quot;))]))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="muAbstractionAscii" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">muAbstractionAscii</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>mu k =&gt; { #(v) =&gt; v }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Mu &quot;k&quot; (Codata [(#(v) =&gt; (Var &quot;v&quot;))]))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="muAbstractionSimple" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">muAbstractionSimple</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>mu k =&gt; 42</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Mu &quot;k&quot; (Lit 42))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="multiParamLambda" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">multiParamLambda</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>\x, y, z =&gt; x + y * z</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lam &quot;x&quot; (Lam &quot;y&quot; (Lam &quot;z&quot; (BinOp + (Var &quot;x&quot;) (BinOp * (Var &quot;y&quot;) (Var &quot;z&quot;))))))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="muUnicode" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">muUnicode</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>μ k =&gt; k</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Mu &quot;k&quot; (Var &quot;k&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="negativeNumber" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">negativeNumber</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>-42</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lit -42)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="nested_let" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">nested_let</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let x = 1 in let y = 2 in x + y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Let &quot;x&quot; (Lit 1) (Let &quot;y&quot; (Lit 2) (BinOp + (Var &quot;x&quot;) (Var &quot;y&quot;))))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="nestedCodata" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">nestedCodata</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  #.outer =&gt; {
+    #.inner =&gt; 42
+  }
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Codata [(#.outer =&gt; (Codata [(#.inner =&gt; (Lit 42))]))])</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="notEqual" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">notEqual</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x != y</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp != (Var &quot;x&quot;) (Var &quot;y&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="operatorExtraSpaces" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">operatorExtraSpaces</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1  +  2</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp + (Lit 1) (Lit 2))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="operatorNoSpaces" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">operatorNoSpaces</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1+2</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp + (Lit 1) (Lit 2))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="parenthesesNested" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">parenthesesNested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>((((42))))</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lit 42)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="parenthesesOnly" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">parenthesesOnly</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(42)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lit 42)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="pipeChain" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">pipeChain</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x |&gt; f |&gt; g |&gt; h</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp |&gt; (BinOp |&gt; (BinOp |&gt; (Var &quot;x&quot;) (Var &quot;f&quot;)) (Var &quot;g&quot;)) (Var &quot;h&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="pipeOperator" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">pipeOperator</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>x |&gt; f</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp |&gt; (Var &quot;x&quot;) (Var &quot;f&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="precedence" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">precedence</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(1 + 2) * 3</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp * (BinOp + (Lit 1) (Lit 2)) (Lit 3))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="record" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">record</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ x = 1, y = 2 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Record { x = (Lit 1), y = (Lit 2) })</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="recordComplexValues" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">recordComplexValues</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ x = 1 + 2, y = \z =&gt; z * 3 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Record { x = (BinOp + (Lit 1) (Lit 2)), y = (Lam &quot;z&quot; (BinOp * (Var &quot;z&quot;) (Lit 3))) })</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="recordEmpty" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">recordEmpty</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Record {  })</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="recordMultiline" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">recordMultiline</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{
+  x = 1,
+  y = 2,
+  z = 3
+}</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Record { x = (Lit 1), y = (Lit 2), z = (Lit 3) })</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="recordNested" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">recordNested</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ x = 1, y = { a = 2, b = 3 } }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Record { x = (Lit 1), y = (Record { a = (Lit 2), b = (Lit 3) }) })</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="recordSingleField" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">recordSingleField</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>{ x = 42 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Record { x = (Lit 42) })</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="stringLiteral" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">stringLiteral</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>hello world</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(App (Var &quot;hello&quot;) (Var &quot;world&quot;))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="typeAnnotation" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">typeAnnotation</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(42 : Int)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Ann (Lit 42) Int)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="typeAnnotationLambda" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">typeAnnotationLambda</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>(\x =&gt; x : Int -&gt; Int)</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Ann (Lam &quot;x&quot; (Var &quot;x&quot;)) (Int -&gt; Int))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="unary" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">unary</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>not true &amp;&amp; -5 &lt; 0</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(BinOp &amp;&amp; (UnaryOp not (Lit true)) (BinOp &lt; (Lit -5) (Lit 0)))</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="unitLiteral" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">unitLiteral</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>()</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Lit ())</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="variableCamelCase" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">variableCamelCase</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>camelCaseVariable</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Var &quot;camelCaseVariable&quot;)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card" data-name="variableSnakeCase" data-category="parser">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">variableSnakeCase</span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>snake_case_variable</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>(Var &quot;snake_case_variable&quot;)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <div class="no-results" id="noResults" style="display: none;">
+      No tests match your search.
+    </div>
+  </main>
+
+  <script>
+    const searchInput = document.getElementById('search');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const testCards = document.querySelectorAll('.test-card');
+    const categorySections = document.querySelectorAll('.category-section');
+    const statsEl = document.getElementById('stats');
+    const noResultsEl = document.getElementById('noResults');
+    const expandAllBtn = document.getElementById('expandAll');
+
+    let currentCategory = 'all';
+    let allExpanded = false;
+
+    function toggleCard(card) {
+      card.classList.toggle('expanded');
+    }
+
+    function updateStats() {
+      const visible = document.querySelectorAll('.test-card:not(.hidden)').length;
+      const total = testCards.length;
+      statsEl.textContent = `Showing ${visible} of ${total} tests`;
+      noResultsEl.style.display = visible === 0 ? 'block' : 'none';
+    }
+
+    function filterTests() {
+      const searchTerm = searchInput.value.toLowerCase();
+
+      testCards.forEach(card => {
+        const name = card.dataset.name.toLowerCase();
+        const category = card.dataset.category;
+        const matchesSearch = name.includes(searchTerm);
+        const matchesCategory = currentCategory === 'all' || category === currentCategory;
+
+        card.classList.toggle('hidden', !(matchesSearch && matchesCategory));
+      });
+
+      categorySections.forEach(section => {
+        const category = section.dataset.category;
+        const hasVisibleCards = section.querySelectorAll('.test-card:not(.hidden)').length > 0;
+        const matchesCategory = currentCategory === 'all' || category === currentCategory;
+        section.style.display = (matchesCategory && hasVisibleCards) ? 'block' : 'none';
+      });
+
+      updateStats();
+    }
+
+    searchInput.addEventListener('input', filterTests);
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategory = btn.dataset.category;
+        filterTests();
+      });
+    });
+
+    expandAllBtn.addEventListener('click', () => {
+      allExpanded = !allExpanded;
+      testCards.forEach(card => {
+        if (!card.classList.contains('hidden')) {
+          card.classList.toggle('expanded', allExpanded);
+        }
+      });
+      expandAllBtn.textContent = allExpanded ? 'Collapse All' : 'Expand All';
+    });
+
+    // Initial stats
+    updateStats();
+  </script>
+</body>
+</html>
