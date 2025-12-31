@@ -1,5 +1,7 @@
 # Ziku
 
+[![CI](https://github.com/takoeight0821/ziku/actions/workflows/lean_action_ci.yml/badge.svg)](https://github.com/takoeight0821/ziku/actions/workflows/lean_action_ci.yml)
+
 A functional programming language exploring the duality between data and codata.
 
 ## Features
