@@ -225,7 +225,7 @@ partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
     let (fnTy, subst1) ← infer env fn
     let (argTy, subst2) ← infer (env.applySubst subst1) arg
     let resultTy ← freshTyVar
-    let subst3 ← unifyAt pos (fnTy.applySubst subst2) (.arrow dummyPos argTy resultTy)
+    let subst3 ← unifyAt pos (fnTy.applySubst subst2) (.arrow pos argTy resultTy)
     return (resultTy.applySubst subst3, subst1 ++ subst2 ++ subst3)
   | .let_ _ x tyOpt e1 e2 => do
     let (t1, subst1) ← infer env e1
