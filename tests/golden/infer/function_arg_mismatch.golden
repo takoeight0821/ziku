@@ -1,0 +1,3 @@
+Type error at 1:24: Cannot unify type constructors 'Int' and 'Bool'
+  Expected: Int
+  Actual: Bool

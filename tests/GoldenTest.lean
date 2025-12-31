@@ -108,7 +108,7 @@ def parserTests : List String :=
    "expressionMixedOperators", "divisionByZero", "variableSnakeCase",
    "variableCamelCase", "operatorNoSpaces", "operatorExtraSpaces",
    "cutSimple", "cutExpression", "hash", "labelSimple", "labelNested", "gotoSimple", "labelGoto",
-   "app_field_precedence"]
+   "app_field_precedence", "labelInLet", "nestedCodata", "lambdaInRecord"]
 
 
 /-- List of type inference test cases -/
@@ -127,7 +127,9 @@ def inferTests : List String :=
    "codata_field", "codata_callable", "codata_multi_param", "codata_nested",
    "label_simple", "label_goto", "label_nested", "label_function", "label_let",
    "label_early_return", "label_match",
-   "unbound_variable", "type_mismatch"]
+   "unbound_variable", "type_mismatch",
+   "if_branch_mismatch", "function_arg_mismatch", "too_many_args",
+   "codata_field_type", "higher_order_function", "compose_functions"]
 
 /-- List of IR evaluation test cases -/
 def irEvalTests : List String :=
@@ -139,7 +141,8 @@ def irEvalTests : List String :=
    "codata_simple", "codata_chain", "letrec_simple",
    "letrec_codata_simple", "letrec_codata_tail", "letrec_codata_lambda", "letrec_codata_lambda_tail",
    "let_record_access", "letrec_codata_minimal",
-   "fib_codata"]
+   "fib_codata", "record_nested", "codata_closure", "sum_to_n",
+   "church_zero", "label_loop", "codata_counter"]
 
 /-- Run all tests in a category -/
 def runCategory (category : String) (tests : List String) (testType : String) : IO (Nat × Nat) := do

@@ -1,0 +1,4 @@
+let counter = {
+  #.value => 0,
+  #.inc => \x => x + 1
+} in counter .inc (counter .value)

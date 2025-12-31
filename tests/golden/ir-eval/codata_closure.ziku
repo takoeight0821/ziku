@@ -1,0 +1,3 @@
+let offset = 100 in
+let adder = { #.add => \x => x + offset } in
+adder .add 42

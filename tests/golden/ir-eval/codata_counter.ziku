@@ -1,0 +1,4 @@
+let rec counter = \n => {
+  #.value => n,
+  #.next => counter (n + 1)
+} in counter 0 .next .next .next .value

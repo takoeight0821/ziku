@@ -1,0 +1,6 @@
+let rec loop = \n => \acc =>
+  label done {
+    if n == 0 then goto(acc, done)
+    else loop (n - 1) (acc + n)
+  }
+in loop 5 0

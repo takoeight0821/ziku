@@ -1,0 +1,1 @@
+(Codata [(#.outer => (Codata [(#.inner => (Lit 42))]))])

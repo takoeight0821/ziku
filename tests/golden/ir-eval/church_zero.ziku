@@ -1,0 +1,4 @@
+let zero = \f => \x => x in
+let succ = \n => \f => \x => f (n f x) in
+let toInt = \n => n (\x => x + 1) 0 in
+toInt (succ (succ (succ zero)))
