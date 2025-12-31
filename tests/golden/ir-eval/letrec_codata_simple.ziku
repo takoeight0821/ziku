@@ -1,0 +1,1 @@
+let rec ones = { #.head => 1, #.tail => ones } in ones .head

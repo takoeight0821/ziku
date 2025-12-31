@@ -117,14 +117,14 @@ mutual
       let p2 ← translateExpr e2
       return .mu pos α (.cut dummyPos p1 (.muTilde dummyPos x (.cut dummyPos p2 (.covar dummyPos α))))
     | .letRec pos x _ e1 e2 => do
-      -- ⟦let rec x = e₁ in e₂⟧ = μα.⟨⟦e₁⟧[⟦e₁⟧/x] | μ̃x.⟨⟦e₂⟧ | α⟩⟩
-      -- Pre-substitute x in e1 to handle recursion (works because cocase guards the body)
+      -- ⟦let rec x = e₁ in e₂⟧ = μα.⟨fix x. ⟦e₁⟧ | μ̃x.⟨⟦e₂⟧ | α⟩⟩
+      -- Use fixpoint combinator for proper recursive semantics
       let α ← freshCovar
       let p1 ← translateExpr e1
-      -- Substitute p1 for x in p1 itself to create self-reference
-      let p1' := IR.Producer.substVar x p1 p1
+      -- Wrap in fix to create proper self-reference with lazy unfolding
+      let fixP := IR.Producer.fix pos x p1
       let p2 ← translateExpr e2
-      return .mu pos α (.cut dummyPos p1' (.muTilde dummyPos x (.cut dummyPos p2 (.covar dummyPos α))))
+      return .mu pos α (.cut dummyPos fixP (.muTilde dummyPos x (.cut dummyPos p2 (.covar dummyPos α))))
     | .if_ pos cond thenE elseE => do
       -- ⟦if t₁ then t₂ else t₃⟧ = μα.ifz(⟦t₁⟧, ⟨⟦t₂⟧ | α⟩, ⟨⟦t₃⟧ | α⟩)
       let α ← freshCovar

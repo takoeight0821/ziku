@@ -33,6 +33,7 @@ inductive Producer where
       -- cocase { D(x̄; ᾱ) ⇒ s, ... }
       -- Destructor name, argument variables (producer vars), result covars (consumer vars), body
   | record    : SourcePos → List (Ident × Producer) → Producer      -- { x = p, y = q }
+  | fix       : SourcePos → Ident → Producer → Producer             -- fix x. p (fixpoint)
   deriving Repr, BEq
 
 -- Consumers: consume/destruct elements of a type
@@ -66,6 +67,7 @@ def Producer.pos : Producer → SourcePos
   | mu p _ _ => p
   | cocase p _ => p
   | record p _ => p
+  | fix p _ _ => p
 
 -- Get source position from Consumer
 def Consumer.pos : Consumer → SourcePos
@@ -91,6 +93,7 @@ partial def Producer.freeVars : Producer → List Ident
     branches.flatMap (fun (_, vars, s) =>
       s.freeVars.filter (fun v => !vars.contains v))
   | .record _ fields => fields.flatMap (fun (_, p) => p.freeVars)
+  | .fix _ x body => body.freeVars.filter (· != x)  -- x is bound
 
 partial def Consumer.freeVars : Consumer → List Ident
   | .covar _ α => [α]
@@ -121,6 +124,7 @@ partial def Producer.toString : Producer → String
   | .record _ fields =>
     let fs := fields.map (fun (n, p) => s!"{n} = {p.toString}")
     "{ " ++ String.intercalate ", " fs ++ " }"
+  | .fix _ x body => s!"(fix {x}. {body.toString})"
 
 partial def Consumer.toString : Consumer → String
   | .covar _ α => α

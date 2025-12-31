@@ -135,7 +135,10 @@ def irEvalTests : List String :=
    "label_simple", "label_goto", "label_goto_nested",
    "label_immediate_exit", "label_conditional_exit", "label_early_exit", "label_nested_goto",
    "lambda_square", "lambda_nonvalue_args", "lambda_higher_order", "lambda_curried", "lambda_compose",
-   "codata_simple", "codata_chain", "letrec_simple", "fib_codata"]
+   "codata_simple", "codata_chain", "letrec_simple",
+   "letrec_codata_simple", "letrec_codata_tail", "letrec_codata_lambda", "letrec_codata_lambda_tail",
+   "let_record_access", "letrec_codata_minimal",
+   "fib_codata"]
 
 /-- Run all tests in a category -/
 def runCategory (category : String) (tests : List String) (testType : String) : IO (Nat × Nat) := do

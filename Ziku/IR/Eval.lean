@@ -31,6 +31,7 @@ partial def Producer.isValue : Producer → Bool
   | .mu _ _ _ => false    -- mu needs to be paired with consumer
   | .cocase _ _ => true   -- cocase is a value (like a closure)
   | .record _ _ => true   -- record is a value
+  | .fix _ _ _ => true    -- fix is a value (lazy, unfolds when consumed)
 
 -- Substitution: replace variable x with producer p in statement
 mutual
@@ -46,6 +47,9 @@ partial def Producer.substVar (x : Ident) (p : Producer) : Producer → Producer
       else (d, vars, Statement.substVar x p s))
   | .record pos fields =>
     .record pos (fields.map fun (n, prod) => (n, Producer.substVar x p prod))
+  | .fix pos y body =>
+    if y == x then .fix pos y body  -- x is shadowed by fix binder
+    else .fix pos y (Producer.substVar x p body)
 
 partial def Consumer.substVar (x : Ident) (p : Producer) : Consumer → Consumer
   | .covar pos α => .covar pos α
@@ -80,6 +84,9 @@ partial def Producer.substCovar (α : Ident) (c : Consumer) : Producer → Produ
       else (d, vars, Statement.substCovar α c s))
   | .record pos fields =>
     .record pos (fields.map fun (n, prod) => (n, Producer.substCovar α c prod))
+  | .fix pos y body =>
+    -- y is a variable, doesn't shadow α (which is a covariable)
+    .fix pos y (Producer.substCovar α c body)
 
 partial def Consumer.substCovar (α : Ident) (c : Consumer) : Consumer → Consumer
   | .covar pos β => if β == α then c else .covar pos β
@@ -137,23 +144,15 @@ partial def step : Statement → Option Statement
     match p, c with
     -- μ-reduction: ⟨μα.s | c̄⟩ ⊲ s[c̄/α]
     | .mu _ α s, _ => some (s.substCovar α c)
-    -- μ̃-reduction: ⟨v̄ | μ̃x.s⟩ ⊲ s[v'/x] where v' is p with enough self-substitution for recursion
+    -- fix-reduction: ⟨fix x. p | c⟩ ⊲ ⟨p[fix x. p / x] | c⟩
+    -- Lazy unfolding: fixpoint only unfolds when consumed
+    | .fix fixPos x body, _ =>
+      let fixProducer := Producer.fix fixPos x body
+      let unfolded := Producer.substVar x fixProducer body
+      some (.cut pos unfolded c)
+    -- μ̃-reduction: ⟨v̄ | μ̃x.s⟩ ⊲ s[v̄/x] (v is value)
     | _, .muTilde _ x s =>
-      if p.isValue then
-        -- Tie the knot: iterate substitution to handle recursive references
-        -- Each iteration unfolds one more level of recursion
-        -- Need 10+ iterations for nested lambda + codata (like Fibonacci streams)
-        let p1 := p.substVar x p
-        let p2 := p1.substVar x p1
-        let p3 := p2.substVar x p2
-        let p4 := p3.substVar x p3
-        let p5 := p4.substVar x p4
-        let p6 := p5.substVar x p5
-        let p7 := p6.substVar x p6
-        let p8 := p7.substVar x p7
-        let p9 := p8.substVar x p8
-        let p10 := p9.substVar x p9
-        some (s.substVar x p10)
+      if p.isValue then some (s.substVar x p)
       else none
     -- Destructor application: ⟨cocase {...} | D(p̄; c)⟩
     -- vars = [arg1, ..., argN, continuation_covar]
