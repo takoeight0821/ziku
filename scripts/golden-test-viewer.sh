@@ -652,12 +652,22 @@ cat >> "$OUTPUT_FILE" << HTMLFOOT
           testCards = document.querySelectorAll('.test-card');
           categorySections = document.querySelectorAll('.category-section');
           // Restore expanded state
-          testCards.forEach(card => {
-            const name = card.dataset.name + '-' + card.dataset.category;
-            if (expandedCards.has(name)) {
+          if (allExpanded) {
+            // If "Expand All" was active, expand all cards
+            testCards.forEach(card => {
               card.classList.add('expanded');
-            }
-          });
+              const name = card.dataset.name + '-' + card.dataset.category;
+              expandedCards.add(name);
+            });
+          } else {
+            // Otherwise restore individual expanded states
+            testCards.forEach(card => {
+              const name = card.dataset.name + '-' + card.dataset.category;
+              if (expandedCards.has(name)) {
+                card.classList.add('expanded');
+              }
+            });
+          }
           filterTests();
           updateLastUpdated();
         }
@@ -706,16 +716,25 @@ cat >> "$OUTPUT_FILE" << HTMLFOOT
 
     refreshBtn.addEventListener('click', refreshContent);
 
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      refreshBtn.classList.add('active');
+      autoRefreshInterval = setInterval(refreshContent, 3000);
+    }
+
+    function stopAutoRefresh() {
+      refreshBtn.classList.remove('active');
+      if (autoRefreshInterval !== null) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+      }
+    }
+
     autoRefreshCheckbox.addEventListener('change', () => {
       if (autoRefreshCheckbox.checked) {
-        refreshBtn.classList.add('active');
-        autoRefreshInterval = setInterval(refreshContent, 3000);
+        startAutoRefresh();
       } else {
-        refreshBtn.classList.remove('active');
-        if (autoRefreshInterval) {
-          clearInterval(autoRefreshInterval);
-          autoRefreshInterval = null;
-        }
+        stopAutoRefresh();
       }
     });
 
