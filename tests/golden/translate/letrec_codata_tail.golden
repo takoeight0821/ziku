@@ -1,1 +1,1 @@
-(μ_α0. ⟨(fix ones. { tail = ones, head = 1 }) | (μ̃ones. ⟨(μ_α1. ⟨(μ_α2. ⟨ones | tail; _α2⟩) | head; _α1⟩) | _α0⟩)⟩)
+(μ_α0. ⟨(fix ones. { tail = ones, head = 1 }) | (μ~ones. ⟨(μ_α1. ⟨(μ_α2. ⟨ones | tail; _α2⟩) | head; _α1⟩) | _α0⟩)⟩)

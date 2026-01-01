@@ -128,7 +128,7 @@ partial def Producer.toString : Producer → String
 
 partial def Consumer.toString : Consumer → String
   | .covar _ α => α
-  | .muTilde _ x s => s!"(μ̃{x}. {s.toString})"
+  | .muTilde _ x s => s!"(μ~{x}. {s.toString})"
   | .case _ branches =>
     let bs := branches.map (fun (k, vars, s) =>
       let varsStr := if vars.isEmpty then "" else "(" ++ String.intercalate ", " vars ++ ")"
