@@ -1,0 +1,3 @@
+# Golden test files - exclude from language statistics
+tests/golden/**/*.ziku linguist-generated
+tests/golden/**/*.golden linguist-generated
