@@ -9,26 +9,38 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Setup Lean
-        uses: leanprover/lean-action@v1
+      - name: Cache elan
+        uses: actions/cache@v4
         with:
-          build: false
+          path: ~/.elan
+          key: ${{ runner.os }}-elan-${{ hashFiles('lean-toolchain') }}
+          restore-keys: |
+            ${{ runner.os }}-elan-
 
-      - name: Cache Lake packages
-        uses: actions/cache@v5
+      - name: Install elan
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
+      - name: Install Lean toolchain
+        run: lake --version
+
+      - name: Cache Lake build
+        uses: actions/cache@v4
         with:
-          path: |
-            .lake
-            ~/.elan
+          path: .lake
           key: ${{ runner.os }}-lake-${{ hashFiles('lake-manifest.json', 'lakefile.lean') }}
           restore-keys: |
             ${{ runner.os }}-lake-
+
+      - name: Install Chez Scheme
+        run: sudo apt-get update && sudo apt-get install -y chezscheme
 
       - name: Build
         run: lake build
