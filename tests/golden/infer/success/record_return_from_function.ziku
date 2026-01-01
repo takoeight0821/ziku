@@ -1,0 +1,1 @@
+let mkPair = \x => \y => { fst = x, snd = y } in mkPair 1 2

@@ -1,0 +1,3 @@
+let apply = \f => \r => f r in
+let getX = \r => r .x in
+apply getX { x = 42 }
