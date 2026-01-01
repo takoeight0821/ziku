@@ -27,6 +27,7 @@ partial def Ty.applySubst (subst : Subst) : Ty → Ty
   | .arrow p t1 t2 => .arrow p (t1.applySubst subst) (t2.applySubst subst)
   | .forall_ p x t => .forall_ p x (t.applySubst (subst.filter (·.1 != x)))
   | .record p fields => .record p (fields.map (fun (n, t) => (n, t.applySubst subst)))
+  | .bottom p => .bottom p  -- Bottom type is not affected by substitution
 
 -- Free type variables
 partial def Ty.freeVars : Ty → List Ident
@@ -36,6 +37,7 @@ partial def Ty.freeVars : Ty → List Ident
   | .arrow _ t1 t2 => t1.freeVars ++ t2.freeVars
   | .forall_ _ x t => t.freeVars.filter (· != x)
   | .record _ fields => (fields.map (fun (_, t) => t.freeVars)).flatten
+  | .bottom _ => []  -- Bottom type has no free variables
 
 -- Free type variables in a scheme
 def Scheme.freeVars (s : Scheme) : List Ident :=

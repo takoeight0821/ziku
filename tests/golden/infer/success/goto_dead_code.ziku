@@ -1,0 +1,1 @@
+label result { goto(true, result) + 1 }

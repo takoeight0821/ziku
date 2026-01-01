@@ -134,3 +134,4 @@ Tests are listed in `tests/GoldenTest.lean`. Add new test by:
 ## Hints
 
 - `rm` is denied for safety, use `trash` command instead
+- If you want to try simpler case, you should add it as golden test

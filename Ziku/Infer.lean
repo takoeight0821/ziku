@@ -7,17 +7,18 @@ namespace Ziku
 /-!
 # Type Inference
 
-This module provides type inference for Ziku expressions with detailed error reporting.
+This module provides constraint-based type inference for Ziku expressions.
 Uses Hindley-Milner with let-polymorphism via Scheme types.
+
+## Architecture
+
+The inference is split into two phases:
+1. **Constraint Generation**: Traverse AST, generate constraints without solving
+2. **Constraint Solving**: Solve constraints using unification, handle bottom type propagation
+
+This separation allows bottom type (⊥) propagation to be handled in the constraint solver,
+keeping the constraint generation code simple.
 -/
-
--- Type environment mapping variables to type schemes
-abbrev TyEnv := List (Ident × Scheme)
-
--- Inference state with fresh variable counter
-structure InferState where
-  nextVar : Nat := 0
-  deriving Inhabited
 
 -- Type error with source location and detailed message
 inductive TypeError where
@@ -42,19 +43,70 @@ def TypeError.toString : TypeError → String
 
 instance : ToString TypeError := ⟨TypeError.toString⟩
 
--- Inference monad: State + Error
-abbrev InferM := StateT InferState (Except TypeError)
+-- Type environment mapping variables to type schemes
+abbrev TyEnv := List (Ident × Scheme)
 
--- Provide Inhabited instance for InferM (Ty × Subst)
-instance : Inhabited (InferM (Ty × Subst)) where
-  default := throw (.customError { line := 0, col := 0 } "Uninhabited type inference result")
+-- Label environment mapping label names to their expected value types
+abbrev LabelEnv := List (Ident × Ty)
+
+/-- Type constraints generated during inference -/
+inductive Constraint where
+  /-- Unification constraint: t1 = t2 -/
+  | unify (pos : SourcePos) (t1 : Ty) (t2 : Ty)
+  /-- bottomProp制約: sourcesのいずれかが⊥型なら、targetも⊥型になる。
+
+      これが必要な理由:
+      - `goto`は戻らない式であり、その結果型は⊥（bottom type）
+      - `goto(...) + 1`のような式では、gotoが⊥を返すため、
+        演算全体も到達不能なコードとなり、結果も⊥であるべき
+      - 単純な単一化では⊥の「伝播」を表現できない
+        （⊥ = Int は成功するが、結果がIntになってしまう）
+      - この制約により、⊥の伝播ロジックを制約ソルバーに集約し、
+        各式の型推論コードをシンプルに保つ
+
+      例: `label result { if true then goto(true, result) + 1 else false }`
+      - goto → ⊥
+      - ⊥ + 1 → bottomProp([⊥, Int], result) により result = ⊥
+      - if分岐: ⊥と Boolを単一化 → Bool（⊥は任意の型と単一化可能）
+      - 最終型: Bool -/
+  | bottomProp (sources : List Ty) (target : Ty)
+  /-- Field access constraint: recTy.fieldName = resultTy
+      Record types may not be resolved at constraint generation time,
+      so we defer field lookup to the constraint solver. -/
+  | fieldAccess (pos : SourcePos) (recTy : Ty) (fieldName : Ident) (resultTy : Ty)
+  deriving Repr
+
+/-- State for constraint generation phase -/
+structure GenState where
+  nextVar : Nat := 0
+  constraints : List Constraint := []
+  labelEnv : LabelEnv := []
+  deriving Inhabited
+
+/-- Monad for constraint generation -/
+abbrev GenM := StateT GenState (Except TypeError)
+
+-- Nonempty instance for GenM Ty (needed for partial def)
+instance : Nonempty (GenM Ty) := ⟨pure (.con { line := 0, col := 0 } "Unit")⟩
 
 -- Generate fresh type variable
-def freshTyVar : InferM Ty := do
+def freshTyVar : GenM Ty := do
   let s ← get
   let name := s!"_t{s.nextVar}"
   set { s with nextVar := s.nextVar + 1 }
   return .var { line := 0, col := 0 } name
+
+-- Add a constraint to the state
+def addConstraint (c : Constraint) : GenM Unit :=
+  modify fun s => { s with constraints := c :: s.constraints }
+
+-- Add a label binding to the state
+def addLabelBinding (name : Ident) (ty : Ty) : GenM Unit :=
+  modify fun s => { s with labelEnv := (name, ty) :: s.labelEnv }
+
+-- Pop the most recent label binding (for scoped labels)
+def popLabelBinding : GenM Unit :=
+  modify fun s => { s with labelEnv := s.labelEnv.drop 1 }
 
 -- Standard types (using dummy position)
 def dummyPos : SourcePos := { line := 0, col := 0 }
@@ -91,35 +143,52 @@ partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
   | .arrow _ t1 t2 => occursIn varName t1 || occursIn varName t2
   | .forall_ _ x t => if x == varName then false else occursIn varName t
   | .record _ fields => fields.any (fun (_, t) => occursIn varName t)
+  | .bottom _ => false
 
--- Unification with error reporting
-partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) : InferM Subst :=
+-- Unification with error reporting (pure function, used by constraint solver)
+-- Bottom type unifies with any type (⊥ <: τ for all τ)
+partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) : Except TypeError Subst :=
   match t1, t2 with
+  -- Bottom type unifies with anything
+  | .bottom _, _ => .ok []
+  | _, .bottom _ => .ok []
   | .con _ c1, .con _ c2 =>
     if c1 == c2 then
-      return []
+      .ok []
     else
-      throw $ .unificationError pos t1 t2 s!"Cannot unify type constructors '{c1}' and '{c2}'"
+      .error $ .unificationError pos t1 t2 s!"Cannot unify type constructors '{c1}' and '{c2}'"
   | .var _ x, t =>
     if occursIn x t then
-      throw $ .occursCheck pos x t
+      .error $ .occursCheck pos x t
     else
-      return [(x, t)]
+      .ok [(x, t)]
   | t, .var _ x =>
     if occursIn x t then
-      throw $ .occursCheck pos x t
+      .error $ .occursCheck pos x t
     else
-      return [(x, t)]
+      .ok [(x, t)]
   | .arrow _ a1 b1, .arrow _ a2 b2 => do
     let s1 ← unifyAt pos a1 a2
     let s2 ← unifyAt pos (b1.applySubst s1) (b2.applySubst s1)
-    return s1 ++ s2
+    .ok (s1 ++ s2)
   | .app _ t1 t2, .app _ t1' t2' => do
     let s1 ← unifyAt pos t1 t1'
     let s2 ← unifyAt pos (t2.applySubst s1) (t2'.applySubst s1)
-    return s1 ++ s2
+    .ok (s1 ++ s2)
+  | .record _ fs1, .record _ fs2 =>
+    if fs1.length != fs2.length then
+      .error $ .unificationError pos t1 t2 s!"Record field count mismatch"
+    else
+      -- Use foldlM to unify record fields
+      (fs1.zip fs2).foldlM (init := ([] : Subst)) fun subst ((n1, ty1), (n2, ty2)) =>
+        if n1 != n2 then
+          .error $ .unificationError pos t1 t2 s!"Record field name mismatch: {n1} vs {n2}"
+        else
+          match unifyAt pos (ty1.applySubst subst) (ty2.applySubst subst) with
+          | .ok s => .ok (subst ++ s)
+          | .error e => .error e
   | _, _ =>
-    throw $ .unificationError pos t1 t2 s!"Cannot unify types"
+    .error $ .unificationError pos t1 t2 s!"Cannot unify types"
 
 -- Apply substitution to environment
 def TyEnv.applySubst (subst : Subst) (env : TyEnv) : TyEnv :=
@@ -136,21 +205,21 @@ def generalize (env : TyEnv) (ty : Ty) : Scheme :=
   { vars := vars, ty := ty }
 
 -- Instantiate: convert a scheme to a type by replacing quantified variables with fresh ones
-def instantiate (scheme : Scheme) : InferM Ty := do
+def instantiate (scheme : Scheme) : GenM Ty := do
   let mut subst : Subst := []
   for v in scheme.vars do
     let fresh ← freshTyVar
     subst := (v, fresh) :: subst
   return scheme.ty.applySubst subst
 
--- Pattern type checking: returns variable bindings and substitution
--- Given a pattern and expected type, extract variable bindings and unification constraints
-partial def checkPattern (pat : Pat) (expectedTy : Ty) : InferM (List (Ident × Scheme) × Subst) :=
+-- Pattern type checking: returns variable bindings
+-- Given a pattern and expected type, extract variable bindings and add unification constraints
+partial def checkPattern (pat : Pat) (expectedTy : Ty) : GenM (List (Ident × Scheme)) :=
   match pat with
   | .var _ x =>
     -- Variable pattern: bind x to expected type (monomorphic)
-    return ([(x, { vars := [], ty := expectedTy })], [])
-  | .lit pos lit =>
+    return [(x, { vars := [], ty := expectedTy })]
+  | .lit pos lit => do
     -- Literal pattern: unify with literal type
     let litTy := match lit with
       | .int _ => tyInt
@@ -159,12 +228,11 @@ partial def checkPattern (pat : Pat) (expectedTy : Ty) : InferM (List (Ident × 
       | .char _ => tyChar
       | .float _ => tyFloat
       | .unit => tyUnit
-    do
-      let subst ← unifyAt pos litTy expectedTy
-      return ([], subst)
+    addConstraint (.unify pos litTy expectedTy)
+    return []
   | .wild _ =>
     -- Wildcard: no bindings, matches anything
-    return ([], [])
+    return []
   | .con pos conName _args =>
     -- Constructor pattern: need to look up constructor type
     -- For now, throw not implemented
@@ -174,173 +242,389 @@ partial def checkPattern (pat : Pat) (expectedTy : Ty) : InferM (List (Ident × 
     checkPattern p expectedTy
   | .ann pos p ty => do
     -- Annotated: unify annotation with expected type, then check inner pattern
-    let subst ← unifyAt pos ty expectedTy
-    let (bindings, subst') ← checkPattern p (ty.applySubst subst)
-    return (bindings, subst ++ subst')
+    addConstraint (.unify pos ty expectedTy)
+    checkPattern p ty
 
--- Type inference with detailed errors
-partial def infer (env : TyEnv) (expr : Expr) : InferM (Ty × Subst) :=
+-- Constraint generation phase: traverse AST and generate constraints
+-- Returns the type of the expression (constraints are added to state)
+partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
   match expr with
-  | .lit _ (.int _) => return (tyInt, [])
-  | .lit _ (.bool _) => return (tyBool, [])
-  | .lit _ .unit => return (tyUnit, [])
-  | .lit _ (.string _) => return (tyString, [])
-  | .lit _ (.char _) => return (tyChar, [])
-  | .lit _ (.float _) => return (tyFloat, [])
+  | .lit _ (.int _) => return tyInt
+  | .lit _ (.bool _) => return tyBool
+  | .lit _ .unit => return tyUnit
+  | .lit _ (.string _) => return tyString
+  | .lit _ (.char _) => return tyChar
+  | .lit _ (.float _) => return tyFloat
   | .var pos x =>
     match env.lookup x with
-    | some scheme => do
-      let ty ← instantiate scheme
-      return (ty, [])
+    | some scheme => instantiate scheme
     | none => throw $ .unboundVariable pos x
   -- Special case for pipe operator: e1 |> e2  ≡  e2(e1)
   -- Type rule: Γ ⊢ e1 : α, Γ ⊢ e2 : α → β  ⇒  e1 |> e2 : β
   | .binOp pos .pipe e1 e2 => do
-    let (t1, subst1) ← infer env e1
-    let (t2, subst2) ← infer (env.applySubst subst1) e2
+    let t1 ← genConstraints env e1
+    let t2 ← genConstraints env e2
     let resultTy ← freshTyVar
-    let subst3 ← unifyAt pos (t2.applySubst subst2) (.arrow pos (t1.applySubst subst2) resultTy)
-    return (resultTy.applySubst subst3, subst1 ++ subst2 ++ subst3)
-  | .binOp _pos op e1 e2 => do
-    let (expectedTy, resultTy) := binOpTypes op
-    let (t1, subst1) ← infer env e1
-    let subst1' ← unifyAt (e1.pos) t1 expectedTy
-    let (t2, subst2) ← infer (env.applySubst (subst1 ++ subst1')) e2
-    let subst2' ← unifyAt (e2.pos) t2 expectedTy
-    return (resultTy, subst1 ++ subst1' ++ subst2 ++ subst2')
-  | .unaryOp _pos op e => do
-    let (expectedTy, resultTy) := unaryOpTypes op
-    let (t, subst) ← infer env e
-    let subst' ← unifyAt (e.pos) t expectedTy
-    return (resultTy, subst ++ subst')
+    addConstraint (.unify pos t2 (.arrow pos t1 resultTy))
+    addConstraint (.bottomProp [t1, t2] resultTy)
+    return resultTy
+  | .binOp pos op e1 e2 => do
+    let (expectedTy, normalResultTy) := binOpTypes op
+    let t1 ← genConstraints env e1
+    addConstraint (.unify (e1.pos) t1 expectedTy)
+    let t2 ← genConstraints env e2
+    addConstraint (.unify (e2.pos) t2 expectedTy)
+    let resultTy ← freshTyVar
+    addConstraint (.unify pos resultTy normalResultTy)
+    addConstraint (.bottomProp [t1, t2] resultTy)
+    return resultTy
+  | .unaryOp pos op e => do
+    let (expectedTy, normalResultTy) := unaryOpTypes op
+    let t ← genConstraints env e
+    addConstraint (.unify (e.pos) t expectedTy)
+    let resultTy ← freshTyVar
+    addConstraint (.unify pos resultTy normalResultTy)
+    addConstraint (.bottomProp [t] resultTy)
+    return resultTy
   | .lam pos param body => do
     -- Generate fresh type variable for the single parameter
     let paramTy ← freshTyVar
     let paramScheme : Scheme := { vars := [], ty := paramTy }
     let env' := (param, paramScheme) :: env
-    let (bodyTy, subst) ← infer env' body
-    let funTy : Ty := Ty.arrow pos paramTy bodyTy
-    return (funTy.applySubst subst, subst)
+    let bodyTy ← genConstraints env' body
+    return .arrow pos paramTy bodyTy
   | .app pos fn arg => do
-    let (fnTy, subst1) ← infer env fn
-    let (argTy, subst2) ← infer (env.applySubst subst1) arg
+    let fnTy ← genConstraints env fn
+    let argTy ← genConstraints env arg
     let resultTy ← freshTyVar
-    let subst3 ← unifyAt pos (fnTy.applySubst subst2) (.arrow pos argTy resultTy)
-    return (resultTy.applySubst subst3, subst1 ++ subst2 ++ subst3)
-  | .let_ _ x tyOpt e1 e2 => do
-    let (t1, subst1) ← infer env e1
-    let t1' := match tyOpt with
-      | some ty => ty  -- Use declared type
-      | none => t1
-    -- Generalize the type for let-polymorphism
-    let scheme := generalize (env.applySubst subst1) t1'
-    let env' := (x, scheme) :: env.applySubst subst1
-    let (t2, subst2) ← infer env' e2
-    return (t2, subst1 ++ subst2)
-  | .letRec _ x tyOpt e1 e2 => do
+    addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
+    addConstraint (.bottomProp [fnTy, argTy] resultTy)
+    return resultTy
+  | .let_ pos x tyOpt e1 e2 => do
+    let t1 ← genConstraints env e1
+    match tyOpt with
+    | some ty => addConstraint (.unify pos t1 ty)
+    | none => pure ()
+    -- Note: In constraint-based inference, generalization is tricky.
+    -- For simplicity, we use monomorphic binding here.
+    -- Full let-polymorphism would require solving constraints before generalizing.
+    let scheme : Scheme := { vars := [], ty := t1 }
+    let env' := (x, scheme) :: env
+    genConstraints env' e2
+  | .letRec pos x tyOpt e1 e2 => do
     let initTy ← match tyOpt with
       | some ty => pure ty
       | none => freshTyVar
     -- For recursive bindings, use a monomorphic scheme
     let env' := (x, { vars := [], ty := initTy }) :: env
-    let (t1, subst1) ← infer env' e1
-    let substRec ← unifyAt (e1.pos) initTy t1
-    let env'' := (x, { vars := [], ty := t1.applySubst substRec }) :: env.applySubst (subst1 ++ substRec)
-    let (t2, subst2) ← infer env'' e2
-    return (t2, subst1 ++ substRec ++ subst2)
+    let t1 ← genConstraints env' e1
+    addConstraint (.unify pos initTy t1)
+    genConstraints env' e2
   | .if_ pos cond thenE elseE => do
-    let (tCond, subst1) ← infer env cond
-    let subst1' ← unifyAt (cond.pos) tCond tyBool
-    let env' := env.applySubst (subst1 ++ subst1')
-    let (tThen, subst2) ← infer env' thenE
-    let (tElse, subst3) ← infer (env'.applySubst subst2) elseE
-    let subst4 ← unifyAt pos tThen tElse
-    return (tThen.applySubst subst4, subst1 ++ subst1' ++ subst2 ++ subst3 ++ subst4)
+    let tCond ← genConstraints env cond
+    addConstraint (.unify (cond.pos) tCond tyBool)
+    let tThen ← genConstraints env thenE
+    let tElse ← genConstraints env elseE
+    let resultTy ← freshTyVar
+    -- Both branches unify with result (bottom is handled in solver)
+    addConstraint (.unify pos tThen resultTy)
+    addConstraint (.unify pos tElse resultTy)
+    return resultTy
   | .ann pos e ty => do
-    let (inferredTy, subst) ← infer env e
-    let subst' ← unifyAt pos inferredTy ty
-    return (ty, subst ++ subst')
+    let inferredTy ← genConstraints env e
+    addConstraint (.unify pos inferredTy ty)
+    return ty
   | .match_ pos scrutinee cases => do
     -- Infer type of scrutinee
-    let (scrutineeTy, subst0) ← infer env scrutinee
-    let env0 := env.applySubst subst0
+    let scrutineeTy ← genConstraints env scrutinee
+    let resultTy ← freshTyVar
 
     -- Check each case
-    let mut resultTy : Option Ty := none
-    let mut accSubst := subst0
-
     for (pat, body) in cases do
       -- Check pattern against scrutinee type
-      let (bindings, substPat) ← checkPattern pat (scrutineeTy.applySubst accSubst)
-      let envCase := bindings ++ env0.applySubst (accSubst ++ substPat)
+      let bindings ← checkPattern pat scrutineeTy
+      let envCase := bindings ++ env
 
       -- Infer type of case body
-      let (bodyTy, substBody) ← infer envCase body
-      accSubst := accSubst ++ substPat ++ substBody
+      let bodyTy ← genConstraints envCase body
+      addConstraint (.unify pos bodyTy resultTy)
 
-      -- Unify with previous case results
-      match resultTy with
-      | none => resultTy := some bodyTy
-      | some prevTy =>
-        let substUnify ← unifyAt pos (prevTy.applySubst substBody) bodyTy
-        accSubst := accSubst ++ substUnify
-        resultTy := some (bodyTy.applySubst substUnify)
-
-    match resultTy with
-    | some ty => return (ty, accSubst)
-    | none => throw $ .customError pos "match expression has no cases"
+    return resultTy
   | .codata pos clauses => do
     -- Elaborate codata to record/lambda before type inference
     match elaborate pos clauses with
-    | .ok elaborated => infer env elaborated
+    | .ok elaborated => genConstraints env elaborated
     | .error err => throw $ .customError pos (toString err)
   | .field pos e field => do
     -- Infer type of the record expression
-    let (recTy, subst) ← infer env e
-
-    -- The record must have type { field : ty, ... }
-    -- For simplicity, we just check if it's a record type with the field
-    match recTy.applySubst subst with
-    | .record _ fields =>
-      match fields.lookup field with
-      | some ty => return (ty, subst)
-      | none => throw $ .customError pos s!"field '{field}' not found in record"
-    | _ => throw $ .customError pos s!"field access on non-record type"
+    let recTy ← genConstraints env e
+    -- Create fresh type variable for the result
+    let resultTy ← freshTyVar
+    -- Add fieldAccess constraint: resolved in solver when recTy is known
+    addConstraint (.fieldAccess pos recTy field resultTy)
+    -- Propagate bottom if record is bottom
+    addConstraint (.bottomProp [recTy] resultTy)
+    return resultTy
   | .record pos fields => do
     -- Infer type for each field value
     let mut fieldTypes : List (Ident × Ty) := []
-    let mut accSubst : Subst := []
-
     for (name, value) in fields do
-      let (ty, subst) ← infer (env.applySubst accSubst) value
+      let ty ← genConstraints env value
       fieldTypes := fieldTypes ++ [(name, ty)]
-      accSubst := accSubst ++ subst
-
-    return (.record pos fieldTypes, accSubst)
+    return .record pos fieldTypes
   | .cut pos _ _ =>
     throw $ .notImplemented pos "sequent cut"
   | .mu pos _ _ =>
     throw $ .notImplemented pos "mu abstraction"
   | .hash pos =>
     throw $ .notImplemented pos "hash self-reference (should be substituted during elaboration)"
-  | .label _pos _name body => do
-    -- label name { body }: The type is the type of the body.
-    -- Within body, goto(v, name) expects v to have the same type.
-    -- For now, we simply infer the body's type without tracking labels.
-    -- This is a simplification - full typing would track label types.
-    infer env body
-  | .goto _pos _value _name => do
+  | .label pos name body => do
+    -- label name { body }: Create a label that can be jumped to with goto
+    -- The label's expected value type is unified with the body's type
+    let labelTy ← freshTyVar
+    addLabelBinding name labelTy
+    let bodyTy ← genConstraints env body
+    addConstraint (.unify pos bodyTy labelTy)
+    popLabelBinding
+    return labelTy
+  | .goto pos value labelName => do
     -- goto(value, name): Jumps to the label, never returns.
-    -- Returns a fresh type variable since the expression never produces a value.
-    -- Full typing would check that value's type matches the label's expected type.
-    let ty ← freshTyVar
-    return (ty, [])
+    -- Returns bottom type since the expression never produces a value.
+    let valueTy ← genConstraints env value
+    let s ← get
+    match s.labelEnv.lookup labelName with
+    | some labelTy =>
+        -- Value type must match label's expected type
+        addConstraint (.unify pos valueTy labelTy)
+        -- goto returns bottom type (never returns)
+        return .bottom pos
+    | none => throw $ .unboundVariable pos labelName
 
--- Run inference with initial state
-def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) :=
-  let m := infer env expr
-  match m.run { nextVar := 0 } with
-  | .ok ((ty, subst), _) => .ok (ty, subst)
+/-! ## Constraint Solving
+
+The constraint solver processes constraints generated by `genConstraints`.
+It handles:
+1. `unify` constraints using standard unification
+2. `bottomProp` constraints by propagating bottom type through dependencies
+
+The key insight for bottom type propagation:
+- When `⊥ = τ` is unified, it succeeds (⊥ unifies with anything)
+- But we track which type variables are "tainted" by bottom
+- At the end, tainted variables become bottom type in the final substitution
+-/
+
+/-- State for constraint solving -/
+structure SolverState where
+  subst : Subst := []
+  /-- Type variables that are known to be bottom (either directly or through propagation) -/
+  bottomVars : List Ident := []
+  deriving Inhabited
+
+/-- Check if a type is or contains a bottom type variable -/
+partial def isBottomTainted (bottomVars : List Ident) : Ty → Bool
+  | .bottom _ => true
+  | .var _ x => bottomVars.contains x
+  | .con _ _ => false
+  | .app _ t1 t2 => isBottomTainted bottomVars t1 || isBottomTainted bottomVars t2
+  | .arrow _ t1 t2 => isBottomTainted bottomVars t1 || isBottomTainted bottomVars t2
+  | .forall_ _ x t => if bottomVars.contains x then false else isBottomTainted bottomVars t
+  | .record _ fields => fields.any (fun (_, t) => isBottomTainted bottomVars t)
+
+/-- Extract type variable name if the type is a variable -/
+def Ty.varName? : Ty → Option Ident
+  | .var _ x => some x
+  | _ => none
+
+/-- Compose two substitutions: apply s1 first, then s2 -/
+def composeSubst (s1 s2 : Subst) : Subst :=
+  s1.map (fun (x, t) => (x, t.applySubst s2)) ++ s2.filter (fun (x, _) => !s1.any (·.1 == x))
+
+/-- Solve a single unify constraint, tracking bottom propagation -/
+partial def solveUnify (pos : SourcePos) (t1 t2 : Ty) (state : SolverState)
+    : Except TypeError SolverState := do
+  let t1' := t1.applySubst state.subst
+  let t2' := t2.applySubst state.subst
+
+  -- Check if either type is the actual bottom type (not just bottom-tainted)
+  -- When unifying with bottom, we succeed without adding substitution
+  -- This allows the other branch in if-expressions to determine the type
+  if t1'.isBottom || t2'.isBottom then
+    -- Just succeed - don't mark the other side as bottom
+    -- Bottom propagation through expressions is handled by bottomProp constraints
+    return state
+
+  -- Check if either type is bottom-tainted (variable in bottomVars)
+  let t1Tainted := isBottomTainted state.bottomVars t1'
+  let t2Tainted := isBottomTainted state.bottomVars t2'
+
+  -- If one side is bottom-tainted (but not the actual bottom type),
+  -- unification succeeds and we propagate the taint
+  if t1Tainted || t2Tainted then
+    let newBottomVars :=
+      if t1Tainted then
+        match t2'.varName? with
+        | some x => if state.bottomVars.contains x then [] else [x]
+        | none => []
+      else
+        match t1'.varName? with
+        | some x => if state.bottomVars.contains x then [] else [x]
+        | none => []
+    return { state with bottomVars := state.bottomVars ++ newBottomVars }
+
+  -- Normal case: neither side is bottom-related, perform standard unification
+  match unifyAt pos t1' t2' with
+  | .ok newSubst =>
+    .ok { subst := composeSubst state.subst newSubst, bottomVars := state.bottomVars }
   | .error e => .error e
+
+/-- Solve a bottomProp constraint: if any source is bottom, mark target as bottom -/
+def solveBottomProp (sources : List Ty) (target : Ty) (state : SolverState) : SolverState :=
+  let sources' := sources.map (·.applySubst state.subst)
+  let anySourceBottom := sources'.any (isBottomTainted state.bottomVars)
+
+  if anySourceBottom then
+    let target' := target.applySubst state.subst
+    match target'.varName? with
+    | some x =>
+      if state.bottomVars.contains x then state
+      else { state with bottomVars := x :: state.bottomVars }
+    | none => state  -- Target already resolved to concrete type
+  else state
+
+/-- Collect all bottomProp constraints for reference during solving -/
+def collectBottomProps (constraints : List Constraint) : List (List Ty × Ty) :=
+  constraints.filterMap fun
+    | .bottomProp sources target => some (sources, target)
+    | _ => none
+
+/-- Collect all fieldAccess constraints for iterative solving -/
+def collectFieldAccess (constraints : List Constraint) : List (SourcePos × Ty × Ident × Ty) :=
+  constraints.filterMap fun
+    | .fieldAccess pos recTy fieldName resultTy => some (pos, recTy, fieldName, resultTy)
+    | _ => none
+
+/-- Try to solve a single fieldAccess constraint. Returns updated state and whether it was resolved. -/
+def tryResolveFieldAccess (pos : SourcePos) (recTy : Ty) (fieldName : Ident) (resultTy : Ty)
+    (state : SolverState) : Except TypeError (SolverState × Bool) := do
+  let recTy' := recTy.applySubst state.subst
+  match recTy' with
+  | .record _ fields =>
+      match fields.find? (fun (f, _) => f == fieldName) with
+      | some (_, fieldTy) =>
+          -- Field found, unify resultTy with fieldTy
+          let newState ← solveUnify pos resultTy fieldTy state
+          .ok (newState, true)  -- Resolved
+      | none =>
+          .error $ .customError pos s!"Field '{fieldName}' not found in record"
+  | .var _ _ =>
+      -- Record type not yet resolved, skip for now
+      .ok (state, false)
+  | .bottom _ =>
+      -- Record is bottom, result will be handled by bottomProp
+      .ok (state, true)  -- Consider it resolved
+  | _ =>
+      .error $ .customError pos s!"Cannot access field '{fieldName}' on non-record type: {recTy'}"
+
+/-- Apply all bottomProp constraints once -/
+def applyBottomProps (bottomProps : List (List Ty × Ty)) (state : SolverState) : SolverState :=
+  bottomProps.foldl (fun s (sources, target) => solveBottomProp sources target s) state
+
+/-- Propagate bottom through all bottomProp constraints until fixpoint -/
+partial def propagateBottomFixpoint (bottomProps : List (List Ty × Ty)) (state : SolverState) : SolverState :=
+  let newState := applyBottomProps bottomProps state
+  if newState.bottomVars.length > state.bottomVars.length then
+    propagateBottomFixpoint bottomProps newState
+  else
+    newState
+
+/-- Try to resolve all pending fieldAccess constraints.
+    Returns updated state and list of remaining unresolved constraints. -/
+def resolveFieldAccessConstraints (pending : List (SourcePos × Ty × Ident × Ty)) (state : SolverState)
+    : Except TypeError (SolverState × List (SourcePos × Ty × Ident × Ty)) := do
+  let mut currentState := state
+  let mut remaining : List (SourcePos × Ty × Ident × Ty) := []
+  for (pos, recTy, fieldName, resultTy) in pending do
+    let (newState, resolved) ← tryResolveFieldAccess pos recTy fieldName resultTy currentState
+    currentState := newState
+    if !resolved then
+      remaining := remaining ++ [(pos, recTy, fieldName, resultTy)]
+  .ok (currentState, remaining)
+
+/-- Iteratively resolve fieldAccess constraints until no more progress or all resolved -/
+partial def resolveFieldAccessFixpoint (pending : List (SourcePos × Ty × Ident × Ty)) (state : SolverState)
+    : Except TypeError SolverState := do
+  if pending.isEmpty then
+    return state
+  let (newState, remaining) ← resolveFieldAccessConstraints pending state
+  if remaining.isEmpty then
+    return newState
+  if remaining.length < pending.length then
+    -- Made progress, continue
+    resolveFieldAccessFixpoint remaining newState
+  else
+    -- No progress, some constraints couldn't be resolved
+    -- This could be an error, but for now we just return current state
+    return newState
+
+/-- Solve all constraints with interleaved bottom propagation -/
+def solveConstraints (constraints : List Constraint) : Except TypeError SolverState := do
+  let bottomProps := collectBottomProps constraints
+  let fieldAccessConstraints := collectFieldAccess constraints
+  let mut state : SolverState := {}
+
+  -- Process unify constraints in order, propagating bottom after each
+  for c in constraints do
+    match c with
+    | .unify pos t1 t2 =>
+      -- Perform unification (solveUnify handles bottom logic)
+      state ← solveUnify pos t1 t2 state
+
+      -- Propagate bottom through bottomProp constraints
+      state := propagateBottomFixpoint bottomProps state
+
+    | .bottomProp _ _ =>
+      -- Handled by propagateBottomFixpoint
+      pure ()
+
+    | .fieldAccess _ _ _ _ =>
+      -- Handled by resolveFieldAccessFixpoint after unify constraints
+      pure ()
+
+  -- Resolve fieldAccess constraints (may depend on unification results)
+  state ← resolveFieldAccessFixpoint fieldAccessConstraints state
+
+  -- Final bottom propagation pass (in case fieldAccess added new info)
+  state := propagateBottomFixpoint bottomProps state
+
+  return state
+
+/-- Finalize a type by replacing bottom-tainted variables with bottom -/
+partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
+  | .var p x => if bottomVars.contains x then .bottom p else .var p x
+  | .con p c => .con p c
+  | .app p t1 t2 => .app p (finalizeTy bottomVars t1) (finalizeTy bottomVars t2)
+  | .arrow p t1 t2 => .arrow p (finalizeTy bottomVars t1) (finalizeTy bottomVars t2)
+  | .forall_ p x t => .forall_ p x (finalizeTy (bottomVars.filter (· != x)) t)
+  | .record p fields => .record p (fields.map fun (n, t) => (n, finalizeTy bottomVars t))
+  | .bottom p => .bottom p
+
+/-- Run inference: generates constraints, solves them, returns final type -/
+def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) := do
+  -- Phase 1: Generate constraints
+  let initState : GenState := { nextVar := 0, constraints := [], labelEnv := [] }
+  match (genConstraints env expr).run initState with
+  | .error e => .error e
+  | .ok (ty, finalGenState) =>
+    -- Phase 2: Solve constraints
+    let constraints := finalGenState.constraints.reverse  -- Process in order generated
+    match solveConstraints constraints with
+    | .error e => .error e
+    | .ok solverState =>
+      -- Phase 3: Apply substitution and finalize (handle bottom)
+      let resultTy := ty.applySubst solverState.subst
+      let finalTy := finalizeTy solverState.bottomVars resultTy
+      -- Apply substitution again to ensure full resolution of nested types
+      let fullyResolved := finalTy.applySubst solverState.subst
+      .ok (fullyResolved, solverState.subst)
 
 end Ziku

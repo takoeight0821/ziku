@@ -1,0 +1,1 @@
+label result { if true then goto(true, result) + 1 else false }

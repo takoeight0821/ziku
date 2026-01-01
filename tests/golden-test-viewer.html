@@ -394,7 +394,7 @@
         <span class="filter-label">Category:</span>
         <button class="filter-btn active" data-category="all">All</button>
         <button class="filter-btn" data-category="infer">infer (48)</button>
-        <button class="filter-btn" data-category="ir-eval">ir-eval (38)</button>
+        <button class="filter-btn" data-category="ir-eval">ir-eval (39)</button>
         <button class="filter-btn" data-category="parser">parser (87)</button>
       </div>
       <div class="filter-group">
@@ -1349,7 +1349,7 @@ isEven 4</pre>
     <section class="category-section" data-category="ir-eval">
       <div class="category-header">
         <h2>ir-eval</h2>
-        <span class="category-count">38 tests (38 success, 0 error)</span>
+        <span class="category-count">39 tests (39 success, 0 error)</span>
       </div>
       <div class="test-grid">
         <div class="test-card success-test" data-name="binop_add" data-category="ir-eval" data-type="success">
@@ -1700,6 +1700,26 @@ in loop 5 0</pre>
               <div class="code-panel input-panel">
                 <div class="code-panel-header">Input (.ziku)</div>
                 <pre>label result { 42 }</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected (.golden)</div>
+                <pre>42</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card success-test" data-name="label_skip_continuation" data-category="ir-eval" data-type="success">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">label_skip_continuation<span class="test-badge success">success</span></span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>label done {
+  goto(42, done) + 100
+}</pre>
               </div>
               <div class="code-panel output-panel">
                 <div class="code-panel-header">Expected (.golden)</div>
@@ -3688,7 +3708,7 @@ end</pre>
   </main>
 
   <script>
-    const GENERATED_AT = '2026-01-01 14:53:42';
+    const GENERATED_AT = '2026-01-01 15:41:27';
     const searchInput = document.getElementById('search');
     const categoryBtns = document.querySelectorAll('.filter-btn:not(.type-filter)');
     const typeBtns = document.querySelectorAll('.type-filter');

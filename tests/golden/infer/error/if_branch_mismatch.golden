@@ -1,3 +1,3 @@
-Type error at 1:1: Cannot unify type constructors 'Int' and 'String'
-  Expected: Int
-  Actual: String
+Type error at 1:1: Cannot unify type constructors 'String' and 'Int'
+  Expected: String
+  Actual: Int

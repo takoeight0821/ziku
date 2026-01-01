@@ -59,6 +59,7 @@ inductive Ty where
   | arrow   : SourcePos → Ty → Ty → Ty                    -- Function type: a -> b
   | forall_ : SourcePos → Ident → Ty → Ty                 -- Polymorphic: forall a. a -> a
   | record  : SourcePos → List (Ident × Ty) → Ty          -- Record type: { x : Int, y : Int }
+  | bottom  : SourcePos → Ty                              -- Bottom type: ⊥ (never returns)
   deriving Repr, BEq
 
 -- Get source position from Ty
@@ -69,6 +70,12 @@ def Ty.pos : Ty → SourcePos
   | arrow p _ _ => p
   | forall_ p _ _ => p
   | record p _ => p
+  | bottom p => p
+
+-- Check if type is bottom
+def Ty.isBottom : Ty → Bool
+  | bottom _ => true
+  | _ => false
 
 -- Patterns (for data destructuring)
 inductive Pat where
@@ -274,6 +281,7 @@ partial def Ty.toString : Ty → String
   | .record _ fields =>
     let fs := fields.map (fun (n, t) => s!"{n} : {t.toString}")
     "{ " ++ String.intercalate ", " fs ++ " }"
+  | .bottom _ => "⊥"
 
 instance : ToString Ty := ⟨Ty.toString⟩
 
