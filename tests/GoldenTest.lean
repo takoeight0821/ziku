@@ -27,6 +27,20 @@ def readFileOrEmpty (path : String) : IO String := do
   catch _ =>
     pure ""
 
+/-- Discover test files in a directory by scanning for .ziku files -/
+def discoverTests (dir : System.FilePath) : IO (List String) := do
+  try
+    let entries ← dir.readDir
+    let zikuFiles := entries.filterMap fun entry =>
+      let name := entry.fileName
+      if name.endsWith ".ziku" then
+        some (name.dropRight 5)  -- Remove ".ziku" extension
+      else
+        none
+    pure (zikuFiles.toList.mergeSort (· < ·))  -- Sort for deterministic order
+  catch _ =>
+    pure []  -- Return empty list if directory doesn't exist
+
 /-- Result of running a test: (output, isError) -/
 structure TestOutput where
   output : String
@@ -177,91 +191,10 @@ def runTest (tc : TestCase) : IO TestResult := do
     else
       pure (TestResult.fail golden.trim testOutput.output.trim)
 
-/-- List of parser success test cases -/
-def parserSuccessTests : List String :=
-  ["arithmetic", "precedence", "comparison", "let", "lambda",
-   "if", "nested_let", "application", "unary", "record", "field_access",
-   "match", "letRec", "logical", "codata", "multiParamLambda",
-   "codataMultiline", "stringLiteral", "charLiteral", "floatLiteral",
-   "boolLiteral", "unitLiteral", "pipeOperator", "pipeChain", "concatOperator",
-   "concatStrings", "notEqual", "lessEqual", "greaterEqual", "lessThan",
-   "greaterThan", "equality", "codataSingleClause", "codataNestedAccessor",
-   "codataCallable", "codataCallableNested", "codataMixedAccessors",
-   "codataTripleNested", "codataNewlineSeparated", "codataConsumerSyntax",
-   "applicationParens", "applicationComma", "applicationMixed",
-   "applicationMethod", "recordSingleField", "recordNested", "recordMultiline",
-   "recordComplexValues", "recordEmpty", "matchWildcard", "matchLiteral",
-  "matchNestedPattern", "matchConstructorNoArgs", "matchSingleCase",
-   "typeAnnotation", "typeAnnotationLambda",
-   "muAbstraction", "muAbstractionAscii", "muAbstractionSimple", "muUnicode",
-   "fieldAccessChain", "fieldAccessDeep", "lambdaNested", "lambdaComplexBody",
-   "lambdaThreeParams", "letWithAnnotation", "letRecWithAnnotation",
-   "negativeNumber", "parenthesesOnly", "parenthesesNested",
-   "expressionMixedOperators", "divisionByZero", "variableSnakeCase",
-   "variableCamelCase", "operatorNoSpaces", "operatorExtraSpaces",
-   "cutSimple", "cutExpression", "hash", "labelSimple", "labelNested", "gotoSimple", "labelGoto",
-   "app_field_precedence", "labelInLet", "nestedCodata", "lambdaInRecord"]
-
-/-- List of parser error test cases -/
-def parserErrorTests : List String := []
-
-/-- List of type inference success test cases -/
-def inferSuccessTests : List String :=
-  ["literal_int", "literal_bool", "literal_string", "literal_unit",
-   "binary_arithmetic", "binary_comparison", "binary_logical",
-   "unary_neg", "unary_not",
-   "lambda_simple", "lambda_multi_param", "lambda_nested",
-   "application_simple", "application_curried",
-   "let_simple", "let_polymorphic",
-   "let_rec_factorial",
-   "if_then_else", "type_annotation",
-   "match_var_pattern", "match_literal_pattern", "match_bool_scrutinee", "match_annotated_pattern",
-   "record_simple", "record_field_access", "record_let_binding", "record_nested",
-   "pipe_operator",
-   "codata_field", "codata_callable", "codata_multi_param", "codata_nested",
-   "label_simple", "label_goto", "label_nested", "label_function", "label_let",
-   "label_early_return", "label_match",
-   "codata_field_type", "higher_order_function", "compose_functions"]
-
-/-- List of type inference error test cases -/
-def inferErrorTests : List String :=
-  ["unbound_variable", "type_mismatch",
-   "if_branch_mismatch", "function_arg_mismatch", "too_many_args",
-   "let_rec_mutual"]
-
-/-- List of IR evaluation success test cases -/
-def irEvalSuccessTests : List String :=
-  ["literal", "binop_add", "binop_comparison", "if_simple", "if_comparison",
-   "let_simple", "let_nested", "let_computation", "let_chain",
-   "label_simple", "label_goto", "label_goto_nested",
-   "label_immediate_exit", "label_conditional_exit", "label_early_exit", "label_nested_goto",
-   "lambda_square", "lambda_nonvalue_args", "lambda_higher_order", "lambda_curried", "lambda_compose",
-   "codata_simple", "codata_chain", "letrec_simple",
-   "letrec_codata_simple", "letrec_codata_tail", "letrec_codata_lambda", "letrec_codata_lambda_tail",
-   "let_record_access", "letrec_codata_minimal",
-   "fib_codata", "record_nested", "codata_closure", "sum_to_n",
-   "church_zero", "label_loop", "codata_counter", "letrec_mutual_record"]
-
-/-- List of IR evaluation error test cases -/
-def irEvalErrorTests : List String := []
-
-/-- List of Scheme backend test cases (success only, derived from ir-eval success) -/
-def schemeTests : List String :=
-  ["literal", "binop_add", "binop_comparison", "if_simple", "if_comparison",
-   "let_simple", "let_nested", "let_computation", "let_chain",
-   "label_simple", "label_goto", "label_goto_nested",
-   "label_immediate_exit", "label_conditional_exit", "label_early_exit", "label_nested_goto",
-   "lambda_square", "lambda_curried", "lambda_compose", "lambda_nonvalue_args", "lambda_higher_order",
-   "codata_simple", "codata_chain", "letrec_simple",
-   "letrec_codata_simple", "letrec_codata_tail", "letrec_codata_lambda", "letrec_codata_lambda_tail",
-   "letrec_codata_minimal",
-   "let_record_access", "record_nested", "codata_closure",
-   "sum_to_n", "label_loop",
-   "fib_codata", "codata_counter", "church_zero", "letrec_mutual_record"]
-
 /-- Run tests in a subdirectory (success or error) -/
-def runSubCategory (category : String) (subdir : String) (tests : List String) (testType : String) (expectError : Bool) : IO (Nat × Nat) := do
-  let dir := s!"tests/golden/{category}/{subdir}"
+def runSubCategory (category : String) (subdir : String) (testType : String) (expectError : Bool) : IO (Nat × Nat) := do
+  let dir := System.FilePath.mk s!"tests/golden/{category}/{subdir}"
+  let tests ← discoverTests dir
 
   let mut passed := 0
   let mut failed := 0
@@ -292,21 +225,22 @@ def runSubCategory (category : String) (subdir : String) (tests : List String) (
   pure (passed, failed)
 
 /-- Run all tests in a category (both success and error subdirectories) -/
-def runCategory (category : String) (successTests : List String) (errorTests : List String) (testType : String) : IO (Nat × Nat) := do
+def runCategory (category : String) (testType : String) : IO (Nat × Nat) := do
   IO.println s!"\n=== {category} tests ==="
 
   IO.println s!"  --- success ---"
-  let (successPassed, successFailed) ← runSubCategory category "success" successTests testType false
+  let (successPassed, successFailed) ← runSubCategory category "success" testType false
 
   IO.println s!"  --- error ---"
-  let (errorPassed, errorFailed) ← runSubCategory category "error" errorTests testType true
+  let (errorPassed, errorFailed) ← runSubCategory category "error" testType true
 
   pure (successPassed + errorPassed, successFailed + errorFailed)
 
 /-- Run all scheme tests (uses ir-eval/success source files but compiles to Scheme) -/
-def runSchemeCategory (tests : List String) : IO (Nat × Nat) := do
-  let sourceDir := "tests/golden/ir-eval/success"  -- Use ir-eval success source files
+def runSchemeCategory : IO (Nat × Nat) := do
+  let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"  -- Use ir-eval success source files
   let goldenDir := "tests/golden/scheme"   -- But scheme-specific golden files
+  let tests ← discoverTests sourceDir
 
   let mut passed := 0
   let mut failed := 0
@@ -339,8 +273,9 @@ def runSchemeCategory (tests : List String) : IO (Nat × Nat) := do
   pure (passed, failed)
 
 /-- Run consistency tests: verify Scheme backend produces same results as IR eval -/
-def runConsistencyCategory (tests : List String) : IO (Nat × Nat) := do
-  let sourceDir := "tests/golden/ir-eval/success"
+def runConsistencyCategory : IO (Nat × Nat) := do
+  let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"
+  let tests ← discoverTests sourceDir
 
   let mut passed := 0
   let mut failed := 0
@@ -368,11 +303,11 @@ def runConsistencyCategory (tests : List String) : IO (Nat × Nat) := do
 def main : IO UInt32 := do
   IO.println "Running golden tests..."
 
-  let (parserPassed, parserFailed) ← runCategory "parser" parserSuccessTests parserErrorTests "parser"
-  let (inferPassed, inferFailed) ← runCategory "infer" inferSuccessTests inferErrorTests "infer"
-  let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" irEvalSuccessTests irEvalErrorTests "ir-eval"
-  let (schemePassed, schemeFailed) ← runSchemeCategory schemeTests
-  let (consistencyPassed, consistencyFailed) ← runConsistencyCategory schemeTests
+  let (parserPassed, parserFailed) ← runCategory "parser" "parser"
+  let (inferPassed, inferFailed) ← runCategory "infer" "infer"
+  let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" "ir-eval"
+  let (schemePassed, schemeFailed) ← runSchemeCategory
+  let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
 
   let totalPassed := parserPassed + inferPassed + irEvalPassed + schemePassed + consistencyPassed
   let totalFailed := parserFailed + inferFailed + irEvalFailed + schemeFailed + consistencyFailed

@@ -1,0 +1,3 @@
+label done {
+  goto(42, done) + 100
+}
