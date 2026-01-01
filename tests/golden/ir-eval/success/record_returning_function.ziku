@@ -1,0 +1,3 @@
+let makePoint = \x => \y => { #.x => x, #.y => y } in
+let p = makePoint 10 20 in
+p .x + p .y
