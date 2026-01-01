@@ -1,1 +1,3 @@
-Error at 1:1: Field 'y' not found in record
+Type error at 1:1: Record field mismatch: right has extra fields [y]
+  Expected: { x : Int }
+  Actual: { y : _t0 | _t1 }

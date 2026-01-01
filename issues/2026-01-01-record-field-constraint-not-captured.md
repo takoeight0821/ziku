@@ -1,7 +1,8 @@
 ---
 date: 2026-01-01
 title: Record field access constraints not captured in polymorphic functions
-status: open
+status: resolved
+resolved_date: 2026-01-01
 ---
 
 # Record field access constraints not captured in polymorphic functions
@@ -52,3 +53,37 @@ This limitation means that:
 
 - `tests/golden/infer/success/record_polymorphic_access.ziku` - demonstrates the current behavior
 - `tests/golden/infer/success/record_function_param.ziku` - works correctly when concrete type is provided
+
+## Resolution
+
+Implemented **row polymorphism** as described in `docs/research/ziku-type-inference-design.md`.
+
+### Changes Made
+
+1. **Extended `Ty.record`** in `Ziku/Syntax.lean`:
+   - Changed from `record : SourcePos → List (Ident × Ty) → Ty`
+   - To `record : SourcePos → List (Ident × Ty) → Option Ty → Ty`
+   - The optional `Ty` is the row tail (e.g., `{ x : Int | ρ }` where ρ is a row variable)
+
+2. **Updated type utilities** in `Ziku/Type.lean`:
+   - `Ty.applySubst` - applies substitution to row tail
+   - `Ty.freeVars` - extracts free variables from row tail
+
+3. **Updated type inference** in `Ziku/Infer.lean`:
+   - Field access now generates: `unify(recTy, { field : resultTy | rowVar })`
+   - Implemented row unification algorithm with four cases:
+     - Both closed: fields must match exactly
+     - Left open, right closed: unify left tail with right's extra fields
+     - Left closed, right open: unify right tail with left's extra fields
+     - Both open: create fresh row variable for both tails
+   - Removed the old `fieldAccess` constraint system
+
+### Result
+
+```ziku
+\r => r .x
+```
+
+Now infers type: `({ x : _t1 | _t2 } -> _t1)`
+
+Where `_t2` is a row variable representing any additional fields the record may have.

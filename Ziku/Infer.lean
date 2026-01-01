@@ -70,10 +70,8 @@ inductive Constraint where
       - if分岐: ⊥と Boolを単一化 → Bool（⊥は任意の型と単一化可能）
       - 最終型: Bool -/
   | bottomProp (sources : List Ty) (target : Ty)
-  /-- Field access constraint: recTy.fieldName = resultTy
-      Record types may not be resolved at constraint generation time,
-      so we defer field lookup to the constraint solver. -/
-  | fieldAccess (pos : SourcePos) (recTy : Ty) (fieldName : Ident) (resultTy : Ty)
+  -- Note: fieldAccess constraint removed - now handled via row polymorphism
+  -- Field access `e.f` generates: unify(recTy, { f : resultTy | rowVar })
   deriving Repr
 
 /-- State for constraint generation phase -/
@@ -142,53 +140,113 @@ partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
   | .app _ t1 t2 => occursIn varName t1 || occursIn varName t2
   | .arrow _ t1 t2 => occursIn varName t1 || occursIn varName t2
   | .forall_ _ x t => if x == varName then false else occursIn varName t
-  | .record _ fields => fields.any (fun (_, t) => occursIn varName t)
+  | .record _ fields rowTail =>
+    fields.any (fun (_, t) => occursIn varName t) ||
+    match rowTail with
+    | some r => occursIn varName r
+    | none => false
   | .bottom _ => false
 
--- Unification with error reporting (pure function, used by constraint solver)
+-- Unification with error reporting
 -- Bottom type unifies with any type (⊥ <: τ for all τ)
-partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) : Except TypeError Subst :=
+-- Now takes and returns nextVar for fresh variable generation during row unification
+partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) (nextVar : Nat) : Except TypeError (Subst × Nat) :=
   match t1, t2 with
   -- Bottom type unifies with anything
-  | .bottom _, _ => .ok []
-  | _, .bottom _ => .ok []
+  | .bottom _, _ => .ok ([], nextVar)
+  | _, .bottom _ => .ok ([], nextVar)
   | .con _ c1, .con _ c2 =>
     if c1 == c2 then
-      .ok []
+      .ok ([], nextVar)
     else
       .error $ .unificationError pos t1 t2 s!"Cannot unify type constructors '{c1}' and '{c2}'"
   | .var _ x, t =>
     if occursIn x t then
       .error $ .occursCheck pos x t
     else
-      .ok [(x, t)]
+      .ok ([(x, t)], nextVar)
   | t, .var _ x =>
     if occursIn x t then
       .error $ .occursCheck pos x t
     else
-      .ok [(x, t)]
+      .ok ([(x, t)], nextVar)
   | .arrow _ a1 b1, .arrow _ a2 b2 => do
-    let s1 ← unifyAt pos a1 a2
-    let s2 ← unifyAt pos (b1.applySubst s1) (b2.applySubst s1)
-    .ok (s1 ++ s2)
+    let (s1, n1) ← unifyAt pos a1 a2 nextVar
+    let (s2, n2) ← unifyAt pos (b1.applySubst s1) (b2.applySubst s1) n1
+    .ok (s1 ++ s2, n2)
   | .app _ t1 t2, .app _ t1' t2' => do
-    let s1 ← unifyAt pos t1 t1'
-    let s2 ← unifyAt pos (t2.applySubst s1) (t2'.applySubst s1)
-    .ok (s1 ++ s2)
-  | .record _ fs1, .record _ fs2 =>
-    if fs1.length != fs2.length then
-      .error $ .unificationError pos t1 t2 s!"Record field count mismatch"
-    else
-      -- Use foldlM to unify record fields
-      (fs1.zip fs2).foldlM (init := ([] : Subst)) fun subst ((n1, ty1), (n2, ty2)) =>
-        if n1 != n2 then
-          .error $ .unificationError pos t1 t2 s!"Record field name mismatch: {n1} vs {n2}"
-        else
-          match unifyAt pos (ty1.applySubst subst) (ty2.applySubst subst) with
-          | .ok s => .ok (subst ++ s)
-          | .error e => .error e
+    let (s1, n1) ← unifyAt pos t1 t1' nextVar
+    let (s2, n2) ← unifyAt pos (t2.applySubst s1) (t2'.applySubst s1) n1
+    .ok (s1 ++ s2, n2)
+  | .record _ fs1 r1, .record _ fs2 r2 =>
+    unifyRecords pos fs1 r1 fs2 r2 nextVar
   | _, _ =>
     .error $ .unificationError pos t1 t2 s!"Cannot unify types"
+
+where
+  /-- Row unification algorithm:
+      1. Find common fields → unify their types
+      2. Find fields only in left record (only1)
+      3. Find fields only in right record (only2)
+      4. Handle row tails based on which are present -/
+  unifyRecords (pos : SourcePos)
+      (fs1 : List (Ident × Ty)) (r1 : Option Ty)
+      (fs2 : List (Ident × Ty)) (r2 : Option Ty)
+      (nextVar : Nat) : Except TypeError (Subst × Nat) := do
+    -- Separate common and unique fields
+    let common := fs1.filter (fun (l, _) => fs2.any (fun (l', _) => l == l'))
+    let only1 := fs1.filter (fun (l, _) => !fs2.any (fun (l', _) => l == l'))
+    let only2 := fs2.filter (fun (l, _) => !fs1.any (fun (l', _) => l == l'))
+
+    -- Unify common fields first
+    let (commonSubst, n1) ← common.foldlM (init := ([], nextVar)) fun (subst, n) (l, t1) =>
+      match fs2.find? (fun (l', _) => l == l') with
+      | some (_, t2) =>
+        match unifyAt pos (t1.applySubst subst) (t2.applySubst subst) n with
+        | .ok (s, n') => .ok (subst ++ s, n')
+        | .error e => .error e
+      | none => .ok (subst, n)  -- Should not happen since we filtered for common
+
+    -- Handle tails based on which are present
+    match r1, r2 with
+    | none, none =>
+      -- Both closed: only1 and only2 must be empty
+      if only1.isEmpty && only2.isEmpty then
+        .ok (commonSubst, n1)
+      else
+        .error $ .unificationError pos
+          (.record dummyPos fs1 none) (.record dummyPos fs2 none)
+          s!"Record field mismatch: cannot unify closed records with different fields"
+    | some row1, none =>
+      -- Left has tail, right is closed: row1 must equal { only2 | ∅ }
+      if only1.isEmpty then
+        -- row1 = { only2 fields }
+        let (tailSubst, n2) ← unifyAt pos row1 (.record dummyPos only2 none) n1
+        .ok (commonSubst ++ tailSubst, n2)
+      else
+        .error $ .unificationError pos
+          (.record dummyPos fs1 (some row1)) (.record dummyPos fs2 none)
+          s!"Record field mismatch: left has extra fields {only1.map (·.1)}"
+    | none, some row2 =>
+      -- Right has tail, left is closed: row2 must equal { only1 | ∅ }
+      if only2.isEmpty then
+        -- row2 = { only1 fields }
+        let (tailSubst, n2) ← unifyAt pos row2 (.record dummyPos only1 none) n1
+        .ok (commonSubst ++ tailSubst, n2)
+      else
+        .error $ .unificationError pos
+          (.record dummyPos fs1 none) (.record dummyPos fs2 (some row2))
+          s!"Record field mismatch: right has extra fields {only2.map (·.1)}"
+    | some row1, some row2 =>
+      -- Both have tails: create fresh row variable ρ
+      -- row1 = { only2 | ρ }
+      -- row2 = { only1 | ρ }
+      let freshRow := Ty.var dummyPos s!"_r{n1}"
+      let n2 := n1 + 1
+      let (s1, n3) ← unifyAt pos row1 (Ty.record dummyPos only2 (some freshRow)) n2
+      let row1Rec : Ty := Ty.record dummyPos only1 (some freshRow)
+      let (s2, n4) ← unifyAt pos (row2.applySubst s1) (row1Rec.applySubst s1) n3
+      .ok (commonSubst ++ s1 ++ s2, n4)
 
 -- Apply substitution to environment
 def TyEnv.applySubst (subst : Subst) (env : TyEnv) : TyEnv :=
@@ -360,8 +418,10 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     let recTy ← genConstraints env e
     -- Create fresh type variable for the result
     let resultTy ← freshTyVar
-    -- Add fieldAccess constraint: resolved in solver when recTy is known
-    addConstraint (.fieldAccess pos recTy field resultTy)
+    -- Create fresh row variable for remaining fields (row polymorphism)
+    let rowVar ← freshTyVar
+    -- Unify record type with { field : resultTy | rowVar }
+    addConstraint (.unify pos recTy (.record pos [(field, resultTy)] (some rowVar)))
     -- Propagate bottom if record is bottom
     addConstraint (.bottomProp [recTy] resultTy)
     return resultTy
@@ -371,7 +431,7 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     for (name, value) in fields do
       let ty ← genConstraints env value
       fieldTypes := fieldTypes ++ [(name, ty)]
-    return .record pos fieldTypes
+    return .record pos fieldTypes none  -- Closed record (no row tail)
   | .cut pos _ _ =>
     throw $ .notImplemented pos "sequent cut"
   | .mu pos _ _ =>
@@ -418,6 +478,8 @@ structure SolverState where
   subst : Subst := []
   /-- Type variables that are known to be bottom (either directly or through propagation) -/
   bottomVars : List Ident := []
+  /-- Counter for generating fresh type variables during row unification -/
+  nextVar : Nat := 0
   deriving Inhabited
 
 /-- Check if a type is or contains a bottom type variable -/
@@ -428,7 +490,11 @@ partial def isBottomTainted (bottomVars : List Ident) : Ty → Bool
   | .app _ t1 t2 => isBottomTainted bottomVars t1 || isBottomTainted bottomVars t2
   | .arrow _ t1 t2 => isBottomTainted bottomVars t1 || isBottomTainted bottomVars t2
   | .forall_ _ x t => if bottomVars.contains x then false else isBottomTainted bottomVars t
-  | .record _ fields => fields.any (fun (_, t) => isBottomTainted bottomVars t)
+  | .record _ fields rowTail =>
+    fields.any (fun (_, t) => isBottomTainted bottomVars t) ||
+    match rowTail with
+    | some r => isBottomTainted bottomVars r
+    | none => false
 
 /-- Extract type variable name if the type is a variable -/
 def Ty.varName? : Ty → Option Ident
@@ -472,9 +538,9 @@ partial def solveUnify (pos : SourcePos) (t1 t2 : Ty) (state : SolverState)
     return { state with bottomVars := state.bottomVars ++ newBottomVars }
 
   -- Normal case: neither side is bottom-related, perform standard unification
-  match unifyAt pos t1' t2' with
-  | .ok newSubst =>
-    .ok { subst := composeSubst state.subst newSubst, bottomVars := state.bottomVars }
+  match unifyAt pos t1' t2' state.nextVar with
+  | .ok (newSubst, newNextVar) =>
+    .ok { subst := composeSubst state.subst newSubst, bottomVars := state.bottomVars, nextVar := newNextVar }
   | .error e => .error e
 
 /-- Solve a bottomProp constraint: if any source is bottom, mark target as bottom -/
@@ -497,34 +563,6 @@ def collectBottomProps (constraints : List Constraint) : List (List Ty × Ty) :=
     | .bottomProp sources target => some (sources, target)
     | _ => none
 
-/-- Collect all fieldAccess constraints for iterative solving -/
-def collectFieldAccess (constraints : List Constraint) : List (SourcePos × Ty × Ident × Ty) :=
-  constraints.filterMap fun
-    | .fieldAccess pos recTy fieldName resultTy => some (pos, recTy, fieldName, resultTy)
-    | _ => none
-
-/-- Try to solve a single fieldAccess constraint. Returns updated state and whether it was resolved. -/
-def tryResolveFieldAccess (pos : SourcePos) (recTy : Ty) (fieldName : Ident) (resultTy : Ty)
-    (state : SolverState) : Except TypeError (SolverState × Bool) := do
-  let recTy' := recTy.applySubst state.subst
-  match recTy' with
-  | .record _ fields =>
-      match fields.find? (fun (f, _) => f == fieldName) with
-      | some (_, fieldTy) =>
-          -- Field found, unify resultTy with fieldTy
-          let newState ← solveUnify pos resultTy fieldTy state
-          .ok (newState, true)  -- Resolved
-      | none =>
-          .error $ .customError pos s!"Field '{fieldName}' not found in record"
-  | .var _ _ =>
-      -- Record type not yet resolved, skip for now
-      .ok (state, false)
-  | .bottom _ =>
-      -- Record is bottom, result will be handled by bottomProp
-      .ok (state, true)  -- Consider it resolved
-  | _ =>
-      .error $ .customError pos s!"Cannot access field '{fieldName}' on non-record type: {recTy'}"
-
 /-- Apply all bottomProp constraints once -/
 def applyBottomProps (bottomProps : List (List Ty × Ty)) (state : SolverState) : SolverState :=
   bottomProps.foldl (fun s (sources, target) => solveBottomProp sources target s) state
@@ -537,40 +575,10 @@ partial def propagateBottomFixpoint (bottomProps : List (List Ty × Ty)) (state 
   else
     newState
 
-/-- Try to resolve all pending fieldAccess constraints.
-    Returns updated state and list of remaining unresolved constraints. -/
-def resolveFieldAccessConstraints (pending : List (SourcePos × Ty × Ident × Ty)) (state : SolverState)
-    : Except TypeError (SolverState × List (SourcePos × Ty × Ident × Ty)) := do
-  let mut currentState := state
-  let mut remaining : List (SourcePos × Ty × Ident × Ty) := []
-  for (pos, recTy, fieldName, resultTy) in pending do
-    let (newState, resolved) ← tryResolveFieldAccess pos recTy fieldName resultTy currentState
-    currentState := newState
-    if !resolved then
-      remaining := remaining ++ [(pos, recTy, fieldName, resultTy)]
-  .ok (currentState, remaining)
-
-/-- Iteratively resolve fieldAccess constraints until no more progress or all resolved -/
-partial def resolveFieldAccessFixpoint (pending : List (SourcePos × Ty × Ident × Ty)) (state : SolverState)
-    : Except TypeError SolverState := do
-  if pending.isEmpty then
-    return state
-  let (newState, remaining) ← resolveFieldAccessConstraints pending state
-  if remaining.isEmpty then
-    return newState
-  if remaining.length < pending.length then
-    -- Made progress, continue
-    resolveFieldAccessFixpoint remaining newState
-  else
-    -- No progress, some constraints couldn't be resolved
-    -- This could be an error, but for now we just return current state
-    return newState
-
 /-- Solve all constraints with interleaved bottom propagation -/
-def solveConstraints (constraints : List Constraint) : Except TypeError SolverState := do
+def solveConstraints (constraints : List Constraint) (initNextVar : Nat := 0) : Except TypeError SolverState := do
   let bottomProps := collectBottomProps constraints
-  let fieldAccessConstraints := collectFieldAccess constraints
-  let mut state : SolverState := {}
+  let mut state : SolverState := { nextVar := initNextVar }
 
   -- Process unify constraints in order, propagating bottom after each
   for c in constraints do
@@ -586,14 +594,7 @@ def solveConstraints (constraints : List Constraint) : Except TypeError SolverSt
       -- Handled by propagateBottomFixpoint
       pure ()
 
-    | .fieldAccess _ _ _ _ =>
-      -- Handled by resolveFieldAccessFixpoint after unify constraints
-      pure ()
-
-  -- Resolve fieldAccess constraints (may depend on unification results)
-  state ← resolveFieldAccessFixpoint fieldAccessConstraints state
-
-  -- Final bottom propagation pass (in case fieldAccess added new info)
+  -- Final bottom propagation pass
   state := propagateBottomFixpoint bottomProps state
 
   return state
@@ -605,7 +606,10 @@ partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
   | .app p t1 t2 => .app p (finalizeTy bottomVars t1) (finalizeTy bottomVars t2)
   | .arrow p t1 t2 => .arrow p (finalizeTy bottomVars t1) (finalizeTy bottomVars t2)
   | .forall_ p x t => .forall_ p x (finalizeTy (bottomVars.filter (· != x)) t)
-  | .record p fields => .record p (fields.map fun (n, t) => (n, finalizeTy bottomVars t))
+  | .record p fields rowTail =>
+    .record p
+      (fields.map fun (n, t) => (n, finalizeTy bottomVars t))
+      (rowTail.map (finalizeTy bottomVars))
   | .bottom p => .bottom p
 
 /-- Run inference: generates constraints, solves them, returns final type -/
@@ -617,7 +621,8 @@ def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) 
   | .ok (ty, finalGenState) =>
     -- Phase 2: Solve constraints
     let constraints := finalGenState.constraints.reverse  -- Process in order generated
-    match solveConstraints constraints with
+    -- Pass nextVar to solver for fresh variable generation during row unification
+    match solveConstraints constraints finalGenState.nextVar with
     | .error e => .error e
     | .ok solverState =>
       -- Phase 3: Apply substitution and finalize (handle bottom)

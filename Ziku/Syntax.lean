@@ -53,13 +53,13 @@ inductive Lit where
 
 -- Types
 inductive Ty where
-  | var     : SourcePos → Ident → Ty                      -- Type variable: a
-  | con     : SourcePos → Ident → Ty                      -- Type constructor: Int, Bool
-  | app     : SourcePos → Ty → Ty → Ty                    -- Type application: List a
-  | arrow   : SourcePos → Ty → Ty → Ty                    -- Function type: a -> b
-  | forall_ : SourcePos → Ident → Ty → Ty                 -- Polymorphic: forall a. a -> a
-  | record  : SourcePos → List (Ident × Ty) → Ty          -- Record type: { x : Int, y : Int }
-  | bottom  : SourcePos → Ty                              -- Bottom type: ⊥ (never returns)
+  | var     : SourcePos → Ident → Ty                              -- Type variable: a
+  | con     : SourcePos → Ident → Ty                              -- Type constructor: Int, Bool
+  | app     : SourcePos → Ty → Ty → Ty                            -- Type application: List a
+  | arrow   : SourcePos → Ty → Ty → Ty                            -- Function type: a -> b
+  | forall_ : SourcePos → Ident → Ty → Ty                         -- Polymorphic: forall a. a -> a
+  | record  : SourcePos → List (Ident × Ty) → Option Ty → Ty      -- Record type: { x : Int | ρ }
+  | bottom  : SourcePos → Ty                                      -- Bottom type: ⊥ (never returns)
   deriving Repr, BEq
 
 -- Get source position from Ty
@@ -69,7 +69,7 @@ def Ty.pos : Ty → SourcePos
   | app p _ _ => p
   | arrow p _ _ => p
   | forall_ p _ _ => p
-  | record p _ => p
+  | record p _ _ => p
   | bottom p => p
 
 -- Check if type is bottom
@@ -278,9 +278,11 @@ partial def Ty.toString : Ty → String
   | .app _ t1 t2 => s!"({t1.toString} {t2.toString})"
   | .arrow _ t1 t2 => s!"({t1.toString} -> {t2.toString})"
   | .forall_ _ x t => s!"(forall {x}. {t.toString})"
-  | .record _ fields =>
+  | .record _ fields rowTail =>
     let fs := fields.map (fun (n, t) => s!"{n} : {t.toString}")
-    "{ " ++ String.intercalate ", " fs ++ " }"
+    match rowTail with
+    | none => "{ " ++ String.intercalate ", " fs ++ " }"
+    | some r => "{ " ++ String.intercalate ", " fs ++ " | " ++ r.toString ++ " }"
   | .bottom _ => "⊥"
 
 instance : ToString Ty := ⟨Ty.toString⟩

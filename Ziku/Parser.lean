@@ -200,7 +200,7 @@ mutual
       match parseRecordTypeFields s with
       | .ok (fields, s') =>
         match expect .rbrace s' with
-        | .ok (_, s'') => .ok (.record pos fields, s'')
+        | .ok (_, s'') => .ok (.record pos fields none, s'')  -- Closed record (no row tail)
         | .error msg => .error msg
       | .error msg => .error msg
     | some tok => .error s!"expected type but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
