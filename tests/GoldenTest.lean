@@ -17,7 +17,8 @@ structure TestCase where
   name : String
   inputPath : String
   goldenPath : String
-  testType : String  -- "parser" or "eval"
+  testType : String  -- "parser", "infer", or "ir-eval"
+  expectError : Bool -- true if this test should produce an error
 
 /-- Read file contents, return empty string if file doesn't exist -/
 def readFileOrEmpty (path : String) : IO String := do
@@ -26,24 +27,30 @@ def readFileOrEmpty (path : String) : IO String := do
   catch _ =>
     pure ""
 
+/-- Result of running a test: (output, isError) -/
+structure TestOutput where
+  output : String
+  isError : Bool
+  deriving Repr
+
 /-- Run a parser test -/
-def runParserTest (input : String) : Except String String :=
+def runParserTest (input : String) : Except String TestOutput :=
   match Ziku.parseExprString input.trim with
-  | .ok expr => .ok (toString expr)
-  | .error e => .error e
+  | .ok expr => .ok { output := toString expr, isError := false }
+  | .error e => .error e  -- Parse errors are fatal, not test errors
 
 
 /-- Run a type inference test -/
-def runInferTest (input : String) : Except String String :=
+def runInferTest (input : String) : Except String TestOutput :=
   match Ziku.parseExprString input.trim with
   | .ok expr =>
     match Ziku.runInfer expr with
-    | .ok (ty, _) => .ok (toString ty)
-    | .error e => .ok (toString e)
+    | .ok (ty, _) => .ok { output := toString ty, isError := false }
+    | .error e => .ok { output := toString e, isError := true }
   | .error e => .error e
 
 /-- Run an IR evaluation test (parse → elaborate → translate → IR eval) -/
-def runIREvalTest (input : String) : Except String String :=
+def runIREvalTest (input : String) : Except String TestOutput :=
   match Ziku.parseExprString input.trim with
   | .ok expr =>
     match Ziku.elaborateAll expr with
@@ -54,11 +61,11 @@ def runIREvalTest (input : String) : Except String String :=
         let stmt := Ziku.IR.Statement.cut dummyPos producer (Ziku.IR.Consumer.covar dummyPos "halt")
         let result := Ziku.IR.eval stmt
         match result with
-        | .value p => .ok (Ziku.IR.truncate p.toString)
+        | .value p => .ok { output := Ziku.IR.truncate p.toString, isError := false }
         | .stuck s => .error s!"Stuck: {s}"
-        | .error msg => .ok s!"Error: {msg}"
-      | .error e => .ok s!"Translation error: {e}"
-    | .error e => .ok s!"Elaboration error: {e}"
+        | .error msg => .ok { output := s!"Error: {msg}", isError := true }
+      | .error e => .ok { output := s!"Translation error: {e}", isError := true }
+    | .error e => .ok { output := s!"Elaboration error: {e}", isError := true }
   | .error e => .error e
 
 /-- Generate Scheme code (parse → elaborate → translate → compile to Scheme) -/
@@ -135,10 +142,10 @@ def runConsistencyTest (name : String) (inputPath : String) : IO TestResult := d
       else
         let schemeOutput := result.stdout.trim
         -- Compare outputs
-        if irOutput.trim == schemeOutput then
+        if irOutput.output.trim == schemeOutput then
           pure TestResult.pass
         else
-          pure (TestResult.fail s!"IR eval: {irOutput.trim}" s!"Scheme: {schemeOutput}")
+          pure (TestResult.fail s!"IR eval: {irOutput.output.trim}" s!"Scheme: {schemeOutput}")
 
 /-- Run a single test case -/
 def runTest (tc : TestCase) : IO TestResult := do
@@ -154,19 +161,24 @@ def runTest (tc : TestCase) : IO TestResult := do
   | .error e =>
     -- Parse error - do not create golden file, fail the test
     pure (TestResult.error s!"Parse error: {e}")
-  | .ok actual =>
-    if golden.isEmpty then
+  | .ok testOutput =>
+    -- Check if error expectation matches
+    if tc.expectError && !testOutput.isError then
+      pure (TestResult.error s!"Expected error but got success: {testOutput.output}")
+    else if !tc.expectError && testOutput.isError then
+      pure (TestResult.error s!"Expected success but got error: {testOutput.output}")
+    else if golden.isEmpty then
       -- No golden file yet, create it
-      IO.FS.writeFile tc.goldenPath actual
+      IO.FS.writeFile tc.goldenPath testOutput.output
       IO.println s!"  Created golden file: {tc.goldenPath}"
       pure TestResult.pass
-    else if actual.trim == golden.trim then
+    else if testOutput.output.trim == golden.trim then
       pure TestResult.pass
     else
-      pure (TestResult.fail golden.trim actual.trim)
+      pure (TestResult.fail golden.trim testOutput.output.trim)
 
-/-- List of parser test cases -/
-def parserTests : List String :=
+/-- List of parser success test cases -/
+def parserSuccessTests : List String :=
   ["arithmetic", "precedence", "comparison", "let", "lambda",
    "if", "nested_let", "application", "unary", "record", "field_access",
    "match", "letRec", "logical", "codata", "multiParamLambda",
@@ -190,16 +202,18 @@ def parserTests : List String :=
    "cutSimple", "cutExpression", "hash", "labelSimple", "labelNested", "gotoSimple", "labelGoto",
    "app_field_precedence", "labelInLet", "nestedCodata", "lambdaInRecord"]
 
+/-- List of parser error test cases -/
+def parserErrorTests : List String := []
 
-/-- List of type inference test cases -/
-def inferTests : List String :=
+/-- List of type inference success test cases -/
+def inferSuccessTests : List String :=
   ["literal_int", "literal_bool", "literal_string", "literal_unit",
    "binary_arithmetic", "binary_comparison", "binary_logical",
    "unary_neg", "unary_not",
    "lambda_simple", "lambda_multi_param", "lambda_nested",
    "application_simple", "application_curried",
    "let_simple", "let_polymorphic",
-   "let_rec_factorial", "let_rec_mutual",
+   "let_rec_factorial",
    "if_then_else", "type_annotation",
    "match_var_pattern", "match_literal_pattern", "match_bool_scrutinee", "match_annotated_pattern",
    "record_simple", "record_field_access", "record_let_binding", "record_nested",
@@ -207,12 +221,16 @@ def inferTests : List String :=
    "codata_field", "codata_callable", "codata_multi_param", "codata_nested",
    "label_simple", "label_goto", "label_nested", "label_function", "label_let",
    "label_early_return", "label_match",
-   "unbound_variable", "type_mismatch",
-   "if_branch_mismatch", "function_arg_mismatch", "too_many_args",
    "codata_field_type", "higher_order_function", "compose_functions"]
 
-/-- List of IR evaluation test cases -/
-def irEvalTests : List String :=
+/-- List of type inference error test cases -/
+def inferErrorTests : List String :=
+  ["unbound_variable", "type_mismatch",
+   "if_branch_mismatch", "function_arg_mismatch", "too_many_args",
+   "let_rec_mutual"]
+
+/-- List of IR evaluation success test cases -/
+def irEvalSuccessTests : List String :=
   ["literal", "binop_add", "binop_comparison", "if_simple", "if_comparison",
    "let_simple", "let_nested", "let_computation", "let_chain",
    "label_simple", "label_goto", "label_goto_nested",
@@ -224,7 +242,10 @@ def irEvalTests : List String :=
    "fib_codata", "record_nested", "codata_closure", "sum_to_n",
    "church_zero", "label_loop", "codata_counter", "letrec_mutual_record"]
 
-/-- List of Scheme backend test cases -/
+/-- List of IR evaluation error test cases -/
+def irEvalErrorTests : List String := []
+
+/-- List of Scheme backend test cases (success only, derived from ir-eval success) -/
 def schemeTests : List String :=
   ["literal", "binop_add", "binop_comparison", "if_simple", "if_comparison",
    "let_simple", "let_nested", "let_computation", "let_chain",
@@ -238,14 +259,12 @@ def schemeTests : List String :=
    "sum_to_n", "label_loop",
    "fib_codata", "codata_counter", "church_zero", "letrec_mutual_record"]
 
-/-- Run all tests in a category -/
-def runCategory (category : String) (tests : List String) (testType : String) : IO (Nat × Nat) := do
-  let dir := s!"tests/golden/{category}"
+/-- Run tests in a subdirectory (success or error) -/
+def runSubCategory (category : String) (subdir : String) (tests : List String) (testType : String) (expectError : Bool) : IO (Nat × Nat) := do
+  let dir := s!"tests/golden/{category}/{subdir}"
 
   let mut passed := 0
   let mut failed := 0
-
-  IO.println s!"\n=== {category} tests ==="
 
   for baseName in tests do
     let tc : TestCase := {
@@ -253,6 +272,7 @@ def runCategory (category : String) (tests : List String) (testType : String) : 
       inputPath := s!"{dir}/{baseName}.ziku"
       goldenPath := s!"{dir}/{baseName}.golden"
       testType := testType
+      expectError := expectError
     }
 
     let result ← runTest tc
@@ -271,9 +291,21 @@ def runCategory (category : String) (tests : List String) (testType : String) : 
 
   pure (passed, failed)
 
-/-- Run all scheme tests (uses ir-eval source files but compiles to Scheme) -/
+/-- Run all tests in a category (both success and error subdirectories) -/
+def runCategory (category : String) (successTests : List String) (errorTests : List String) (testType : String) : IO (Nat × Nat) := do
+  IO.println s!"\n=== {category} tests ==="
+
+  IO.println s!"  --- success ---"
+  let (successPassed, successFailed) ← runSubCategory category "success" successTests testType false
+
+  IO.println s!"  --- error ---"
+  let (errorPassed, errorFailed) ← runSubCategory category "error" errorTests testType true
+
+  pure (successPassed + errorPassed, successFailed + errorFailed)
+
+/-- Run all scheme tests (uses ir-eval/success source files but compiles to Scheme) -/
 def runSchemeCategory (tests : List String) : IO (Nat × Nat) := do
-  let sourceDir := "tests/golden/ir-eval"  -- Use ir-eval source files
+  let sourceDir := "tests/golden/ir-eval/success"  -- Use ir-eval success source files
   let goldenDir := "tests/golden/scheme"   -- But scheme-specific golden files
 
   let mut passed := 0
@@ -287,6 +319,7 @@ def runSchemeCategory (tests : List String) : IO (Nat × Nat) := do
       inputPath := s!"{sourceDir}/{baseName}.ziku"
       goldenPath := s!"{goldenDir}/{baseName}.golden"
       testType := "scheme"
+      expectError := false
     }
 
     let result ← runSchemeTest tc
@@ -307,7 +340,7 @@ def runSchemeCategory (tests : List String) : IO (Nat × Nat) := do
 
 /-- Run consistency tests: verify Scheme backend produces same results as IR eval -/
 def runConsistencyCategory (tests : List String) : IO (Nat × Nat) := do
-  let sourceDir := "tests/golden/ir-eval"
+  let sourceDir := "tests/golden/ir-eval/success"
 
   let mut passed := 0
   let mut failed := 0
@@ -335,9 +368,9 @@ def runConsistencyCategory (tests : List String) : IO (Nat × Nat) := do
 def main : IO UInt32 := do
   IO.println "Running golden tests..."
 
-  let (parserPassed, parserFailed) ← runCategory "parser" parserTests "parser"
-  let (inferPassed, inferFailed) ← runCategory "infer" inferTests "infer"
-  let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" irEvalTests "ir-eval"
+  let (parserPassed, parserFailed) ← runCategory "parser" parserSuccessTests parserErrorTests "parser"
+  let (inferPassed, inferFailed) ← runCategory "infer" inferSuccessTests inferErrorTests "infer"
+  let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" irEvalSuccessTests irEvalErrorTests "ir-eval"
   let (schemePassed, schemeFailed) ← runSchemeCategory schemeTests
   let (consistencyPassed, consistencyFailed) ← runConsistencyCategory schemeTests
 

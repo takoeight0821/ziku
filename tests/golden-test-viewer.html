@@ -14,6 +14,7 @@
       --accent: #89b4fa;
       --accent-hover: #b4befe;
       --success: #a6e3a1;
+      --error: #f38ba8;
       --border: #585b70;
     }
 
@@ -72,10 +73,16 @@
       border-color: var(--accent);
     }
 
-    .category-filters {
+    .filter-group {
       display: flex;
       gap: 0.5rem;
       flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
     }
 
     .filter-btn {
@@ -98,6 +105,14 @@
       background: var(--accent);
       color: var(--bg-primary);
       border-color: var(--accent);
+    }
+
+    .filter-btn.success-filter.active {
+      background: var(--success);
+    }
+
+    .filter-btn.error-filter.active {
+      background: var(--error);
     }
 
     .stats {
@@ -137,6 +152,24 @@
       color: var(--text-secondary);
     }
 
+    .subcategory-header {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin: 1rem 0 0.5rem 0;
+      padding-left: 0.5rem;
+      border-left: 3px solid var(--border);
+    }
+
+    .subcategory-header.success-header {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .subcategory-header.error-header {
+      border-color: var(--error);
+      color: var(--error);
+    }
+
     .test-grid {
       display: grid;
       gap: 1rem;
@@ -158,6 +191,14 @@
       display: none;
     }
 
+    .test-card.error-test {
+      border-left: 3px solid var(--error);
+    }
+
+    .test-card.success-test {
+      border-left: 3px solid var(--success);
+    }
+
     .test-header {
       display: flex;
       justify-content: space-between;
@@ -171,6 +212,23 @@
       font-weight: 500;
       font-family: 'SF Mono', 'Fira Code', monospace;
       font-size: 0.9rem;
+    }
+
+    .test-badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      margin-left: 0.5rem;
+    }
+
+    .test-badge.success {
+      background: var(--success);
+      color: var(--bg-primary);
+    }
+
+    .test-badge.error {
+      background: var(--error);
+      color: var(--bg-primary);
     }
 
     .test-toggle {
@@ -241,6 +299,10 @@
       color: var(--success);
     }
 
+    .error-test .output-panel pre {
+      color: var(--error);
+    }
+
     .expand-all-btn {
       padding: 0.4rem 0.8rem;
       border: 1px solid var(--border);
@@ -261,6 +323,64 @@
       padding: 3rem;
       color: var(--text-secondary);
     }
+
+    .refresh-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .refresh-btn {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .refresh-btn:hover {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .refresh-btn.active {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border-color: var(--accent);
+    }
+
+    .refresh-btn.spinning .refresh-icon {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .refresh-icon {
+      display: inline-block;
+    }
+
+    .last-updated {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .auto-refresh-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      cursor: pointer;
+    }
+
+    .auto-refresh-label input {
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -270,26 +390,40 @@
       <div class="search-box">
         <input type="text" id="search" placeholder="Search tests...">
       </div>
-      <div class="category-filters">
+      <div class="filter-group">
+        <span class="filter-label">Category:</span>
         <button class="filter-btn active" data-category="all">All</button>
         <button class="filter-btn" data-category="infer">infer (48)</button>
         <button class="filter-btn" data-category="ir-eval">ir-eval (38)</button>
         <button class="filter-btn" data-category="parser">parser (87)</button>
       </div>
+      <div class="filter-group">
+        <span class="filter-label">Type:</span>
+        <button class="filter-btn type-filter active" data-type="all">All</button>
+        <button class="filter-btn type-filter success-filter" data-type="success">Success</button>
+        <button class="filter-btn type-filter error-filter" data-type="error">Error</button>
+      </div>
       <button class="expand-all-btn" id="expandAll">Expand All</button>
+      <div class="refresh-controls">
+        <button class="refresh-btn" id="refreshBtn" title="Refresh"><span class="refresh-icon">↻</span></button>
+        <label class="auto-refresh-label">
+          <input type="checkbox" id="autoRefresh"> Auto (3s)
+        </label>
+        <span class="last-updated" id="lastUpdated"></span>
+      </div>
       <div class="stats" id="stats"></div>
     </div>
   </header>
-  <main>
+  <main id="mainContent">
     <section class="category-section" data-category="infer">
       <div class="category-header">
         <h2>infer</h2>
-        <span class="category-count">48 tests</span>
+        <span class="category-count">48 tests (42 success, 6 error)</span>
       </div>
       <div class="test-grid">
-        <div class="test-card" data-name="application_curried" data-category="infer">
+        <div class="test-card success-test" data-name="application_curried" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">application_curried</span>
+            <span class="test-name">application_curried<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -305,9 +439,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="application_simple" data-category="infer">
+        <div class="test-card success-test" data-name="application_simple" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">application_simple</span>
+            <span class="test-name">application_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -323,9 +457,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="binary_arithmetic" data-category="infer">
+        <div class="test-card success-test" data-name="binary_arithmetic" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">binary_arithmetic</span>
+            <span class="test-name">binary_arithmetic<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -341,9 +475,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="binary_comparison" data-category="infer">
+        <div class="test-card success-test" data-name="binary_comparison" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">binary_comparison</span>
+            <span class="test-name">binary_comparison<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -359,9 +493,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="binary_logical" data-category="infer">
+        <div class="test-card success-test" data-name="binary_logical" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">binary_logical</span>
+            <span class="test-name">binary_logical<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -377,9 +511,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_callable" data-category="infer">
+        <div class="test-card success-test" data-name="codata_callable" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_callable</span>
+            <span class="test-name">codata_callable<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -397,9 +531,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_field_type" data-category="infer">
+        <div class="test-card success-test" data-name="codata_field_type" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_field_type</span>
+            <span class="test-name">codata_field_type<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -418,9 +552,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_field" data-category="infer">
+        <div class="test-card success-test" data-name="codata_field" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_field</span>
+            <span class="test-name">codata_field<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -439,9 +573,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_multi_param" data-category="infer">
+        <div class="test-card success-test" data-name="codata_multi_param" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_multi_param</span>
+            <span class="test-name">codata_multi_param<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -459,9 +593,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_nested" data-category="infer">
+        <div class="test-card success-test" data-name="codata_nested" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_nested</span>
+            <span class="test-name">codata_nested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -479,9 +613,9 @@
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="compose_functions" data-category="infer">
+        <div class="test-card success-test" data-name="compose_functions" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">compose_functions</span>
+            <span class="test-name">compose_functions<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -500,29 +634,9 @@ compose inc double 5</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="function_arg_mismatch" data-category="infer">
+        <div class="test-card success-test" data-name="higher_order_function" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">function_arg_mismatch</span>
-            <span class="test-toggle"></span>
-          </div>
-          <div class="test-content">
-            <div class="code-panels">
-              <div class="code-panel input-panel">
-                <div class="code-panel-header">Input (.ziku)</div>
-                <pre>let f = \x =&gt; x + 1 in f true</pre>
-              </div>
-              <div class="code-panel output-panel">
-                <div class="code-panel-header">Expected (.golden)</div>
-                <pre>Type error at 1:24: Cannot unify type constructors 'Int' and 'Bool'
-  Expected: Int
-  Actual: Bool</pre>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="test-card" data-name="higher_order_function" data-category="infer">
-          <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">higher_order_function</span>
+            <span class="test-name">higher_order_function<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -540,29 +654,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="if_branch_mismatch" data-category="infer">
+        <div class="test-card success-test" data-name="if_then_else" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">if_branch_mismatch</span>
-            <span class="test-toggle"></span>
-          </div>
-          <div class="test-content">
-            <div class="code-panels">
-              <div class="code-panel input-panel">
-                <div class="code-panel-header">Input (.ziku)</div>
-                <pre>if true then 42 else &quot;hello&quot;</pre>
-              </div>
-              <div class="code-panel output-panel">
-                <div class="code-panel-header">Expected (.golden)</div>
-                <pre>Type error at 1:1: Cannot unify type constructors 'Int' and 'String'
-  Expected: Int
-  Actual: String</pre>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="test-card" data-name="if_then_else" data-category="infer">
-          <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">if_then_else</span>
+            <span class="test-name">if_then_else<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -578,9 +672,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_early_return" data-category="infer">
+        <div class="test-card success-test" data-name="label_early_return" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_early_return</span>
+            <span class="test-name">label_early_return<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -600,9 +694,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_function" data-category="infer">
+        <div class="test-card success-test" data-name="label_function" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_function</span>
+            <span class="test-name">label_function<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -620,9 +714,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_goto" data-category="infer">
+        <div class="test-card success-test" data-name="label_goto" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_goto</span>
+            <span class="test-name">label_goto<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -638,9 +732,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_let" data-category="infer">
+        <div class="test-card success-test" data-name="label_let" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_let</span>
+            <span class="test-name">label_let<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -660,9 +754,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_match" data-category="infer">
+        <div class="test-card success-test" data-name="label_match" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_match</span>
+            <span class="test-name">label_match<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -683,9 +777,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_nested" data-category="infer">
+        <div class="test-card success-test" data-name="label_nested" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_nested</span>
+            <span class="test-name">label_nested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -705,9 +799,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_simple" data-category="infer">
+        <div class="test-card success-test" data-name="label_simple" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_simple</span>
+            <span class="test-name">label_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -723,9 +817,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda_multi_param" data-category="infer">
+        <div class="test-card success-test" data-name="lambda_multi_param" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda_multi_param</span>
+            <span class="test-name">lambda_multi_param<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -741,9 +835,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda_nested" data-category="infer">
+        <div class="test-card success-test" data-name="lambda_nested" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda_nested</span>
+            <span class="test-name">lambda_nested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -759,9 +853,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda_simple" data-category="infer">
+        <div class="test-card success-test" data-name="lambda_simple" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda_simple</span>
+            <span class="test-name">lambda_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -777,9 +871,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let_polymorphic" data-category="infer">
+        <div class="test-card success-test" data-name="let_polymorphic" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_polymorphic</span>
+            <span class="test-name">let_polymorphic<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -795,9 +889,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let_rec_factorial" data-category="infer">
+        <div class="test-card success-test" data-name="let_rec_factorial" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_rec_factorial</span>
+            <span class="test-name">let_rec_factorial<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -813,29 +907,9 @@ apply double 21</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let_rec_mutual" data-category="infer">
+        <div class="test-card success-test" data-name="let_simple" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_rec_mutual</span>
-            <span class="test-toggle"></span>
-          </div>
-          <div class="test-content">
-            <div class="code-panels">
-              <div class="code-panel input-panel">
-                <div class="code-panel-header">Input (.ziku)</div>
-                <pre>let rec isEven = \n =&gt; if n == 0 then true else isOdd (n - 1) in
-let rec isOdd = \n =&gt; if n == 0 then false else isEven (n - 1) in
-isEven 4</pre>
-              </div>
-              <div class="code-panel output-panel">
-                <div class="code-panel-header">Expected (.golden)</div>
-                <pre>Unbound variable 'isOdd' at 1:49</pre>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="test-card" data-name="let_simple" data-category="infer">
-          <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_simple</span>
+            <span class="test-name">let_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -851,9 +925,9 @@ isEven 4</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="literal_bool" data-category="infer">
+        <div class="test-card success-test" data-name="literal_bool" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">literal_bool</span>
+            <span class="test-name">literal_bool<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -869,9 +943,9 @@ isEven 4</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="literal_int" data-category="infer">
+        <div class="test-card success-test" data-name="literal_int" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">literal_int</span>
+            <span class="test-name">literal_int<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -887,9 +961,9 @@ isEven 4</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="literal_string" data-category="infer">
+        <div class="test-card success-test" data-name="literal_string" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">literal_string</span>
+            <span class="test-name">literal_string<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -905,9 +979,9 @@ isEven 4</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="literal_unit" data-category="infer">
+        <div class="test-card success-test" data-name="literal_unit" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">literal_unit</span>
+            <span class="test-name">literal_unit<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -923,9 +997,9 @@ isEven 4</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="match_annotated_pattern" data-category="infer">
+        <div class="test-card success-test" data-name="match_annotated_pattern" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">match_annotated_pattern</span>
+            <span class="test-name">match_annotated_pattern<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -943,9 +1017,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="match_bool_scrutinee" data-category="infer">
+        <div class="test-card success-test" data-name="match_bool_scrutinee" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">match_bool_scrutinee</span>
+            <span class="test-name">match_bool_scrutinee<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -963,9 +1037,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="match_literal_pattern" data-category="infer">
+        <div class="test-card success-test" data-name="match_literal_pattern" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">match_literal_pattern</span>
+            <span class="test-name">match_literal_pattern<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -984,9 +1058,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="match_var_pattern" data-category="infer">
+        <div class="test-card success-test" data-name="match_var_pattern" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">match_var_pattern</span>
+            <span class="test-name">match_var_pattern<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1004,9 +1078,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="pipe_operator" data-category="infer">
+        <div class="test-card success-test" data-name="pipe_operator" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">pipe_operator</span>
+            <span class="test-name">pipe_operator<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1026,9 +1100,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="record_field_access" data-category="infer">
+        <div class="test-card success-test" data-name="record_field_access" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">record_field_access</span>
+            <span class="test-name">record_field_access<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1044,9 +1118,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="record_let_binding" data-category="infer">
+        <div class="test-card success-test" data-name="record_let_binding" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">record_let_binding</span>
+            <span class="test-name">record_let_binding<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1062,9 +1136,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="record_nested" data-category="infer">
+        <div class="test-card success-test" data-name="record_nested" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">record_nested</span>
+            <span class="test-name">record_nested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1080,9 +1154,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="record_simple" data-category="infer">
+        <div class="test-card success-test" data-name="record_simple" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">record_simple</span>
+            <span class="test-name">record_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1098,29 +1172,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="too_many_args" data-category="infer">
+        <div class="test-card success-test" data-name="type_annotation" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">too_many_args</span>
-            <span class="test-toggle"></span>
-          </div>
-          <div class="test-content">
-            <div class="code-panels">
-              <div class="code-panel input-panel">
-                <div class="code-panel-header">Input (.ziku)</div>
-                <pre>let f = \x =&gt; x in f 1 2</pre>
-              </div>
-              <div class="code-panel output-panel">
-                <div class="code-panel-header">Expected (.golden)</div>
-                <pre>Type error at 1:20: Cannot unify types
-  Expected: Int
-  Actual: (Int -&gt; _t4)</pre>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="test-card" data-name="type_annotation" data-category="infer">
-          <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">type_annotation</span>
+            <span class="test-name">type_annotation<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1136,29 +1190,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="type_mismatch" data-category="infer">
+        <div class="test-card success-test" data-name="unary_neg" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">type_mismatch</span>
-            <span class="test-toggle"></span>
-          </div>
-          <div class="test-content">
-            <div class="code-panels">
-              <div class="code-panel input-panel">
-                <div class="code-panel-header">Input (.ziku)</div>
-                <pre>1 + true</pre>
-              </div>
-              <div class="code-panel output-panel">
-                <div class="code-panel-header">Expected (.golden)</div>
-                <pre>Type error at 1:5: Cannot unify type constructors 'Bool' and 'Int'
-  Expected: Bool
-  Actual: Int</pre>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="test-card" data-name="unary_neg" data-category="infer">
-          <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">unary_neg</span>
+            <span class="test-name">unary_neg<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1174,9 +1208,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="unary_not" data-category="infer">
+        <div class="test-card success-test" data-name="unary_not" data-category="infer" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">unary_not</span>
+            <span class="test-name">unary_not<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1192,9 +1226,109 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="unbound_variable" data-category="infer">
+        <div class="test-card error-test" data-name="function_arg_mismatch" data-category="infer" data-type="error">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">unbound_variable</span>
+            <span class="test-name">function_arg_mismatch<span class="test-badge error">error</span></span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let f = \x =&gt; x + 1 in f true</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected Error (.golden)</div>
+                <pre>Type error at 1:24: Cannot unify type constructors 'Int' and 'Bool'
+  Expected: Int
+  Actual: Bool</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card error-test" data-name="if_branch_mismatch" data-category="infer" data-type="error">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">if_branch_mismatch<span class="test-badge error">error</span></span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>if true then 42 else &quot;hello&quot;</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected Error (.golden)</div>
+                <pre>Type error at 1:1: Cannot unify type constructors 'Int' and 'String'
+  Expected: Int
+  Actual: String</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card error-test" data-name="let_rec_mutual" data-category="infer" data-type="error">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">let_rec_mutual<span class="test-badge error">error</span></span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let rec isEven = \n =&gt; if n == 0 then true else isOdd (n - 1) in
+let rec isOdd = \n =&gt; if n == 0 then false else isEven (n - 1) in
+isEven 4</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected Error (.golden)</div>
+                <pre>Unbound variable 'isOdd' at 1:49</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card error-test" data-name="too_many_args" data-category="infer" data-type="error">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">too_many_args<span class="test-badge error">error</span></span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>let f = \x =&gt; x in f 1 2</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected Error (.golden)</div>
+                <pre>Type error at 1:20: Cannot unify types
+  Expected: Int
+  Actual: (Int -&gt; _t4)</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card error-test" data-name="type_mismatch" data-category="infer" data-type="error">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">type_mismatch<span class="test-badge error">error</span></span>
+            <span class="test-toggle"></span>
+          </div>
+          <div class="test-content">
+            <div class="code-panels">
+              <div class="code-panel input-panel">
+                <div class="code-panel-header">Input (.ziku)</div>
+                <pre>1 + true</pre>
+              </div>
+              <div class="code-panel output-panel">
+                <div class="code-panel-header">Expected Error (.golden)</div>
+                <pre>Type error at 1:5: Cannot unify type constructors 'Bool' and 'Int'
+  Expected: Bool
+  Actual: Int</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="test-card error-test" data-name="unbound_variable" data-category="infer" data-type="error">
+          <div class="test-header" onclick="toggleCard(this.parentElement)">
+            <span class="test-name">unbound_variable<span class="test-badge error">error</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1204,7 +1338,7 @@ end</pre>
                 <pre>x + 1</pre>
               </div>
               <div class="code-panel output-panel">
-                <div class="code-panel-header">Expected (.golden)</div>
+                <div class="code-panel-header">Expected Error (.golden)</div>
                 <pre>Unbound variable 'x' at 1:1</pre>
               </div>
             </div>
@@ -1215,12 +1349,12 @@ end</pre>
     <section class="category-section" data-category="ir-eval">
       <div class="category-header">
         <h2>ir-eval</h2>
-        <span class="category-count">38 tests</span>
+        <span class="category-count">38 tests (38 success, 0 error)</span>
       </div>
       <div class="test-grid">
-        <div class="test-card" data-name="binop_add" data-category="ir-eval">
+        <div class="test-card success-test" data-name="binop_add" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">binop_add</span>
+            <span class="test-name">binop_add<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1236,9 +1370,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="binop_comparison" data-category="ir-eval">
+        <div class="test-card success-test" data-name="binop_comparison" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">binop_comparison</span>
+            <span class="test-name">binop_comparison<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1254,9 +1388,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="church_zero" data-category="ir-eval">
+        <div class="test-card success-test" data-name="church_zero" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">church_zero</span>
+            <span class="test-name">church_zero<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1275,9 +1409,9 @@ toInt (succ (succ (succ zero)))</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_chain" data-category="ir-eval">
+        <div class="test-card success-test" data-name="codata_chain" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_chain</span>
+            <span class="test-name">codata_chain<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1295,9 +1429,9 @@ toInt (succ (succ (succ zero)))</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_closure" data-category="ir-eval">
+        <div class="test-card success-test" data-name="codata_closure" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_closure</span>
+            <span class="test-name">codata_closure<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1315,9 +1449,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_counter" data-category="ir-eval">
+        <div class="test-card success-test" data-name="codata_counter" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_counter</span>
+            <span class="test-name">codata_counter<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1336,9 +1470,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata_simple" data-category="ir-eval">
+        <div class="test-card success-test" data-name="codata_simple" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata_simple</span>
+            <span class="test-name">codata_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1357,9 +1491,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="fib_codata" data-category="ir-eval">
+        <div class="test-card success-test" data-name="fib_codata" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">fib_codata</span>
+            <span class="test-name">fib_codata<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1378,9 +1512,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="if_comparison" data-category="ir-eval">
+        <div class="test-card success-test" data-name="if_comparison" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">if_comparison</span>
+            <span class="test-name">if_comparison<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1396,9 +1530,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="if_simple" data-category="ir-eval">
+        <div class="test-card success-test" data-name="if_simple" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">if_simple</span>
+            <span class="test-name">if_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1414,9 +1548,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_conditional_exit" data-category="ir-eval">
+        <div class="test-card success-test" data-name="label_conditional_exit" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_conditional_exit</span>
+            <span class="test-name">label_conditional_exit<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1435,9 +1569,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_early_exit" data-category="ir-eval">
+        <div class="test-card success-test" data-name="label_early_exit" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_early_exit</span>
+            <span class="test-name">label_early_exit<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1457,9 +1591,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_goto_nested" data-category="ir-eval">
+        <div class="test-card success-test" data-name="label_goto_nested" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_goto_nested</span>
+            <span class="test-name">label_goto_nested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1475,9 +1609,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_goto" data-category="ir-eval">
+        <div class="test-card success-test" data-name="label_goto" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_goto</span>
+            <span class="test-name">label_goto<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1493,9 +1627,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_immediate_exit" data-category="ir-eval">
+        <div class="test-card success-test" data-name="label_immediate_exit" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_immediate_exit</span>
+            <span class="test-name">label_immediate_exit<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1511,9 +1645,9 @@ adder .add 42</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_loop" data-category="ir-eval">
+        <div class="test-card success-test" data-name="label_loop" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_loop</span>
+            <span class="test-name">label_loop<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1534,9 +1668,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_nested_goto" data-category="ir-eval">
+        <div class="test-card success-test" data-name="label_nested_goto" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_nested_goto</span>
+            <span class="test-name">label_nested_goto<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1556,9 +1690,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="label_simple" data-category="ir-eval">
+        <div class="test-card success-test" data-name="label_simple" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">label_simple</span>
+            <span class="test-name">label_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1574,9 +1708,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda_compose" data-category="ir-eval">
+        <div class="test-card success-test" data-name="lambda_compose" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda_compose</span>
+            <span class="test-name">lambda_compose<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1592,9 +1726,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda_curried" data-category="ir-eval">
+        <div class="test-card success-test" data-name="lambda_curried" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda_curried</span>
+            <span class="test-name">lambda_curried<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1610,9 +1744,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda_higher_order" data-category="ir-eval">
+        <div class="test-card success-test" data-name="lambda_higher_order" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda_higher_order</span>
+            <span class="test-name">lambda_higher_order<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1628,9 +1762,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda_nonvalue_args" data-category="ir-eval">
+        <div class="test-card success-test" data-name="lambda_nonvalue_args" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda_nonvalue_args</span>
+            <span class="test-name">lambda_nonvalue_args<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1646,9 +1780,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda_square" data-category="ir-eval">
+        <div class="test-card success-test" data-name="lambda_square" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda_square</span>
+            <span class="test-name">lambda_square<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1664,9 +1798,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let_chain" data-category="ir-eval">
+        <div class="test-card success-test" data-name="let_chain" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_chain</span>
+            <span class="test-name">let_chain<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1682,9 +1816,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let_computation" data-category="ir-eval">
+        <div class="test-card success-test" data-name="let_computation" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_computation</span>
+            <span class="test-name">let_computation<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1700,9 +1834,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let_nested" data-category="ir-eval">
+        <div class="test-card success-test" data-name="let_nested" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_nested</span>
+            <span class="test-name">let_nested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1718,9 +1852,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let_record_access" data-category="ir-eval">
+        <div class="test-card success-test" data-name="let_record_access" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_record_access</span>
+            <span class="test-name">let_record_access<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1736,9 +1870,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let_simple" data-category="ir-eval">
+        <div class="test-card success-test" data-name="let_simple" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let_simple</span>
+            <span class="test-name">let_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1754,9 +1888,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letrec_codata_lambda_tail" data-category="ir-eval">
+        <div class="test-card success-test" data-name="letrec_codata_lambda_tail" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letrec_codata_lambda_tail</span>
+            <span class="test-name">letrec_codata_lambda_tail<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1772,9 +1906,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letrec_codata_lambda" data-category="ir-eval">
+        <div class="test-card success-test" data-name="letrec_codata_lambda" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letrec_codata_lambda</span>
+            <span class="test-name">letrec_codata_lambda<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1790,9 +1924,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letrec_codata_minimal" data-category="ir-eval">
+        <div class="test-card success-test" data-name="letrec_codata_minimal" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letrec_codata_minimal</span>
+            <span class="test-name">letrec_codata_minimal<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1808,9 +1942,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letrec_codata_simple" data-category="ir-eval">
+        <div class="test-card success-test" data-name="letrec_codata_simple" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letrec_codata_simple</span>
+            <span class="test-name">letrec_codata_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1826,9 +1960,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letrec_codata_tail" data-category="ir-eval">
+        <div class="test-card success-test" data-name="letrec_codata_tail" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letrec_codata_tail</span>
+            <span class="test-name">letrec_codata_tail<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1844,9 +1978,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letrec_mutual_record" data-category="ir-eval">
+        <div class="test-card success-test" data-name="letrec_mutual_record" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letrec_mutual_record</span>
+            <span class="test-name">letrec_mutual_record<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1865,9 +1999,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letrec_simple" data-category="ir-eval">
+        <div class="test-card success-test" data-name="letrec_simple" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letrec_simple</span>
+            <span class="test-name">letrec_simple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1883,9 +2017,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="literal" data-category="ir-eval">
+        <div class="test-card success-test" data-name="literal" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">literal</span>
+            <span class="test-name">literal<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1901,9 +2035,9 @@ in loop 5 0</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="record_nested" data-category="ir-eval">
+        <div class="test-card success-test" data-name="record_nested" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">record_nested</span>
+            <span class="test-name">record_nested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1921,9 +2055,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="sum_to_n" data-category="ir-eval">
+        <div class="test-card success-test" data-name="sum_to_n" data-category="ir-eval" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">sum_to_n</span>
+            <span class="test-name">sum_to_n<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1944,12 +2078,12 @@ rect .origin .x + rect .origin .y</pre>
     <section class="category-section" data-category="parser">
       <div class="category-header">
         <h2>parser</h2>
-        <span class="category-count">87 tests</span>
+        <span class="category-count">87 tests (87 success, 0 error)</span>
       </div>
       <div class="test-grid">
-        <div class="test-card" data-name="app_field_precedence" data-category="parser">
+        <div class="test-card success-test" data-name="app_field_precedence" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">app_field_precedence</span>
+            <span class="test-name">app_field_precedence<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1965,9 +2099,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="application" data-category="parser">
+        <div class="test-card success-test" data-name="application" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">application</span>
+            <span class="test-name">application<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -1983,9 +2117,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="applicationComma" data-category="parser">
+        <div class="test-card success-test" data-name="applicationComma" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">applicationComma</span>
+            <span class="test-name">applicationComma<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2001,9 +2135,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="applicationMethod" data-category="parser">
+        <div class="test-card success-test" data-name="applicationMethod" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">applicationMethod</span>
+            <span class="test-name">applicationMethod<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2019,9 +2153,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="applicationMixed" data-category="parser">
+        <div class="test-card success-test" data-name="applicationMixed" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">applicationMixed</span>
+            <span class="test-name">applicationMixed<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2037,9 +2171,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="applicationParens" data-category="parser">
+        <div class="test-card success-test" data-name="applicationParens" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">applicationParens</span>
+            <span class="test-name">applicationParens<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2055,9 +2189,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="arithmetic" data-category="parser">
+        <div class="test-card success-test" data-name="arithmetic" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">arithmetic</span>
+            <span class="test-name">arithmetic<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2073,9 +2207,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="boolLiteral" data-category="parser">
+        <div class="test-card success-test" data-name="boolLiteral" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">boolLiteral</span>
+            <span class="test-name">boolLiteral<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2091,9 +2225,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="charLiteral" data-category="parser">
+        <div class="test-card success-test" data-name="charLiteral" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">charLiteral</span>
+            <span class="test-name">charLiteral<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2109,9 +2243,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codata" data-category="parser">
+        <div class="test-card success-test" data-name="codata" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codata</span>
+            <span class="test-name">codata<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2127,9 +2261,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataCallable" data-category="parser">
+        <div class="test-card success-test" data-name="codataCallable" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataCallable</span>
+            <span class="test-name">codataCallable<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2145,9 +2279,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataCallableNested" data-category="parser">
+        <div class="test-card success-test" data-name="codataCallableNested" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataCallableNested</span>
+            <span class="test-name">codataCallableNested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2163,9 +2297,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataConsumerSyntax" data-category="parser">
+        <div class="test-card success-test" data-name="codataConsumerSyntax" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataConsumerSyntax</span>
+            <span class="test-name">codataConsumerSyntax<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2181,9 +2315,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataMixedAccessors" data-category="parser">
+        <div class="test-card success-test" data-name="codataMixedAccessors" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataMixedAccessors</span>
+            <span class="test-name">codataMixedAccessors<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2199,9 +2333,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataMultiline" data-category="parser">
+        <div class="test-card success-test" data-name="codataMultiline" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataMultiline</span>
+            <span class="test-name">codataMultiline<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2220,9 +2354,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataNestedAccessor" data-category="parser">
+        <div class="test-card success-test" data-name="codataNestedAccessor" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataNestedAccessor</span>
+            <span class="test-name">codataNestedAccessor<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2238,9 +2372,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataNewlineSeparated" data-category="parser">
+        <div class="test-card success-test" data-name="codataNewlineSeparated" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataNewlineSeparated</span>
+            <span class="test-name">codataNewlineSeparated<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2259,9 +2393,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataSingleClause" data-category="parser">
+        <div class="test-card success-test" data-name="codataSingleClause" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataSingleClause</span>
+            <span class="test-name">codataSingleClause<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2277,9 +2411,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="codataTripleNested" data-category="parser">
+        <div class="test-card success-test" data-name="codataTripleNested" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">codataTripleNested</span>
+            <span class="test-name">codataTripleNested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2295,9 +2429,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="comparison" data-category="parser">
+        <div class="test-card success-test" data-name="comparison" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">comparison</span>
+            <span class="test-name">comparison<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2313,9 +2447,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="concatOperator" data-category="parser">
+        <div class="test-card success-test" data-name="concatOperator" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">concatOperator</span>
+            <span class="test-name">concatOperator<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2331,9 +2465,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="concatStrings" data-category="parser">
+        <div class="test-card success-test" data-name="concatStrings" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">concatStrings</span>
+            <span class="test-name">concatStrings<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2349,9 +2483,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="cutExpression" data-category="parser">
+        <div class="test-card success-test" data-name="cutExpression" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">cutExpression</span>
+            <span class="test-name">cutExpression<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2367,9 +2501,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="cutSimple" data-category="parser">
+        <div class="test-card success-test" data-name="cutSimple" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">cutSimple</span>
+            <span class="test-name">cutSimple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2385,9 +2519,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="divisionByZero" data-category="parser">
+        <div class="test-card success-test" data-name="divisionByZero" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">divisionByZero</span>
+            <span class="test-name">divisionByZero<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2403,9 +2537,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="equality" data-category="parser">
+        <div class="test-card success-test" data-name="equality" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">equality</span>
+            <span class="test-name">equality<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2421,9 +2555,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="expressionMixedOperators" data-category="parser">
+        <div class="test-card success-test" data-name="expressionMixedOperators" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">expressionMixedOperators</span>
+            <span class="test-name">expressionMixedOperators<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2439,9 +2573,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="field_access" data-category="parser">
+        <div class="test-card success-test" data-name="field_access" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">field_access</span>
+            <span class="test-name">field_access<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2457,9 +2591,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="fieldAccessChain" data-category="parser">
+        <div class="test-card success-test" data-name="fieldAccessChain" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">fieldAccessChain</span>
+            <span class="test-name">fieldAccessChain<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2475,9 +2609,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="fieldAccessDeep" data-category="parser">
+        <div class="test-card success-test" data-name="fieldAccessDeep" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">fieldAccessDeep</span>
+            <span class="test-name">fieldAccessDeep<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2493,9 +2627,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="floatLiteral" data-category="parser">
+        <div class="test-card success-test" data-name="floatLiteral" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">floatLiteral</span>
+            <span class="test-name">floatLiteral<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2511,9 +2645,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="gotoSimple" data-category="parser">
+        <div class="test-card success-test" data-name="gotoSimple" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">gotoSimple</span>
+            <span class="test-name">gotoSimple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2529,9 +2663,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="greaterEqual" data-category="parser">
+        <div class="test-card success-test" data-name="greaterEqual" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">greaterEqual</span>
+            <span class="test-name">greaterEqual<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2547,9 +2681,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="greaterThan" data-category="parser">
+        <div class="test-card success-test" data-name="greaterThan" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">greaterThan</span>
+            <span class="test-name">greaterThan<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2565,9 +2699,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="hash" data-category="parser">
+        <div class="test-card success-test" data-name="hash" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">hash</span>
+            <span class="test-name">hash<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2583,9 +2717,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="if" data-category="parser">
+        <div class="test-card success-test" data-name="if" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">if</span>
+            <span class="test-name">if<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2601,9 +2735,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="labelGoto" data-category="parser">
+        <div class="test-card success-test" data-name="labelGoto" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">labelGoto</span>
+            <span class="test-name">labelGoto<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2619,9 +2753,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="labelInLet" data-category="parser">
+        <div class="test-card success-test" data-name="labelInLet" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">labelInLet</span>
+            <span class="test-name">labelInLet<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2637,9 +2771,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="labelNested" data-category="parser">
+        <div class="test-card success-test" data-name="labelNested" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">labelNested</span>
+            <span class="test-name">labelNested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2655,9 +2789,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="labelSimple" data-category="parser">
+        <div class="test-card success-test" data-name="labelSimple" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">labelSimple</span>
+            <span class="test-name">labelSimple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2673,9 +2807,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambda" data-category="parser">
+        <div class="test-card success-test" data-name="lambda" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambda</span>
+            <span class="test-name">lambda<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2691,9 +2825,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambdaComplexBody" data-category="parser">
+        <div class="test-card success-test" data-name="lambdaComplexBody" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambdaComplexBody</span>
+            <span class="test-name">lambdaComplexBody<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2709,9 +2843,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambdaInRecord" data-category="parser">
+        <div class="test-card success-test" data-name="lambdaInRecord" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambdaInRecord</span>
+            <span class="test-name">lambdaInRecord<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2730,9 +2864,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambdaNested" data-category="parser">
+        <div class="test-card success-test" data-name="lambdaNested" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambdaNested</span>
+            <span class="test-name">lambdaNested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2748,9 +2882,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lambdaThreeParams" data-category="parser">
+        <div class="test-card success-test" data-name="lambdaThreeParams" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lambdaThreeParams</span>
+            <span class="test-name">lambdaThreeParams<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2766,9 +2900,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lessEqual" data-category="parser">
+        <div class="test-card success-test" data-name="lessEqual" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lessEqual</span>
+            <span class="test-name">lessEqual<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2784,9 +2918,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="lessThan" data-category="parser">
+        <div class="test-card success-test" data-name="lessThan" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">lessThan</span>
+            <span class="test-name">lessThan<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2802,9 +2936,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="let" data-category="parser">
+        <div class="test-card success-test" data-name="let" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">let</span>
+            <span class="test-name">let<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2820,9 +2954,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letRec" data-category="parser">
+        <div class="test-card success-test" data-name="letRec" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letRec</span>
+            <span class="test-name">letRec<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2838,9 +2972,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letRecWithAnnotation" data-category="parser">
+        <div class="test-card success-test" data-name="letRecWithAnnotation" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letRecWithAnnotation</span>
+            <span class="test-name">letRecWithAnnotation<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2856,9 +2990,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="letWithAnnotation" data-category="parser">
+        <div class="test-card success-test" data-name="letWithAnnotation" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">letWithAnnotation</span>
+            <span class="test-name">letWithAnnotation<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2874,9 +3008,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="logical" data-category="parser">
+        <div class="test-card success-test" data-name="logical" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">logical</span>
+            <span class="test-name">logical<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2892,9 +3026,9 @@ rect .origin .x + rect .origin .y</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="match" data-category="parser">
+        <div class="test-card success-test" data-name="match" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">match</span>
+            <span class="test-name">match<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2913,9 +3047,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="matchConstructorNoArgs" data-category="parser">
+        <div class="test-card success-test" data-name="matchConstructorNoArgs" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">matchConstructorNoArgs</span>
+            <span class="test-name">matchConstructorNoArgs<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2934,9 +3068,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="matchLiteral" data-category="parser">
+        <div class="test-card success-test" data-name="matchLiteral" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">matchLiteral</span>
+            <span class="test-name">matchLiteral<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2956,9 +3090,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="matchNestedPattern" data-category="parser">
+        <div class="test-card success-test" data-name="matchNestedPattern" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">matchNestedPattern</span>
+            <span class="test-name">matchNestedPattern<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2977,9 +3111,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="matchSingleCase" data-category="parser">
+        <div class="test-card success-test" data-name="matchSingleCase" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">matchSingleCase</span>
+            <span class="test-name">matchSingleCase<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -2995,9 +3129,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="matchWildcard" data-category="parser">
+        <div class="test-card success-test" data-name="matchWildcard" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">matchWildcard</span>
+            <span class="test-name">matchWildcard<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3016,9 +3150,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="muAbstraction" data-category="parser">
+        <div class="test-card success-test" data-name="muAbstraction" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">muAbstraction</span>
+            <span class="test-name">muAbstraction<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3034,9 +3168,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="muAbstractionAscii" data-category="parser">
+        <div class="test-card success-test" data-name="muAbstractionAscii" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">muAbstractionAscii</span>
+            <span class="test-name">muAbstractionAscii<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3052,9 +3186,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="muAbstractionSimple" data-category="parser">
+        <div class="test-card success-test" data-name="muAbstractionSimple" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">muAbstractionSimple</span>
+            <span class="test-name">muAbstractionSimple<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3070,9 +3204,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="multiParamLambda" data-category="parser">
+        <div class="test-card success-test" data-name="multiParamLambda" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">multiParamLambda</span>
+            <span class="test-name">multiParamLambda<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3088,9 +3222,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="muUnicode" data-category="parser">
+        <div class="test-card success-test" data-name="muUnicode" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">muUnicode</span>
+            <span class="test-name">muUnicode<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3106,9 +3240,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="negativeNumber" data-category="parser">
+        <div class="test-card success-test" data-name="negativeNumber" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">negativeNumber</span>
+            <span class="test-name">negativeNumber<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3124,9 +3258,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="nested_let" data-category="parser">
+        <div class="test-card success-test" data-name="nested_let" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">nested_let</span>
+            <span class="test-name">nested_let<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3142,9 +3276,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="nestedCodata" data-category="parser">
+        <div class="test-card success-test" data-name="nestedCodata" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">nestedCodata</span>
+            <span class="test-name">nestedCodata<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3164,9 +3298,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="notEqual" data-category="parser">
+        <div class="test-card success-test" data-name="notEqual" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">notEqual</span>
+            <span class="test-name">notEqual<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3182,9 +3316,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="operatorExtraSpaces" data-category="parser">
+        <div class="test-card success-test" data-name="operatorExtraSpaces" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">operatorExtraSpaces</span>
+            <span class="test-name">operatorExtraSpaces<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3200,9 +3334,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="operatorNoSpaces" data-category="parser">
+        <div class="test-card success-test" data-name="operatorNoSpaces" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">operatorNoSpaces</span>
+            <span class="test-name">operatorNoSpaces<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3218,9 +3352,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="parenthesesNested" data-category="parser">
+        <div class="test-card success-test" data-name="parenthesesNested" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">parenthesesNested</span>
+            <span class="test-name">parenthesesNested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3236,9 +3370,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="parenthesesOnly" data-category="parser">
+        <div class="test-card success-test" data-name="parenthesesOnly" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">parenthesesOnly</span>
+            <span class="test-name">parenthesesOnly<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3254,9 +3388,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="pipeChain" data-category="parser">
+        <div class="test-card success-test" data-name="pipeChain" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">pipeChain</span>
+            <span class="test-name">pipeChain<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3272,9 +3406,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="pipeOperator" data-category="parser">
+        <div class="test-card success-test" data-name="pipeOperator" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">pipeOperator</span>
+            <span class="test-name">pipeOperator<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3290,9 +3424,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="precedence" data-category="parser">
+        <div class="test-card success-test" data-name="precedence" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">precedence</span>
+            <span class="test-name">precedence<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3308,9 +3442,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="record" data-category="parser">
+        <div class="test-card success-test" data-name="record" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">record</span>
+            <span class="test-name">record<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3326,9 +3460,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="recordComplexValues" data-category="parser">
+        <div class="test-card success-test" data-name="recordComplexValues" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">recordComplexValues</span>
+            <span class="test-name">recordComplexValues<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3344,9 +3478,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="recordEmpty" data-category="parser">
+        <div class="test-card success-test" data-name="recordEmpty" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">recordEmpty</span>
+            <span class="test-name">recordEmpty<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3362,9 +3496,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="recordMultiline" data-category="parser">
+        <div class="test-card success-test" data-name="recordMultiline" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">recordMultiline</span>
+            <span class="test-name">recordMultiline<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3384,9 +3518,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="recordNested" data-category="parser">
+        <div class="test-card success-test" data-name="recordNested" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">recordNested</span>
+            <span class="test-name">recordNested<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3402,9 +3536,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="recordSingleField" data-category="parser">
+        <div class="test-card success-test" data-name="recordSingleField" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">recordSingleField</span>
+            <span class="test-name">recordSingleField<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3420,9 +3554,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="stringLiteral" data-category="parser">
+        <div class="test-card success-test" data-name="stringLiteral" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">stringLiteral</span>
+            <span class="test-name">stringLiteral<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3438,9 +3572,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="typeAnnotation" data-category="parser">
+        <div class="test-card success-test" data-name="typeAnnotation" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">typeAnnotation</span>
+            <span class="test-name">typeAnnotation<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3456,9 +3590,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="typeAnnotationLambda" data-category="parser">
+        <div class="test-card success-test" data-name="typeAnnotationLambda" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">typeAnnotationLambda</span>
+            <span class="test-name">typeAnnotationLambda<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3474,9 +3608,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="unary" data-category="parser">
+        <div class="test-card success-test" data-name="unary" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">unary</span>
+            <span class="test-name">unary<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3492,9 +3626,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="unitLiteral" data-category="parser">
+        <div class="test-card success-test" data-name="unitLiteral" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">unitLiteral</span>
+            <span class="test-name">unitLiteral<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3510,9 +3644,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="variableCamelCase" data-category="parser">
+        <div class="test-card success-test" data-name="variableCamelCase" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">variableCamelCase</span>
+            <span class="test-name">variableCamelCase<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3528,9 +3662,9 @@ end</pre>
             </div>
           </div>
         </div>
-        <div class="test-card" data-name="variableSnakeCase" data-category="parser">
+        <div class="test-card success-test" data-name="variableSnakeCase" data-category="parser" data-type="success">
           <div class="test-header" onclick="toggleCard(this.parentElement)">
-            <span class="test-name">variableSnakeCase</span>
+            <span class="test-name">variableSnakeCase<span class="test-badge success">success</span></span>
             <span class="test-toggle"></span>
           </div>
           <div class="test-content">
@@ -3554,38 +3688,60 @@ end</pre>
   </main>
 
   <script>
+    const GENERATED_AT = '2026-01-01 14:50:59';
     const searchInput = document.getElementById('search');
-    const filterBtns = document.querySelectorAll('.filter-btn');
-    const testCards = document.querySelectorAll('.test-card');
-    const categorySections = document.querySelectorAll('.category-section');
+    const categoryBtns = document.querySelectorAll('.filter-btn:not(.type-filter)');
+    const typeBtns = document.querySelectorAll('.type-filter');
+    let testCards = document.querySelectorAll('.test-card');
+    let categorySections = document.querySelectorAll('.category-section');
     const statsEl = document.getElementById('stats');
     const noResultsEl = document.getElementById('noResults');
     const expandAllBtn = document.getElementById('expandAll');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const autoRefreshCheckbox = document.getElementById('autoRefresh');
+    const lastUpdatedEl = document.getElementById('lastUpdated');
+    const mainContent = document.getElementById('mainContent');
 
     let currentCategory = 'all';
+    let currentType = 'all';
     let allExpanded = false;
+    let autoRefreshInterval = null;
+    let expandedCards = new Set();
 
     function toggleCard(card) {
       card.classList.toggle('expanded');
+      const name = card.dataset.name + '-' + card.dataset.category;
+      if (card.classList.contains('expanded')) {
+        expandedCards.add(name);
+      } else {
+        expandedCards.delete(name);
+      }
     }
 
     function updateStats() {
+      testCards = document.querySelectorAll('.test-card');
       const visible = document.querySelectorAll('.test-card:not(.hidden)').length;
       const total = testCards.length;
-      statsEl.textContent = `Showing ${visible} of ${total} tests`;
+      const successCount = document.querySelectorAll('.test-card.success-test:not(.hidden)').length;
+      const errorCount = document.querySelectorAll('.test-card.error-test:not(.hidden)').length;
+      statsEl.textContent = `Showing ${visible} of ${total} tests (${successCount} success, ${errorCount} error)`;
       noResultsEl.style.display = visible === 0 ? 'block' : 'none';
     }
 
     function filterTests() {
+      testCards = document.querySelectorAll('.test-card');
+      categorySections = document.querySelectorAll('.category-section');
       const searchTerm = searchInput.value.toLowerCase();
 
       testCards.forEach(card => {
         const name = card.dataset.name.toLowerCase();
         const category = card.dataset.category;
+        const type = card.dataset.type;
         const matchesSearch = name.includes(searchTerm);
         const matchesCategory = currentCategory === 'all' || category === currentCategory;
+        const matchesType = currentType === 'all' || type === currentType;
 
-        card.classList.toggle('hidden', !(matchesSearch && matchesCategory));
+        card.classList.toggle('hidden', !(matchesSearch && matchesCategory && matchesType));
       });
 
       categorySections.forEach(section => {
@@ -3598,29 +3754,95 @@ end</pre>
       updateStats();
     }
 
+    function updateLastUpdated() {
+      const now = new Date();
+      lastUpdatedEl.textContent = 'Updated: ' + now.toLocaleTimeString();
+    }
+
+    async function refreshContent() {
+      refreshBtn.classList.add('spinning');
+      try {
+        const response = await fetch(window.location.href + '?t=' + Date.now());
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const newMain = doc.getElementById('mainContent');
+        if (newMain) {
+          mainContent.innerHTML = newMain.innerHTML;
+          // Re-query elements after DOM update
+          testCards = document.querySelectorAll('.test-card');
+          categorySections = document.querySelectorAll('.category-section');
+          // Restore expanded state
+          testCards.forEach(card => {
+            const name = card.dataset.name + '-' + card.dataset.category;
+            if (expandedCards.has(name)) {
+              card.classList.add('expanded');
+            }
+          });
+          filterTests();
+          updateLastUpdated();
+        }
+      } catch (e) {
+        console.error('Refresh failed:', e);
+      }
+      refreshBtn.classList.remove('spinning');
+    }
+
     searchInput.addEventListener('input', filterTests);
 
-    filterBtns.forEach(btn => {
+    categoryBtns.forEach(btn => {
       btn.addEventListener('click', () => {
-        filterBtns.forEach(b => b.classList.remove('active'));
+        categoryBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentCategory = btn.dataset.category;
         filterTests();
       });
     });
 
+    typeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        typeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentType = btn.dataset.type;
+        filterTests();
+      });
+    });
+
     expandAllBtn.addEventListener('click', () => {
       allExpanded = !allExpanded;
+      testCards = document.querySelectorAll('.test-card');
       testCards.forEach(card => {
         if (!card.classList.contains('hidden')) {
           card.classList.toggle('expanded', allExpanded);
+          const name = card.dataset.name + '-' + card.dataset.category;
+          if (allExpanded) {
+            expandedCards.add(name);
+          } else {
+            expandedCards.delete(name);
+          }
         }
       });
       expandAllBtn.textContent = allExpanded ? 'Collapse All' : 'Expand All';
     });
 
-    // Initial stats
+    refreshBtn.addEventListener('click', refreshContent);
+
+    autoRefreshCheckbox.addEventListener('change', () => {
+      if (autoRefreshCheckbox.checked) {
+        refreshBtn.classList.add('active');
+        autoRefreshInterval = setInterval(refreshContent, 3000);
+      } else {
+        refreshBtn.classList.remove('active');
+        if (autoRefreshInterval) {
+          clearInterval(autoRefreshInterval);
+          autoRefreshInterval = null;
+        }
+      }
+    });
+
+    // Initial setup
     updateStats();
+    lastUpdatedEl.textContent = 'Generated: ' + GENERATED_AT;
   </script>
 </body>
 </html>
