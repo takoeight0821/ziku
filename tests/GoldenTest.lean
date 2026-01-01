@@ -82,6 +82,18 @@ def runIREvalTest (input : String) : Except String TestOutput :=
     | .error e => .ok { output := s!"Elaboration error: {e}", isError := true }
   | .error e => .error e
 
+/-- Run an IR translation test (parse → elaborate → translate → show IR) -/
+def runTranslateTest (input : String) : Except String TestOutput :=
+  match Ziku.parseExprString input.trim with
+  | .ok expr =>
+    match Ziku.elaborateAll expr with
+    | .ok elaborated =>
+      match Ziku.Translate.translate elaborated with
+      | .ok producer => .ok { output := producer.toString, isError := false }
+      | .error e => .ok { output := s!"Translation error: {e}", isError := true }
+    | .error e => .ok { output := s!"Elaboration error: {e}", isError := true }
+  | .error e => .error e
+
 /-- Generate Scheme code (parse → elaborate → translate → compile to Scheme) -/
 def generateScheme (input : String) : Except String String :=
   match Ziku.parseExprString input.trim with
@@ -94,6 +106,12 @@ def generateScheme (input : String) : Except String String :=
       | .error e => .error s!"Translation error: {e}"
     | .error e => .error s!"Elaboration error: {e}"
   | .error e => .error e
+
+/-- Run a Scheme codegen test (compile to Scheme, compare generated code) -/
+def runSchemeCodegenTest (input : String) : Except String TestOutput :=
+  match generateScheme input with
+  | .ok code => .ok { output := code, isError := false }
+  | .error e => .ok { output := s!"Compilation error: {e}", isError := true }
 
 /-- Run a Scheme test (compile to Scheme, run with chez, compare output) -/
 def runSchemeTest (tc : TestCase) : IO TestResult := do
@@ -169,6 +187,8 @@ def runTest (tc : TestCase) : IO TestResult := do
   let result := match tc.testType with
     | "infer" => runInferTest input
     | "ir-eval" => runIREvalTest input
+    | "translate" => runTranslateTest input
+    | "scheme-codegen" => runSchemeCodegenTest input
     | _ => runParserTest input
 
   match result with
@@ -300,17 +320,91 @@ def runConsistencyCategory : IO (Nat × Nat) := do
 
   pure (passed, failed)
 
+/-- Run translate tests: verify IR translation output -/
+def runTranslateCategory : IO (Nat × Nat) := do
+  let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"
+  let goldenDir := "tests/golden/translate"
+  let tests ← discoverTests sourceDir
+
+  let mut passed := 0
+  let mut failed := 0
+
+  IO.println s!"\n=== translate tests ==="
+
+  for baseName in tests do
+    let tc : TestCase := {
+      name := baseName
+      inputPath := s!"{sourceDir}/{baseName}.ziku"
+      goldenPath := s!"{goldenDir}/{baseName}.golden"
+      testType := "translate"
+      expectError := false
+    }
+
+    let result ← runTest tc
+    match result with
+    | .pass =>
+      IO.println s!"  ✓ {baseName}"
+      passed := passed + 1
+    | .fail expected actual =>
+      IO.println s!"  ✗ {baseName}"
+      IO.println s!"    Expected: {expected}"
+      IO.println s!"    Actual:   {actual}"
+      failed := failed + 1
+    | .error msg =>
+      IO.println s!"  ✗ {baseName}: {msg}"
+      failed := failed + 1
+
+  pure (passed, failed)
+
+/-- Run scheme-codegen tests: verify Scheme code generation output -/
+def runSchemeCodegenCategory : IO (Nat × Nat) := do
+  let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"
+  let goldenDir := "tests/golden/scheme-codegen"
+  let tests ← discoverTests sourceDir
+
+  let mut passed := 0
+  let mut failed := 0
+
+  IO.println s!"\n=== scheme-codegen tests ==="
+
+  for baseName in tests do
+    let tc : TestCase := {
+      name := baseName
+      inputPath := s!"{sourceDir}/{baseName}.ziku"
+      goldenPath := s!"{goldenDir}/{baseName}.golden"
+      testType := "scheme-codegen"
+      expectError := false
+    }
+
+    let result ← runTest tc
+    match result with
+    | .pass =>
+      IO.println s!"  ✓ {baseName}"
+      passed := passed + 1
+    | .fail expected actual =>
+      IO.println s!"  ✗ {baseName}"
+      IO.println s!"    Expected: {expected}"
+      IO.println s!"    Actual:   {actual}"
+      failed := failed + 1
+    | .error msg =>
+      IO.println s!"  ✗ {baseName}: {msg}"
+      failed := failed + 1
+
+  pure (passed, failed)
+
 def main : IO UInt32 := do
   IO.println "Running golden tests..."
 
   let (parserPassed, parserFailed) ← runCategory "parser" "parser"
   let (inferPassed, inferFailed) ← runCategory "infer" "infer"
   let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" "ir-eval"
+  let (translatePassed, translateFailed) ← runTranslateCategory
+  let (schemeCodegenPassed, schemeCodegenFailed) ← runSchemeCodegenCategory
   let (schemePassed, schemeFailed) ← runSchemeCategory
   let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
 
-  let totalPassed := parserPassed + inferPassed + irEvalPassed + schemePassed + consistencyPassed
-  let totalFailed := parserFailed + inferFailed + irEvalFailed + schemeFailed + consistencyFailed
+  let totalPassed := parserPassed + inferPassed + irEvalPassed + translatePassed + schemeCodegenPassed + schemePassed + consistencyPassed
+  let totalFailed := parserFailed + inferFailed + irEvalFailed + translateFailed + schemeCodegenFailed + schemeFailed + consistencyFailed
 
   IO.println s!"\n=== Summary ==="
   IO.println s!"Passed: {totalPassed}"

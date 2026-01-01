@@ -1,0 +1,1 @@
+(μresult. ⟨(μ_α0. ifz(true, ⟨(μ_α1. ⟨100 | result⟩) | _α0⟩, ⟨0 | _α0⟩)) | result⟩)
