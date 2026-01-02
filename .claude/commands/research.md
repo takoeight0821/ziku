@@ -48,7 +48,7 @@ gh repo view <owner>/<repo> --json name,description,url,stargazerCount,forkCount
 
 Clone to a temporary directory for deep analysis:
 ```bash
-cd /tmp && rm -rf <repo>-research 2>/dev/null
+cd /tmp && trash <repo>-research 2>/dev/null
 git clone --depth 1 https://github.com/<owner>/<repo>.git <repo>-research
 ```
 

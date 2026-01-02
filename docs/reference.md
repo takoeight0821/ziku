@@ -113,11 +113,21 @@ if condition then consequent else alternative
 ### Pattern Matching
 
 ```
-match expr with
+match expr {
 | pattern1 => result1
 | pattern2 => result2
 | _ => default
-end
+}
+```
+
+**Separator rules:** Both `|` and `,` can be used as separators:
+- `|` is a prefix separator (can appear at start of first clause)
+- `,` is a suffix separator (can appear at end of last clause)
+
+```
+match x { | true => 1 | false => 0 }     // Pipe separator
+match x { true => 1, false => 0 }         // Comma separator
+match x { true => 1, false => 0, }        // Trailing comma OK
 ```
 
 ### Codata (Copattern Matching)
@@ -274,8 +284,7 @@ getX { x = 1, y = 2 }      // Works for single use
 
 ```
 let     rec     in      if      then    else
-match   with    end     true    false   not
-label   goto
+match   true    false   not     label   goto
 ```
 
 ## Comments
@@ -305,7 +314,7 @@ expr ::= literal
        | let identifier = expr in expr
        | let rec identifier = expr in expr
        | if expr then expr else expr
-       | match expr with clauses end
+       | match expr { clauses }
        | { copattern-clauses }
        | { field-assignments }
        | expr.identifier

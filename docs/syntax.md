@@ -147,11 +147,31 @@ def map : (a -> b) -> List a -> List b
   | f, Nil       => Nil
   | f, Cons x xs => Cons (f x) (map f xs)
 
--- Match expression
-match xs with
+-- Match expression (brace syntax)
+match xs {
   | Nil       => "empty"
   | Cons x _  => "has: " ++ show x
-end
+}
+```
+
+### Separator Rules
+
+Both `|` and `,` can be used as separators in match and codata blocks:
+- `|` is a **prefix** separator (can appear at the start of the first clause)
+- `,` is a **suffix** separator (can appear at the end of the last clause)
+
+```ziku
+-- Leading pipe (OK)
+match x { | true => 1 | false => 0 }
+
+-- Comma separator (OK)
+match x { true => 1, false => 0 }
+
+-- Trailing comma (OK)
+match x { true => 1, false => 0, }
+
+-- Mixed (OK)
+match x { | true => 1, | false => 0 }
 ```
 
 ---
@@ -395,10 +415,10 @@ x * y
 
 -- Recursive let
 let rec fact = \n =>
-  match n with
+  match n {
     | Zero   => Succ Zero
     | Succ m => n * fact m
-  end
+  }
 in fact (Succ (Succ (Succ Zero)))
 
 -- Lambda (shorthand for single #(x) copattern)
@@ -581,7 +601,7 @@ copatClause     = pattern* "#" accessor* "=>" expr
 
 expr        = atom
             | expr binop expr
-            | "match" expr "with" ("|" pattern "=>" expr)+ "end"
+            | "match" expr "{" ("|"? pattern "=>" expr) (","? "|"? pattern "=>" expr)* ","? "}"
             | "let" IDENT (":" type)? "=" expr "in" expr
             | "let" "rec" IDENT "=" expr "in" expr
             | "\" params "=>" expr

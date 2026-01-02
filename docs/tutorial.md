@@ -141,33 +141,48 @@ in abs (-5)                 // 5
 Match values against patterns:
 
 ```ziku
-match x with
+match x {
 | 0 => "zero"
 | 1 => "one"
 | _ => "other"
-end
+}
 ```
 
 ### Pattern Types
 
 ```ziku
 // Literal patterns
-match n with
+match n {
 | 0 => "zero"
 | 1 => "one"
 | _ => "many"
-end
+}
 
 // Boolean patterns
-match flag with
+match flag {
 | true => "yes"
 | false => "no"
-end
+}
 
 // Variable patterns bind the matched value
-match x with
+match x {
 | n => n + 1
-end
+}
+```
+
+### Separator Rules
+
+Both `|` and `,` can be used as separators:
+
+```ziku
+// Using pipe (prefix)
+match x { | true => 1 | false => 0 }
+
+// Using comma (suffix)
+match x { true => 1, false => 0 }
+
+// Trailing comma is OK
+match x { true => 1, false => 0, }
 ```
 
 ## 6. Codata and Copatterns

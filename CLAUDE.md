@@ -106,16 +106,16 @@ Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
 
 Golden tests in `tests/golden/`:
 
-- `parser/`: Parser output tests (.ziku -> .golden)
-- `eval/`: Surface language evaluation tests
-- `infer/`: Type inference tests
-- `ir-eval/`: IR evaluation tests (via translation)
+- `parser/success/`: Parser success tests (.ziku -> .golden)
+- `parser/error/`: Parser error tests (expected parse failures)
+- `infer/success/`: Type inference success tests
+- `infer/error/`: Type inference error tests
+- `ir-eval/success/`: IR evaluation tests (via translation)
 
-Tests are listed in `tests/GoldenTest.lean`. Add new test by:
+Tests are auto-discovered from `.ziku` files. Add new test by:
 
-1. Create `tests/golden/{category}/{name}.ziku`
-2. Add test name to corresponding list in `GoldenTest.lean`
-3. Run `lake test` to auto-generate `.golden` file
+1. Create `tests/golden/{category}/{success|error}/{name}.ziku`
+2. Run `lake test` to auto-generate `.golden` file
 
 ## Conventions
 
