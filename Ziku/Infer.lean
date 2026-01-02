@@ -113,6 +113,7 @@ def tyBool : Ty := .con dummyPos "Bool"
 def tyUnit : Ty := .con dummyPos "Unit"
 def tyString : Ty := .con dummyPos "String"
 def tyChar : Ty := .con dummyPos "Char"
+def tyRune : Ty := .con dummyPos "Rune"
 def tyFloat : Ty := .con dummyPos "Float"
 
 -- Get expected and result types for binary operators
@@ -131,6 +132,39 @@ def binOpTypes : BinOp → Ty × Ty
 def unaryOpTypes : UnaryOp → Ty × Ty
   | .neg => (tyInt, tyInt)
   | .not => (tyBool, tyBool)
+
+-- Check if a name is a builtin function and return its type signature
+-- Returns (argTypes, resultType) for the builtin
+def builtinTypes : String → Option (List Ty × Ty)
+  | "strLen"    => some ([tyString], tyInt)
+  | "strAt"     => some ([tyString, tyInt], tyRune)
+  | "strSub"    => some ([tyString, tyInt, tyInt], tyString)
+  | "strToInt"  => some ([tyString], tyInt)
+  | "intToStr"  => some ([tyInt], tyString)
+  | "runeToStr" => some ([tyRune], tyString)
+  | "intToRune" => some ([tyInt], tyRune)
+  | "runeToInt" => some ([tyRune], tyInt)
+  | _           => none
+
+-- Get builtin enum from name
+def nameToBuiltin : String → Option Builtin
+  | "strLen"    => some .strLen
+  | "strAt"     => some .strAt
+  | "strSub"    => some .strSub
+  | "strToInt"  => some .strToInt
+  | "intToStr"  => some .intToStr
+  | "runeToStr" => some .runeToStr
+  | "intToRune" => some .intToRune
+  | "runeToInt" => some .runeToInt
+  | _           => none
+
+-- Collect all curried arguments from a chain of applications
+-- e.g., ((f x) y) z  =>  (f, [x, y, z])
+def collectAppArgs : Expr → (Expr × List Expr)
+  | .app _ fn arg =>
+    let (base, args) := collectAppArgs fn
+    (base, args ++ [arg])
+  | e => (e, [])
 
 -- Occurs check: does a type variable occur in a type?
 partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
@@ -388,7 +422,7 @@ partial def checkPattern (pat : Pat) (expectedTy : Ty) : GenM (List (Ident × Sc
       | .int _ => tyInt
       | .bool _ => tyBool
       | .string _ => tyString
-      | .char _ => tyChar
+      | .char _ => tyRune  -- Char literals are Rune type
       | .float _ => tyFloat
       | .unit => tyUnit
     addConstraint (.unify pos litTy expectedTy)
@@ -428,7 +462,7 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
   | .lit _ (.bool _) => return tyBool
   | .lit _ .unit => return tyUnit
   | .lit _ (.string _) => return tyString
-  | .lit _ (.char _) => return tyChar
+  | .lit _ (.char _) => return tyRune  -- Char literals are Rune type
   | .lit _ (.float _) => return tyFloat
   | .var pos x =>
     match env.lookup x with
@@ -469,12 +503,44 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     let bodyTy ← genConstraints env' body
     return .arrow pos paramTy bodyTy
   | .app pos fn arg => do
-    let fnTy ← genConstraints env fn
-    let argTy ← genConstraints env arg
-    let resultTy ← freshTyVar
-    addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
-    addConstraint (.bottomProp [fnTy, argTy] resultTy)
-    return resultTy
+    -- Check if this is a saturated builtin call
+    let (baseExpr, allArgs) := collectAppArgs expr
+    match baseExpr with
+    | .var _ name =>
+      -- Check if base is a builtin
+      match builtinTypes name with
+      | some (argTys, resultTy) =>
+        -- Check if arity matches
+        if allArgs.length == argTys.length then
+          -- Saturated builtin call: type check each argument
+          for (argExpr, expectedTy) in allArgs.zip argTys do
+            let actualTy ← genConstraints env argExpr
+            addConstraint (.unify argExpr.pos actualTy expectedTy)
+          return resultTy
+        else
+          -- Partial application or wrong arity - normal function application
+          let fnTy ← genConstraints env fn
+          let argTy ← genConstraints env arg
+          let resultTy ← freshTyVar
+          addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
+          addConstraint (.bottomProp [fnTy, argTy] resultTy)
+          return resultTy
+      | none =>
+        -- Not a builtin - normal function application
+        let fnTy ← genConstraints env fn
+        let argTy ← genConstraints env arg
+        let resultTy ← freshTyVar
+        addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
+        addConstraint (.bottomProp [fnTy, argTy] resultTy)
+        return resultTy
+    | _ =>
+      -- Not a variable base - normal function application
+      let fnTy ← genConstraints env fn
+      let argTy ← genConstraints env arg
+      let resultTy ← freshTyVar
+      addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
+      addConstraint (.bottomProp [fnTy, argTy] resultTy)
+      return resultTy
   | .let_ pos x tyOpt e1 e2 => do
     let t1 ← genConstraints env e1
     -- Determine the scheme for the binding:

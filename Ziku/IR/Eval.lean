@@ -21,7 +21,7 @@ The key insight is that:
 - ⟨p | c⟩ connects a producer p with consumer c
 -/
 
-open Ziku (SourcePos Ident BinOp Lit)
+open Ziku (SourcePos Ident BinOp Builtin Lit)
 
 -- Values in IR are producers that need no further computation
 -- Note: mu is NOT a value because μα.s needs to be paired with a consumer
@@ -71,6 +71,7 @@ partial def Statement.substVar (x : Ident) (p : Producer) : Statement → Statem
   | .binOp pos op p1 p2 c => .binOp pos op (Producer.substVar x p p1) (Producer.substVar x p p2) (Consumer.substVar x p c)
   | .ifz pos cond s1 s2 => .ifz pos (Producer.substVar x p cond) (Statement.substVar x p s1) (Statement.substVar x p s2)
   | .call pos f ps cs => .call pos f (ps.map (Producer.substVar x p)) (cs.map (Consumer.substVar x p))
+  | .builtin pos b ps c => .builtin pos b (ps.map (Producer.substVar x p)) (Consumer.substVar x p c)
 end
 
 -- Substitution: replace covariable α with consumer c in statement
@@ -110,6 +111,7 @@ partial def Statement.substCovar (α : Ident) (c : Consumer) : Statement → Sta
   | .binOp pos op p1 p2 cons => .binOp pos op (Producer.substCovar α c p1) (Producer.substCovar α c p2) (Consumer.substCovar α c cons)
   | .ifz pos cond s1 s2 => .ifz pos (Producer.substCovar α c cond) (Statement.substCovar α c s1) (Statement.substCovar α c s2)
   | .call pos f ps cs => .call pos f (ps.map (Producer.substCovar α c)) (cs.map (Consumer.substCovar α c))
+  | .builtin pos b ps cons => .builtin pos b (ps.map (Producer.substCovar α c)) (Consumer.substCovar α c cons)
 end
 
 -- Evaluation result
@@ -140,6 +142,52 @@ def evalBinOp (op : BinOp) (p1 p2 : Producer) : Option Producer :=
     | .and => some (.lit pos (.bool (b1 && b2)))
     | .or => some (.lit pos (.bool (b1 || b2)))
     | _ => none
+  | .lit pos (.string s1), .lit _ (.string s2) =>
+    match op with
+    | .concat => some (.lit pos (.string (s1 ++ s2)))
+    | _ => none
+  | _, _ => none
+
+-- Helper: evaluate built-in function
+def evalBuiltin (b : Builtin) (args : List Producer) : Option Producer :=
+  let pos : SourcePos := { line := 0, col := 0 }
+  match b, args with
+  | .strLen, [.lit _ (.string s)] =>
+    -- String length in characters (Unicode code points)
+    some (.lit pos (.int s.length))
+  | .strAt, [.lit _ (.string s), .lit _ (.int i)] =>
+    -- Get character at index (0-based)
+    if i < 0 then none
+    else
+      let idx := i.toNat
+      match s.toList[idx]? with
+      | some c => some (.lit pos (.char c))
+      | none => none
+  | .strSub, [.lit _ (.string s), .lit _ (.int start), .lit _ (.int len)] =>
+    -- Substring: strSub(s, start, length)
+    if start < 0 || len < 0 then none
+    else
+      let startIdx := start.toNat
+      let lenVal := len.toNat
+      if startIdx > s.length then none
+      else
+        let result := s.drop startIdx |>.take lenVal
+        some (.lit pos (.string result))
+  | .strToInt, [.lit _ (.string s)] =>
+    -- Parse string as integer
+    match s.toInt? with
+    | some n => some (.lit pos (.int n))
+    | none => none
+  | .intToStr, [.lit _ (.int n)] =>
+    some (.lit pos (.string (toString n)))
+  | .runeToStr, [.lit _ (.char c)] =>
+    some (.lit pos (.string (String.singleton c)))
+  | .intToRune, [.lit _ (.int n)] =>
+    -- Convert integer to rune (Unicode code point)
+    if n < 0 || n > 0x10FFFF then none
+    else some (.lit pos (.char (Char.ofNat n.toNat)))
+  | .runeToInt, [.lit _ (.char c)] =>
+    some (.lit pos (.int c.toNat))
   | _, _ => none
 
 -- Step-based evaluation (small-step semantics)
@@ -220,6 +268,23 @@ partial def step : Statement → Option Statement
     | _ => none
   -- Function call: handled externally
   | .call _ _ _ _ => none
+  -- Built-in function: builtin(p̄; c)
+  | .builtin pos b ps c =>
+    -- Find first non-value argument and evaluate it
+    match ps.findIdx? (fun p => !p.isValue) with
+    | some idx =>
+      match ps[idx]? with
+      | some (.mu muPos α s) =>
+        -- Evaluate this argument first
+        let freshName := s!"_builtin_arg{idx}"
+        let ps' := ps.set idx (.var pos freshName)
+        some (.cut pos (.mu muPos α s) (.muTilde pos freshName (.builtin pos b ps' c)))
+      | _ => none
+    | none =>
+      -- All arguments are values, evaluate the builtin
+      match evalBuiltin b ps with
+      | some result => some (.cut pos result c)
+      | none => none
 
 -- Multi-step evaluation with fuel (to prevent infinite loops)
 partial def evalWithFuel (fuel : Nat) (s : Statement) : EvalResult :=

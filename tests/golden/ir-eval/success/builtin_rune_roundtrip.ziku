@@ -1,0 +1,1 @@
+runeToInt(intToRune(65))

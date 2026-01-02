@@ -41,6 +41,30 @@ inductive UnaryOp where
   | not   -- not
   deriving Repr, BEq, DecidableEq
 
+-- Built-in functions for string operations
+inductive Builtin where
+  | strLen     -- String -> Int
+  | strAt      -- String -> Int -> Rune
+  | strSub     -- String -> Int -> Int -> String
+  | strToInt   -- String -> Int
+  | intToStr   -- Int -> String
+  | runeToStr  -- Rune -> String
+  | intToRune  -- Int -> Rune
+  | runeToInt  -- Rune -> Int
+  deriving Repr, BEq, DecidableEq
+
+def Builtin.toString : Builtin → String
+  | .strLen    => "strLen"
+  | .strAt     => "strAt"
+  | .strSub    => "strSub"
+  | .strToInt  => "strToInt"
+  | .intToStr  => "intToStr"
+  | .runeToStr => "runeToStr"
+  | .intToRune => "intToRune"
+  | .runeToInt => "runeToInt"
+
+instance : ToString Builtin := ⟨Builtin.toString⟩
+
 -- Literals
 inductive Lit where
   | int    : Int → Lit

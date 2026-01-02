@@ -26,7 +26,7 @@ Based on "Grokking the Sequent Calculus" (ICFP 2024).
 ```
 -/
 
-open Ziku (SourcePos Ident BinOp UnaryOp Lit Expr)
+open Ziku (SourcePos Ident BinOp UnaryOp Builtin Lit Expr)
 open Ziku.IR (Producer Consumer Statement)
 
 -- Translation state
@@ -65,6 +65,37 @@ def freshCovar : TranslateM Ident := do
 def isLabelInScope (name : Ident) : TranslateM Bool := do
   let s ← get
   return s.labelScope.contains name
+
+-- Get builtin enum from name
+def nameToBuiltin : String → Option Builtin
+  | "strLen"    => some .strLen
+  | "strAt"     => some .strAt
+  | "strSub"    => some .strSub
+  | "strToInt"  => some .strToInt
+  | "intToStr"  => some .intToStr
+  | "runeToStr" => some .runeToStr
+  | "intToRune" => some .intToRune
+  | "runeToInt" => some .runeToInt
+  | _           => none
+
+-- Get arity of builtin function
+def builtinArity : Builtin → Nat
+  | .strLen    => 1
+  | .strAt     => 2
+  | .strSub    => 3
+  | .strToInt  => 1
+  | .intToStr  => 1
+  | .runeToStr => 1
+  | .intToRune => 1
+  | .runeToInt => 1
+
+-- Collect all curried arguments from a chain of applications
+-- e.g., ((f x) y) z  =>  (f, [x, y, z])
+def collectAppArgs : Expr → (Expr × List Expr)
+  | .app _ fn arg =>
+    let (base, args) := collectAppArgs fn
+    (base, args ++ [arg])
+  | e => (e, [])
 
 -- Add label to scope
 def withLabel (name : Ident) (m : TranslateM α) : TranslateM α := do
@@ -144,11 +175,37 @@ mutual
       let bodyP ← translateExpr body
       return .cocase pos [("ap", [param, α], .cut pos bodyP (.covar pos α))]
     | .app pos fn arg => do
-      -- ⟦t₁ t₂⟧ = μα.⟨⟦t₁⟧ | ap(⟦t₂⟧; α)⟩
-      let α ← freshCovar
-      let fnP ← translateExpr fn
-      let argP ← translateExpr arg
-      return .mu pos α (.cut pos fnP (.destructor pos "ap" [argP] (.covar pos α)))
+      -- Check if this is a saturated builtin call
+      let (baseExpr, allArgs) := collectAppArgs e
+      match baseExpr with
+      | .var _ name =>
+        -- Check if base is a builtin
+        match nameToBuiltin name with
+        | some builtin =>
+          -- Check if arity matches
+          if allArgs.length == builtinArity builtin then
+            -- Saturated builtin call: translate to Statement.builtin
+            let α ← freshCovar
+            let argsP ← allArgs.mapM translateExpr
+            return .mu pos α (.builtin pos builtin argsP (.covar pos α))
+          else
+            -- Partial application or wrong arity - normal function call
+            let α ← freshCovar
+            let fnP ← translateExpr fn
+            let argP ← translateExpr arg
+            return .mu pos α (.cut pos fnP (.destructor pos "ap" [argP] (.covar pos α)))
+        | none =>
+          -- Not a builtin - normal function application
+          let α ← freshCovar
+          let fnP ← translateExpr fn
+          let argP ← translateExpr arg
+          return .mu pos α (.cut pos fnP (.destructor pos "ap" [argP] (.covar pos α)))
+      | _ =>
+        -- Not a variable base - normal function application
+        let α ← freshCovar
+        let fnP ← translateExpr fn
+        let argP ← translateExpr arg
+        return .mu pos α (.cut pos fnP (.destructor pos "ap" [argP] (.covar pos α)))
     | .let_ pos x _ e1 e2 => do
       -- ⟦let x = t₁ in t₂⟧ = μα.⟨⟦t₁⟧ | μ̃x.⟨⟦t₂⟧ | α⟩⟩
       let α ← freshCovar

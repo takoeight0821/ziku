@@ -1,0 +1,6 @@
+let s = strLen("hello") in
+let r = strAt("hello", 0) in
+let sub = strSub("hello", 1, 3) in
+let n = strToInt("42") in
+let str = intToStr(42) in
+s + n

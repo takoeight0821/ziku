@@ -19,7 +19,7 @@ Key constructs:
 - `⟨p | c⟩` (cut): Combines a producer and consumer of the same type
 -/
 
-open Ziku (SourcePos Ident BinOp UnaryOp Lit Ty Pat)
+open Ziku (SourcePos Ident BinOp UnaryOp Builtin Lit Ty Pat)
 
 -- Forward declarations for mutual recursion
 mutual
@@ -57,6 +57,8 @@ inductive Statement where
       -- ifz(p, s₁, s₂) - conditional on zero/nonzero
   | call      : SourcePos → Ident → List Producer → List Consumer → Statement
       -- f(p̄; c̄) - function/top-level call
+  | builtin   : SourcePos → Builtin → List Producer → Consumer → Statement
+      -- builtin(p̄; c) - built-in function call (strLen, strAt, etc.)
   deriving Repr, BEq
 
 end
@@ -84,6 +86,7 @@ def Statement.pos : Statement → SourcePos
   | binOp p _ _ _ _ => p
   | ifz p _ _ _ => p
   | call p _ _ _ => p
+  | builtin p _ _ _ => p
 
 -- Free variables in Producer
 mutual
@@ -111,6 +114,7 @@ partial def Statement.freeVars : Statement → List Ident
   | .binOp _ _ p1 p2 c => p1.freeVars ++ p2.freeVars ++ c.freeVars
   | .ifz _ p s1 s2 => p.freeVars ++ s1.freeVars ++ s2.freeVars
   | .call _ _ ps cs => ps.flatMap Producer.freeVars ++ cs.flatMap Consumer.freeVars
+  | .builtin _ _ ps c => ps.flatMap Producer.freeVars ++ c.freeVars
 end
 
 -- Pretty printing
@@ -152,6 +156,9 @@ partial def Statement.toString : Statement → String
     let psStr := String.intercalate ", " (ps.map Producer.toString)
     let csStr := String.intercalate ", " (cs.map Consumer.toString)
     s!"{f}({psStr}; {csStr})"
+  | .builtin _ b ps c =>
+    let psStr := String.intercalate ", " (ps.map Producer.toString)
+    s!"{b}({psStr}; {c.toString})"
 end
 
 instance : ToString Producer := ⟨Producer.toString⟩
