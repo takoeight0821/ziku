@@ -365,6 +365,7 @@ mutual
     | none => .error "expected pattern but found EOF"
 
   -- Parse copattern accessor
+  -- Supports: .field, (arg), and bare identifier arg (space-separated)
   partial def parseAccessor : Parser Accessor := fun s =>
     match s.peekToken? with
     | some .dot =>
@@ -383,7 +384,9 @@ mutual
         | .error msg => .error msg
       | some tok => .error s!"expected identifier in copattern application but found {tok}"
       | none => .error "expected identifier in copattern application"
-    | some tok => .error s!"expected '.' or '(' but found {tok}"
+    -- Bare identifier as space-separated argument
+    | some (.ident id) => .ok (.apply id, s.advance)
+    | some tok => .error s!"expected '.', '(' or identifier but found {tok}"
     | none => .error "expected accessor"
 
   -- Parse copattern (after #)

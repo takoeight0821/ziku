@@ -1,0 +1,1 @@
+(Codata [(#(x)(y).f(x)(y) => (BinOp + (Var "x") (Var "y")))])

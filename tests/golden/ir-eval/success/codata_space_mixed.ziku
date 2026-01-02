@@ -1,0 +1,2 @@
+let obj = { # x y .value => x + y } in
+obj 10 20 .value
