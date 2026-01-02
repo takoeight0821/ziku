@@ -1,0 +1,2 @@
+let apply : forall a. forall b. (a -> b) -> a -> b = \f => \x => f x in
+apply (\x => x + 1) 10

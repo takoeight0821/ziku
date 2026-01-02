@@ -1,0 +1,5 @@
+let id : forall a. a -> a = \x => x in
+let a = id 42 in
+let b = id true in
+let c = id "hello" in
+a

@@ -1,0 +1,2 @@
+let compose : forall a. forall b. forall c. (b -> c) -> (a -> b) -> a -> c = \f => \g => \x => f (g x) in
+compose (\x => x + 1) (\x => x * 2) 5
