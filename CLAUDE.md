@@ -30,12 +30,13 @@ Ziku/
 ├── IR/
 │   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
 │   └── Eval.lean       # IR evaluator with μ/μ̃-reduction
+├── Backend/
+│   └── Scheme.lean     # Scheme code generator (CPS translation)
 ├── Translate.lean      # Surface → IR translation
 ├── Lexer.lean          # Hand-written lexer with UTF-8 support
 ├── Parser.lean         # Hand-written recursive descent parser
 ├── Type.lean           # Type utilities: Subst, Scheme
 ├── Infer.lean          # HM type inference
-├── Eval.lean           # Surface language interpreter
 ├── Elaborate.lean      # Codata elaboration
 └── Proofs/             # Lean proofs (Arithmetic, Eval, Identities, Soundness)
 ```
@@ -44,8 +45,8 @@ Ziku/
 
 ```
 Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
-                        ↓
-                   [Elaborate] → [Infer]
+                        ↓                              ↓
+                   [Elaborate] → [Infer]          [Scheme Backend]
 ```
 
 ### Key Types

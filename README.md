@@ -10,6 +10,7 @@ A functional programming language exploring the duality between data and codata.
 - **Copattern matching** for codata types using `#` (self-reference)
 - **First-class control** with `label`/`goto`
 - **Hindley-Milner type inference** with let-polymorphism
+- **Scheme backend** for compilation to Chez Scheme
 
 ## Quick Start
 

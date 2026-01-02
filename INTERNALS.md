@@ -12,6 +12,8 @@ Ziku/
 ├── IR/
 │   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
 │   └── Eval.lean       # IR evaluator with μ/μ̃-reduction
+├── Backend/
+│   └── Scheme.lean     # Scheme code generator (CPS translation)
 ├── Translate.lean      # Surface → IR translation
 ├── Lexer.lean          # UTF-8 hand-written lexer
 ├── Parser.lean         # Recursive descent parser
@@ -24,8 +26,8 @@ Ziku/
 
 ```
 Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
-                        ↓
-                   [Elaborate] → [Infer]
+                        ↓                              ↓
+                   [Elaborate] → [Infer]          [Scheme Backend]
 ```
 
 ## Sequent Calculus IR
@@ -107,6 +109,36 @@ Unlike CPS where evaluation contexts are functions, in the λμμ̃-calculus the
 - Cleaner types than CPS
 - Flexible evaluation order (not fixed by translation)
 - Natural compiler optimizations (case-of-case emerges from μ-reduction)
+
+## Scheme Backend
+
+The Scheme backend (`Ziku/Backend/Scheme.lean`) compiles IR to Chez Scheme code using continuation-passing style.
+
+### Translation Strategy
+
+The λμμ̃-calculus maps naturally to CPS:
+
+| IR Construct | Scheme Translation |
+|--------------|-------------------|
+| `var x` | `x` |
+| `lit n` | `n` / `#t` / `#f` / `"str"` |
+| `μα.s` | `(vector 'ziku-thunk (lambda (α) <s>))` |
+| `μ̃x.s` | `(lambda (x) <s>)` |
+| `covar α` | `α` |
+| `⟨p \| c⟩` | `(<c> <p>)` or compile-time reduction |
+| `cocase {ap(x;α)=>s}` | `(lambda (x) (lambda (α) <s>))` |
+| `record {f=v,...}` | `(list (cons 'f <v>) ...)` |
+| `fix x.p` | `(letrec ((x <p>)) x)` |
+| `binOp op p1 p2 c` | `(<c> (<op> <p1> <p2>))` |
+| `ifz p s1 s2` | `(if <p> <s1> <s2>)` |
+
+### Runtime Tagging
+
+The backend uses vector tagging to distinguish special values:
+- `#(ziku-thunk <func>)` - Lazy computation (μ-abstraction)
+- `#(ziku-dispatch <func>)` - Record with recursive fields (from `fix`)
+
+This allows runtime checks to properly evaluate thunks when needed.
 
 ## Testing
 

@@ -226,6 +226,43 @@ a -> a                  // Identity function type
 a -> b -> a             // Constant function type
 ```
 
+### Polymorphic Types
+
+Explicit universal quantification with `forall`:
+
+```
+forall a. a -> a           // Identity function type
+forall a b. a -> b -> a    // Constant function type
+```
+
+### Bottom Type
+
+The bottom type (`⊥`) represents expressions that never return a value.
+This is used internally for typing `goto` expressions, which transfer control
+and never produce a result at their call site.
+
+```ziku
+label result {
+  if cond then goto(42, result) + 1  // goto never returns, "+ 1" is dead code
+  else 0
+}
+```
+
+### Row Polymorphism
+
+Record types support row polymorphism through optional row tails:
+
+```
+{ x : Int | ρ }            // Record with at least field x, plus unknown fields ρ
+```
+
+This allows functions to work with records containing additional fields:
+
+```ziku
+let getX = \r => r.x in    // Inferred: { x : a | ρ } -> a
+getX { x = 1, y = 2 }      // Works with extended records
+```
+
 ## Reserved Words
 
 ```
