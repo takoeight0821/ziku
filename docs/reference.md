@@ -9,7 +9,7 @@ Complete syntax reference for the Ziku programming language.
 | Integer | Decimal digits | `0`, `42`, `-5` |
 | Float | Digits with decimal point | `3.14`, `-0.5` |
 | String | Double-quoted | `"hello"`, `"line\nbreak"` |
-| Character | Single-quoted | `'a'`, `'\n'` |
+| Rune | Single-quoted | `'a'`, `'\n'` |
 | Boolean | Keywords | `true`, `false` |
 | Unit | Empty parentheses | `()` |
 
@@ -63,6 +63,38 @@ Complete syntax reference for the Ziku programming language.
 8. `&&`
 9. `||`
 10. `|>`
+
+## Built-in Functions
+
+### String Operations
+
+| Function | Type | Description |
+|----------|------|-------------|
+| `strLen` | `String -> Int` | String length in characters (Unicode code points) |
+| `strAt` | `String -> Int -> Rune` | Rune at index (0-based) |
+| `strSub` | `String -> Int -> Int -> String` | Substring (start index, length) |
+| `strToInt` | `String -> Int` | Parse string as integer |
+| `intToStr` | `Int -> String` | Convert integer to string |
+
+### Rune Operations
+
+| Function | Type | Description |
+|----------|------|-------------|
+| `intToRune` | `Int -> Rune` | Convert integer to Unicode code point |
+| `runeToInt` | `Rune -> Int` | Convert Unicode code point to integer |
+| `runeToStr` | `Rune -> String` | Convert single rune to string |
+
+### Examples
+
+```
+strLen("hello")           // 5
+strAt("hello", 1)         // 'e'
+strSub("hello", 1, 3)     // "ell"
+strToInt("42")            // 42
+intToStr(42)              // "42"
+runeToInt(intToRune(65))  // 65 (ASCII 'A')
+runeToStr(intToRune(65))  // "A"
+```
 
 ## Expressions
 
@@ -202,7 +234,7 @@ Copatterns define how codata responds to observations. The `#` represents the ob
 | `Int` | Integer numbers |
 | `Float` | Floating-point numbers |
 | `String` | Text strings |
-| `Char` | Single characters |
+| `Rune` | Unicode code point (like Go's rune) |
 | `Bool` | Boolean values |
 | `Unit` | Unit type (single value `()`) |
 

@@ -57,7 +57,7 @@ r.snd
 42
 3.14
 "hello"
-'c'
+'c'           -- Rune literal (Unicode code point)
 true
 
 -- Variables
@@ -74,6 +74,16 @@ x == y
 a < b
 p && q
 not r
+
+-- String built-in functions
+strLen("hello")           -- 5
+strAt("hello", 1)         -- 'e' (Rune)
+strSub("hello", 1, 3)     -- "ell"
+strToInt("42")            -- 42
+intToStr(42)              -- "42"
+intToRune(65)             -- 'A' (Rune)
+runeToInt('A')            -- 65
+runeToStr('A')            -- "A"
 ```
 
 ---

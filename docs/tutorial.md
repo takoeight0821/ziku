@@ -10,7 +10,7 @@ This tutorial introduces Ziku's features step by step.
 42          // Integer
 3.14        // Float
 "hello"     // String
-'c'         // Character
+'c'         // Rune (Unicode code point)
 true        // Boolean
 false
 ()          // Unit

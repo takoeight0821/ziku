@@ -24,19 +24,19 @@ lake exe ziku           # Run REPL
 
 ```
 Ziku/
-├── Syntax.lean         # Shared types: SourcePos, Ident, Lit, BinOp, Pat, Ty
+├── Syntax.lean         # Shared types: SourcePos, Ident, Lit, BinOp, Builtin, Pat, Ty
 ├── Surface/
 │   └── Syntax.lean     # Surface AST with label/goto
 ├── IR/
 │   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
-│   └── Eval.lean       # IR evaluator with μ/μ̃-reduction
+│   └── Eval.lean       # IR evaluator with μ/μ̃-reduction and builtin evaluation
 ├── Backend/
 │   └── Scheme.lean     # Scheme code generator (CPS translation)
-├── Translate.lean      # Surface → IR translation
+├── Translate.lean      # Surface → IR translation (including builtin detection)
 ├── Lexer.lean          # Hand-written lexer with UTF-8 support
 ├── Parser.lean         # Hand-written recursive descent parser
 ├── Type.lean           # Type utilities: Subst, Scheme
-├── Infer.lean          # HM type inference
+├── Infer.lean          # HM type inference (including builtin type checking)
 ├── Elaborate.lean      # Codata elaboration
 └── Proofs/             # Lean proofs (Arithmetic, Eval, Identities, Soundness)
 ```
@@ -61,9 +61,16 @@ Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
 
 **Sequent Calculus IR**:
 
-- `Producer`: `var`, `lit`, `mu`, `cocase`, `record`
+- `Producer`: `var`, `lit`, `mu`, `cocase`, `record`, `fix`, `dataCon`
 - `Consumer`: `covar`, `muTilde`, `case`, `destructor`
-- `Statement`: `cut`, `binOp`, `ifz`, `call`
+- `Statement`: `cut`, `binOp`, `ifz`, `call`, `builtin`
+
+**Built-in Functions** (detected during type inference/translation):
+
+- String: `strLen`, `strAt`, `strSub`, `strToInt`, `intToStr`
+- Rune: `intToRune`, `runeToInt`, `runeToStr`
+
+**Types**: `Int`, `Float`, `String`, `Rune`, `Bool`, `Unit` (note: `Rune` replaces `Char` for Unicode code points)
 
 ### Core Design
 
