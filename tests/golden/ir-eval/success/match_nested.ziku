@@ -1,6 +1,6 @@
--- Nested match with computation
+-- Nested match { computation
 let x = Just(10) in
-match x with
+match x {
 | Just(n) => n * 2
 | Nothing => 0
-end
+}

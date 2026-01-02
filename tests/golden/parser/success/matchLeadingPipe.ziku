@@ -1,4 +1,4 @@
-match true {
+match x {
 | true => 1
 | false => 0
 }

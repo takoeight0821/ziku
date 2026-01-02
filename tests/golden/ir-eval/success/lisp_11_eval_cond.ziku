@@ -2,7 +2,7 @@
 -- Add: If(cond, then, else) where cond is evaluated to check if == 0
 
 let rec evalExpr = \expr =>
-  match expr with
+  match expr {
   | Num(n) => n
   | Add(e1, e2) => evalExpr e1 + evalExpr e2
   | Mul(e1, e2) => evalExpr e1 * evalExpr e2
@@ -11,7 +11,7 @@ let rec evalExpr = \expr =>
     if evalExpr cond == 0 then evalExpr thenE else evalExpr elseE
   | Nil => 0
   | Cons(h, t) => 0
-  end
+}
 in
 -- Evaluate: if (3-3) == 0 then 100 else 200
 let expr = IfZero(Sub(Num(3), Num(3)), Num(100), Num(200)) in

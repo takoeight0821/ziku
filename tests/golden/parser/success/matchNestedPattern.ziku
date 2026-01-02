@@ -1,4 +1,4 @@
-match xs with
+match xs {
 | Cons(Cons(x, _), _) => x
 | _ => 0
-end
+}

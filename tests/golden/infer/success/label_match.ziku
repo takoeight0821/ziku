@@ -1,6 +1,6 @@
 label done {
-  match 42 with
+  match 42 {
   | 0 => goto(100, done)
   | n => n + 1
-  end
+}
 }

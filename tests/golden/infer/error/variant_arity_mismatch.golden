@@ -1,3 +1,3 @@
-Type error at 2:21: Constructor 'Num' has different arities
+Type error at 2:18: Constructor 'Num' has different arities
   Expected: [Num(Int) | _t0]
   Actual: [Num(_t2, _t3) | _t4]

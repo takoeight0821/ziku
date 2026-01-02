@@ -1,4 +1,4 @@
-match 42 with
+match 42 {
 | 0 => true
 | _ => false
-end
+}

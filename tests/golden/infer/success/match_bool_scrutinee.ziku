@@ -1,3 +1,3 @@
-match true with
+match true {
 | x => x
-end
+}

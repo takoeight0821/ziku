@@ -1,1 +1,1 @@
-match x with | Just(y) => y end
+match x { | Just(y) => y}

@@ -1,1 +1,1 @@
-\x => match x with | Num(n) => n | Nil => 0 end
+\x => match x { | Num(n) => n | Nil => 0}

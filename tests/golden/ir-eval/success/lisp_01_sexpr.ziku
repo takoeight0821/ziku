@@ -7,8 +7,8 @@ let s = Sym("hello") in
 let c = Cons(Num(1), Cons(Num(2), Nil)) in
 
 -- Test extracting a value with pattern matching
-match n with
+match n {
 | Num(x) => x
 | Nil => 0
 | _ => -1
-end
+}

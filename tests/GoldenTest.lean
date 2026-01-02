@@ -51,7 +51,7 @@ structure TestOutput where
 def runParserTest (input : String) : Except String TestOutput :=
   match Ziku.parseExprString input.trim with
   | .ok expr => .ok { output := toString expr, isError := false }
-  | .error e => .error e  -- Parse errors are fatal, not test errors
+  | .error e => .ok { output := e, isError := true }  -- Parse errors are test output for error tests
 
 
 /-- Run a type inference test -/

@@ -1,18 +1,18 @@
 -- Fold (reduce) on S-expression lists
 let rec foldList = \f => \acc => \lst =>
-  match lst with
+  match lst {
   | Nil => acc
   | Cons(h, t) => foldList f (f acc h) t
   | Num(n) => acc
-  end
+}
 in
 -- Sum all numbers in list using fold
 let addNums = \acc => \x =>
-  match x with
+  match x {
   | Num(n) => acc + n
   | Nil => acc
   | Cons(h, t) => acc
-  end
+}
 in
 let list1 = Cons(Num(1), Cons(Num(2), Cons(Num(3), Nil))) in
 -- 1 + 2 + 3 = 6

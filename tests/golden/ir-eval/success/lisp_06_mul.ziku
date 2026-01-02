@@ -1,19 +1,19 @@
 -- Multiplication on S-expression numbers
 let mulNum = \a => \b =>
-  match a with
-  | Num(x) => match b with
+  match a {
+  | Num(x) => match b {
              | Num(y) => Num(x * y)
              | Nil => Nil
              | Cons(h, t) => Nil
-             end
+}
   | Nil => Nil
   | Cons(h, t) => Nil
-  end
+}
 in
 let num1 = Num(3) in
 let num2 = Num(4) in
-match mulNum num1 num2 with
+match mulNum num1 num2 {
 | Num(n) => n
 | Nil => -1
 | Cons(h, t) => -2
-end
+}

@@ -778,38 +778,120 @@ mutual
         | .error msg => .error msg
       | .error msg => .error msg
 
-  -- Parse match: match e with | p => e end
+  -- Parse match: match e { | p => e }
   partial def parseMatch : Parser Expr := fun s =>
     let pos := s.currentPos
     let s := s.advance  -- skip 'match'
-    match parseExpr s with
+    match parseMatchScrutinee s with
     | .ok (scrutinee, s') =>
-      match expect .kWith s' with
+      match expect .lbrace s' with
       | .ok (_, s'') =>
         match parseMatchCases s'' with
         | .ok (cases, s''') =>
-          match expect .kEnd s''' with
+          match expect .rbrace s''' with
           | .ok (_, s'''') => .ok (Expr.match_ pos scrutinee cases, s'''')
           | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
     | .error msg => .error msg
 
-  partial def parseMatchCases : Parser (List (Pat × Expr)) := many1 parseMatchCase
+  -- Parse match scrutinee (stops at { to avoid consuming match block)
+  partial def parseMatchScrutinee : Parser Expr := do
+    let base ← parseAtomExpr
+    parseMatchScrutineeRest base
 
-  partial def parseMatchCase : Parser (Pat × Expr) := fun s =>
-    match expect .pipe s with
-    | .ok (_, s') =>
+  -- Like parsePostfixRest but stops when seeing { (for match scrutinee)
+  partial def parseMatchScrutineeRest (base : Expr) : Parser Expr := fun s =>
+    let pos := base.pos
+    match s.peekToken?, s.peekN 1 with
+    -- Field access: .field
+    | some .dot, some ptok =>
+      match ptok.token with
+      | .ident field =>
+        let s := s.advance.advance
+        parseMatchScrutineeRest (Expr.field pos base field) s
+      | _ => .ok (base, s)
+    -- Parenthesized application: f(x) or f(x, y)
+    | some .lparen, _ =>
+      let s := s.advance
+      match sepBy parseExpr (expect .comma) s with
+      | .ok (args, s') =>
+        match expect .rparen s' with
+        | .ok (_, s'') =>
+          let result := args.foldl (Expr.app pos) base
+          parseMatchScrutineeRest result s''
+        | .error msg => .error msg
+      | .error msg => .error msg
+    -- Stop at { (match block delimiter)
+    | some .lbrace, _ => .ok (base, s)
+    -- Space-separated application (but not with { which starts match block)
+    | _, _ =>
+      match s.peekToken? with
+      | some .lbrace => .ok (base, s)
+      | _ =>
+        match parseAtomExpr s with
+        | .ok (arg, s') =>
+          parseMatchScrutineeRest (Expr.app pos base arg) s'
+        | .error _ => .ok (base, s)
+
+  -- Parse match cases: | is prefix (can start any case), , is suffix (separates cases)
+  -- Grammar: (|? pat => expr) (, |? pat => expr)* ,?
+  partial def parseMatchCases : Parser (List (Pat × Expr)) := fun s =>
+    match parseFirstMatchCase s with
+    | .ok (first, s') => parseRestMatchCases [first] s'
+    | .error msg => .error msg
+
+  -- First case: optional leading |, no leading ,
+  partial def parseFirstMatchCase : Parser (Pat × Expr) := fun s =>
+    let s' := match s.peekToken? with
+      | some .pipe => s.advance  -- Optional leading pipe
+      | _ => s
+    match parsePattern s' with
+    | .ok (pat, s'') =>
+      match expect .fatArrow s'' with
+      | .ok (_, s''') =>
+        match parseExpr s''' with
+        | .ok (body, s'''') => .ok ((pat, body), s'''')
+        | .error msg => .error msg
+      | .error msg => .error msg
+    | .error msg => .error msg
+
+  -- Rest of cases: , as separator, optional | as prefix, trailing , allowed
+  partial def parseRestMatchCases (acc : List (Pat × Expr)) : Parser (List (Pat × Expr)) := fun s =>
+    match s.peekToken? with
+    | some .rbrace => .ok (acc.reverse, s)  -- End of cases
+    | some .comma =>
+      let s' := s.advance  -- consume ,
+      -- Check for trailing comma (no more cases)
+      match s'.peekToken? with
+      | some .rbrace => .ok (acc.reverse, s')  -- Trailing comma is OK
+      | _ =>
+        -- Parse next case with optional leading |
+        let s'' := match s'.peekToken? with
+          | some .pipe => s'.advance
+          | _ => s'
+        match parsePattern s'' with
+        | .ok (pat, s''') =>
+          match expect .fatArrow s''' with
+          | .ok (_, s'''') =>
+            match parseExpr s'''' with
+            | .ok (body, s''''') => parseRestMatchCases ((pat, body) :: acc) s'''''
+            | .error msg => .error msg
+          | .error msg => .error msg
+        | .error msg => .error msg
+    | some .pipe =>
+      -- | as separator (alternative to ,)
+      let s' := s.advance
       match parsePattern s' with
       | .ok (pat, s'') =>
         match expect .fatArrow s'' with
         | .ok (_, s''') =>
           match parseExpr s''' with
-          | .ok (body, s'''') => .ok ((pat, body), s'''')
+          | .ok (body, s'''') => parseRestMatchCases ((pat, body) :: acc) s''''
           | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
-    | .error msg => .error msg
+    | _ => .error s!"expected } or case separator but found {s.peekToken?}"
 
   -- Parse if: if c then t else f
   partial def parseIf : Parser Expr := fun s =>
@@ -934,36 +1016,50 @@ mutual
         | .error msg => .error msg
       | .error msg => .error msg
 
-  -- Parse a codata/consumer block with clauses separated by comma, pipe, or newlines
+  -- Parse codata block: | is prefix (can start any clause), , is suffix (separates clauses)
+  -- Grammar: (|? pats # copat => expr) (, |? pats # copat => expr)* ,?
   partial def parseCodataBlock : Parser (List (List Pat × Copattern × Expr)) := fun s =>
-    -- parse the first clause
-    match parseCodataClause s with
-    | .ok (cl, s') =>
-      -- keep parsing subsequent clauses if present
-      let rec loop (acc : List (List Pat × Copattern × Expr)) (st : ParseState)
-        : Except String (List (List Pat × Copattern × Expr) × ParseState) :=
-        -- stop when we reach '}'
-        match st.peekToken? with
-        | some .rbrace => .ok (acc.reverse, st)
-        | _ =>
-          -- consume optional comma; if consumed but no following clause, it's an error
-          let st1 := match tryToken .comma st with
-            | .ok (true, stc) => stc
-            | .ok (false, _) => st
-            | .error _ => st
-          match parseCodataClause st1 with
-          | .ok (cl2, st2) => loop (cl2 :: acc) st2
-          | .error msg => .error msg
-      match loop [cl] s' with
-      | .ok (cls, st) => .ok (cls, st)
-      | .error msg => .error msg
+    match parseFirstCodataClause s with
+    | .ok (first, s') => parseRestCodataClauses [first] s'
     | .error msg => .error msg
 
-  partial def parseCodataClause : Parser (List Pat × Copattern × Expr) := fun s =>
-    -- Parse optional leading pipe for consumer syntax
+  -- First clause: optional leading |, no leading ,
+  partial def parseFirstCodataClause : Parser (List Pat × Copattern × Expr) := fun s =>
     let s := match s.peekToken? with
-      | some .pipe => s.advance
+      | some .pipe => s.advance  -- Optional leading pipe
       | _ => s
+    parseCodataClauseBody s
+
+  -- Rest of clauses: , as separator, optional | as prefix, trailing , allowed
+  partial def parseRestCodataClauses (acc : List (List Pat × Copattern × Expr))
+      : Parser (List (List Pat × Copattern × Expr)) := fun s =>
+    match s.peekToken? with
+    | some .rbrace => .ok (acc.reverse, s)  -- End of clauses
+    | some .comma =>
+      let s' := s.advance  -- consume ,
+      -- Check for trailing comma
+      match s'.peekToken? with
+      | some .rbrace => .ok (acc.reverse, s')  -- Trailing comma is OK
+      | _ =>
+        -- Parse next clause with optional leading |
+        let s'' := match s'.peekToken? with
+          | some .pipe => s'.advance
+          | _ => s'
+        match parseCodataClauseBody s'' with
+        | .ok (cl, s''') => parseRestCodataClauses (cl :: acc) s'''
+        | .error msg => .error msg
+    | some .pipe =>
+      -- | as separator
+      let s' := s.advance
+      match parseCodataClauseBody s' with
+      | .ok (cl, s'') => parseRestCodataClauses (cl :: acc) s''
+      | .error msg => .error msg
+    | _ => .error s!"expected }} or clause separator but found {s.peekToken?}"
+
+  -- Parse the body of a codata clause (without leading separator)
+  partial def parseCodataClauseBody : Parser (List Pat × Copattern × Expr) := fun s =>
+    -- Note: leading pipe already consumed by caller
+    let s := s
     -- Parse patterns before #
     let (patterns, s) :=
       let rec loop (acc : List Pat) (st : ParseState) : List Pat × ParseState :=

@@ -1,9 +1,9 @@
 -- Simple car operation test
 let list1 = Cons(Num(1), Nil) in
-match list1 with
-| Cons(h, t) => match h with
+match list1 {
+| Cons(h, t) => match h {
               | Num(n) => n
               | Nil => -1
-              end
+}
 | Nil => -2
-end
+}

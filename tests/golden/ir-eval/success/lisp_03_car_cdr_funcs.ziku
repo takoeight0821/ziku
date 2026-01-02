@@ -1,19 +1,19 @@
 -- Car and cdr as functions (using different names to avoid Scheme shadowing)
 let getCar = \lst =>
-  match lst with
+  match lst {
   | Cons(h, t) => h
   | Nil => Nil
-  end
+}
 in
 let getCdr = \lst =>
-  match lst with
+  match lst {
   | Cons(h, t) => t
   | Nil => Nil
-  end
+}
 in
 let list1 = Cons(Num(1), Cons(Num(2), Nil)) in
-match getCar list1 with
+match getCar list1 {
 | Num(n) => n
 | Nil => -1
 | Cons(h, t) => -2
-end
+}

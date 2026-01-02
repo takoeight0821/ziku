@@ -1,2 +1,2 @@
 -- Constructor arity mismatch: Num takes 1 arg, but pattern has 2
-match Num(1) with | Num(x, y) => x end
+match Num(1) { | Num(x, y) => x}

@@ -1,6 +1,6 @@
 -- Pattern matching on list-like constructors
 -- Extract head from Cons(42, Nil)
-match Cons(42, Nil) with
+match Cons(42, Nil) {
 | Cons(x, xs) => x
 | Nil => 0
-end
+}
