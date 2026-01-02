@@ -44,11 +44,19 @@ def mangleIdent (id : Ident) : String :=
     |>.replace "β" "beta"
     |>.replace "γ" "gamma"
 
+-- Escape special characters in a string for Scheme output
+def escapeString (s : String) : String :=
+  s.replace "\\" "\\\\"  -- escape backslashes first
+   |>.replace "\"" "\\\""  -- escape double quotes
+   |>.replace "\n" "\\n"   -- escape newlines
+   |>.replace "\r" "\\r"   -- escape carriage returns
+   |>.replace "\t" "\\t"   -- escape tabs
+
 -- Translate literal to Scheme
 def translateLit : Lit → String
   | .int n => toString n
   | .float f => toString f
-  | .string s => s!"\"{s}\""
+  | .string s => s!"\"{escapeString s}\""
   | .char c => s!"#\\{c}"
   | .bool true => "#t"
   | .bool false => "#f"
