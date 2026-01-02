@@ -214,7 +214,8 @@ Int -> Int -> Int       // Curried function
 ### Record Types
 
 ```
-{ x : Int, y : Int }
+{ x : Int, y : Int }       // Closed record
+{ x : Int, y : Int | r }   // Open record with row variable r
 ```
 
 ### Type Variables
@@ -253,14 +254,20 @@ label result {
 Record types support row polymorphism through optional row tails:
 
 ```
-{ x : Int | ρ }            // Record with at least field x, plus unknown fields ρ
+{ x : Int }                // Closed record with exactly field x
+{ x : Int | r }            // Open record with at least field x, plus unknown fields r
 ```
 
 This allows functions to work with records containing additional fields:
 
 ```ziku
-let getX = \r => r.x in    // Inferred: { x : a | ρ } -> a
-getX { x = 1, y = 2 }      // Works with extended records
+// With explicit forall annotation for polymorphic reuse:
+let getX : forall a r. { x : a | r } -> a = \r => r.x in
+getX { x = 1, y = 2 } + getX { x = 10, y = 20, z = 30 }  // Works!
+
+// Without annotation, the row variable is inferred but not generalized:
+let getX = \r => r.x in    // Inferred: { x : a | r } -> a
+getX { x = 1, y = 2 }      // Works for single use
 ```
 
 ## Reserved Words

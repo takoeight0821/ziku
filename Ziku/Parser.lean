@@ -195,12 +195,26 @@ mutual
         | .error msg => .error msg
       | .error msg => .error msg
     | some .lbrace =>
-      -- Record type: { x : ty, ... }
+      -- Record type: { x : ty, ... } or { x : ty | r } for row polymorphism
       let s := s.advance
       match parseRecordTypeFields s with
       | .ok (fields, s') =>
-        match expect .rbrace s' with
-        | .ok (_, s'') => .ok (.record pos fields none, s'')  -- Closed record (no row tail)
+        -- Check for row tail: | ident
+        match tryToken .pipe s' with
+        | .ok (hasPipe, s'') =>
+          if hasPipe then
+            -- Open record with row variable: { x : ty | r }
+            match expectIdent s'' with
+            | .ok (rowVar, s''') =>
+              match expect .rbrace s''' with
+              | .ok (_, s'''') => .ok (.record pos fields (some (.var pos rowVar)), s'''')
+              | .error msg => .error msg
+            | .error msg => .error msg
+          else
+            -- Closed record: { x : ty }
+            match expect .rbrace s'' with
+            | .ok (_, s''') => .ok (.record pos fields none, s''')
+            | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
     | some tok => .error s!"expected type but found {tok} at {s.currentPos.line}:{s.currentPos.col}"

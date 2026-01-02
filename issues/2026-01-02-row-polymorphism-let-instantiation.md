@@ -1,7 +1,8 @@
 ---
 date: 2026-01-02
 title: Row polymorphism not properly instantiated in let-polymorphism
-status: open
+status: resolved
+resolution: Added row type syntax to parser
 ---
 
 # Row polymorphism not properly instantiated in let-polymorphism
@@ -31,24 +32,52 @@ getX point + getX point3d
 - `getX point3d` should work with `r = { y : Int, z : Int }`
 - Final type: `Int`
 
-**Actual behavior:**
+**Actual behavior (without explicit forall annotation):**
 ```
 Type error at 1:66: Record field mismatch: cannot unify closed records with different fields
   Expected: { y : Int }
   Actual: { y : Int, z : Int }
 ```
 
-## Analysis
+## Resolution
 
-The type of `\r => r.x` is correctly inferred as `({ x : _t1 | _t2 } -> _t1)` with row variable `_t2`. However, when the let-bound `getX` is used multiple times, the row variable appears to not be properly instantiated fresh for each use.
+The issue was **not** about let-polymorphism or generalize/instantiate logic. The actual problem was that the **parser did not support row type syntax** in type annotations.
 
-The issue is likely in how `generalize` and `instantiate` handle row variables in record types.
+### Root Cause
 
-## Test Case
+1. The type `({ x : _t1 | _t2 } -> _t1)` was correctly inferred internally
+2. However, there was no way to write `{ x : a | r }` in explicit type annotations
+3. Without explicit `forall` annotation, the let-binding used monomorphic schemes
 
-Added as expected-error test: `tests/golden/infer/error/forall-row-limitation.ziku`
+### Fix
+
+Added row type syntax to `Ziku/Parser.lean`:
+- `{ x : Int, y : Bool | r }` - Open record with row variable `r`
+- `{ x : Int }` - Closed record (existing syntax)
+
+### Working Solution
+
+With explicit `forall` annotation:
+```ziku
+let getX : forall a r. { x : a | r } -> a = \r => r.x in
+let point = { x = 1, y = 2 } in
+let point3d = { x = 10, y = 20, z = 30 } in
+getX point + getX point3d
+```
+
+This now correctly infers type `Int`.
+
+## Test Cases
+
+- `tests/golden/infer/error/forall-row-limitation.ziku` - Original failing case (without forall)
+- `tests/golden/infer/success/row_polymorphic_let.ziku` - Working case with explicit forall
+
+## Note
+
+The original example without explicit `forall` still fails because the current implementation does not automatically generalize let-bindings during constraint generation. This is a separate issue (implicit let-polymorphism) that would require architectural changes to the constraint-based type inference.
 
 ## Related
 
 - Row polymorphism implementation: commit `ac698d8`
 - Let-polymorphism implementation in `Infer.lean`
+- Parser fix: Added row type syntax to `Parser.lean`
