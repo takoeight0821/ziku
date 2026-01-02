@@ -1,0 +1,235 @@
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else
+    let c1 = runeToInt (strAt s1 i) in
+    let c2 = runeToInt (strAt s2 i) in
+    if c1 == c2 then strEqFrom s1 s2 (i + 1)
+    else false
+in
+
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0
+  else false
+in
+
+let rec skipWhitespace = \s =>
+  if strLen s == 0 then s
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if code == runeToInt ' ' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt '\t' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt '\n' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == 13 then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt ',' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else s
+in
+
+let isSpecialCode = \code =>
+  if code == runeToInt '(' then true
+  else if code == runeToInt ')' then true
+  else if code == runeToInt '[' then true
+  else if code == runeToInt ']' then true
+  else if code == runeToInt '{' then true
+  else if code == runeToInt '}' then true
+  else false
+in
+
+let isWhitespaceCode = \code =>
+  if code == runeToInt ' ' then true
+  else if code == runeToInt '\t' then true
+  else if code == runeToInt '\n' then true
+  else if code == 13 then true
+  else if code == runeToInt ',' then true
+  else false
+in
+
+let rec readSymbol = \s i =>
+  if i >= strLen s then Cons(MStr(s), MStr(""))
+  else
+    let c = strAt s i in
+    let code = runeToInt c in
+    if isWhitespaceCode code then Cons(MStr(strSub s 0 i), MStr(strSub s i (strLen s - i)))
+    else if isSpecialCode code then Cons(MStr(strSub s 0 i), MStr(strSub s i (strLen s - i)))
+    else readSymbol s (i + 1)
+in
+
+let readToken = \s =>
+  let s2 = skipWhitespace s in
+  if strLen s2 == 0 then Cons(MStr(""), MStr(""))
+  else
+    let c = strAt s2 0 in
+    let code = runeToInt c in
+    if isSpecialCode code
+    then Cons(MStr(runeToStr c), MStr(strSub s2 1 (strLen s2 - 1)))
+    else readSymbol s2 0
+in
+
+let rec tokenize = \s =>
+  let s2 = skipWhitespace s in
+  if strLen s2 == 0 then MNil
+  else
+    match readToken s2 {
+    | Cons(h, t) =>
+      match h {
+      | MStr(tok) =>
+        if strLen tok == 0 then MNil
+        else
+          match t {
+          | MStr(rest) => Cons(MStr(tok), tokenize rest)
+          | MNil => Cons(MStr(tok), MNil)
+          | MNum(n) => MNil
+          | MSym(s) => MNil
+          | MTrue => MNil
+          | MFalse => MNil
+          | Cons(a, b) => MNil
+          }
+      | MNil => MNil
+      | MNum(n) => MNil
+      | MSym(s) => MNil
+      | MTrue => MNil
+      | MFalse => MNil
+      | Cons(a, b) => MNil
+      }
+    | MNil => MNil
+    | MNum(n) => MNil
+    | MSym(s) => MNil
+    | MStr(s) => MNil
+    | MTrue => MNil
+    | MFalse => MNil
+    }
+in
+
+let rec isAllDigits = \s i =>
+  if i >= strLen s then true
+  else
+    let c = strAt s i in
+    let code = runeToInt c in
+    if code >= runeToInt '0' then
+      if code <= runeToInt '9' then isAllDigits s (i + 1)
+      else false
+    else false
+in
+
+let isNumber = \s =>
+  if strLen s == 0 then false
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if code == runeToInt '-' then
+      if strLen s > 1 then isAllDigits s 1 else false
+    else isAllDigits s 0
+in
+
+let parseAtom = \tok =>
+  if strEq tok "nil" then MNil
+  else if strEq tok "true" then MTrue
+  else if strEq tok "false" then MFalse
+  else if isNumber tok then MNum(strToInt tok)
+  else MSym(tok)
+in
+
+let rec readList = \rf tokens =>
+  match tokens {
+  | MNil => Cons(MNil, MNil)
+  | Cons(h, rest) =>
+    match h {
+    | MStr(tok) =>
+      if strEq tok ")" then Cons(MNil, rest)
+      else
+        match rf rf (Cons(MStr(tok), rest)) {
+        | Cons(first, rest2) =>
+          match readList rf rest2 {
+          | Cons(restList, rest3) =>
+            Cons(Cons(first, restList), rest3)
+          | MNil => Cons(MNil, MNil)
+          | MNum(n) => Cons(MNil, MNil)
+          | MSym(s) => Cons(MNil, MNil)
+          | MStr(s) => Cons(MNil, MNil)
+          | MTrue => Cons(MNil, MNil)
+          | MFalse => Cons(MNil, MNil)
+          }
+        | MNil => Cons(MNil, MNil)
+        | MNum(n) => Cons(MNil, MNil)
+        | MSym(s) => Cons(MNil, MNil)
+        | MStr(s) => Cons(MNil, MNil)
+        | MTrue => Cons(MNil, MNil)
+        | MFalse => Cons(MNil, MNil)
+        }
+    | MNil => Cons(MNil, MNil)
+    | MNum(n) => Cons(MNil, MNil)
+    | MSym(s) => Cons(MNil, MNil)
+    | MTrue => Cons(MNil, MNil)
+    | MFalse => Cons(MNil, MNil)
+    | Cons(a, b) => Cons(MNil, MNil)
+    }
+  | MNum(n) => Cons(MNil, MNil)
+  | MSym(s) => Cons(MNil, MNil)
+  | MStr(s) => Cons(MNil, MNil)
+  | MTrue => Cons(MNil, MNil)
+  | MFalse => Cons(MNil, MNil)
+  }
+in
+
+let rec readForm = \rf tokens =>
+  match tokens {
+  | MNil => Cons(MNil, MNil)
+  | Cons(h, rest) =>
+    match h {
+    | MStr(tok) =>
+      if strEq tok "(" then readList rf rest
+      else Cons(parseAtom tok, rest)
+    | MNil => Cons(MNil, MNil)
+    | MNum(n) => Cons(MNil, MNil)
+    | MSym(s) => Cons(MNil, MNil)
+    | MTrue => Cons(MNil, MNil)
+    | MFalse => Cons(MNil, MNil)
+    | Cons(a, b) => Cons(MNil, MNil)
+    }
+  | MNum(n) => Cons(MNil, MNil)
+  | MSym(s) => Cons(MNil, MNil)
+  | MStr(s) => Cons(MNil, MNil)
+  | MTrue => Cons(MNil, MNil)
+  | MFalse => Cons(MNil, MNil)
+  }
+in
+
+let read = \s =>
+  let tokens = tokenize s in
+  match readForm readForm tokens {
+  | Cons(ast, rest) => ast
+  | MNil => MNil
+  | MNum(n) => MNil
+  | MSym(s) => MNil
+  | MStr(s) => MNil
+  | MTrue => MNil
+  | MFalse => MNil
+  }
+in
+
+let rec prListContents = \pr h t =>
+  let hStr = pr h in
+  match t {
+  | MNil => hStr
+  | Cons(h2, t2) => hStr ++ " " ++ prListContents pr h2 t2
+  | MNum(n) => hStr ++ " . " ++ pr t
+  | MSym(s) => hStr ++ " . " ++ pr t
+  | MStr(s) => hStr ++ " . " ++ pr t
+  | MTrue => hStr ++ " . " ++ pr t
+  | MFalse => hStr ++ " . " ++ pr t
+  }
+in
+
+let rec prStr = \val =>
+  match val {
+  | MNum(n) => intToStr n
+  | MSym(s) => s
+  | MStr(s) => "\"" ++ s ++ "\""
+  | MNil => "nil"
+  | MTrue => "true"
+  | MFalse => "false"
+  | Cons(h, t) => "(" ++ prListContents prStr h t ++ ")"
+  }
+in
+
+prStr (read "42")
