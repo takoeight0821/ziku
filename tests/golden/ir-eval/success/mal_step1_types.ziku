@@ -1,4 +1,4 @@
-let rec prListContents = \pr, h, t =>
+let rec prListContents = \pr h t =>
   let hStr = pr h in
   match t {
   | MNil => hStr

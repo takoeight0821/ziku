@@ -95,7 +95,7 @@ in factorial 5              // 120
 
 ```ziku
 \x => x + 1                 // Function that adds 1
-\x, y => x + y              // Two parameters
+\x y => x + y               // Two parameters
 \x => \y => x + y           // Curried form (equivalent)
 ```
 
@@ -103,7 +103,7 @@ in factorial 5              // 120
 
 ```ziku
 (\x => x + 1)(5)            // 6
-(\x, y => x + y)(2)(3)      // 5
+(\x y => x + y)(2)(3)       // 5
 ```
 
 ### Named Functions
@@ -112,7 +112,7 @@ in factorial 5              // 120
 let double = \x => x * 2 in
 double 5                    // 10
 
-let add = \x, y => x + y in
+let add = \x y => x + y in
 add 2 3                     // 5
 ```
 

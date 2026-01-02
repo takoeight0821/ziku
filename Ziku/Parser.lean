@@ -717,7 +717,7 @@ mutual
   partial def parseLambda : Parser Expr := fun s =>
     let pos := s.currentPos
     let s := s.advance  -- skip \
-    match sepBy1 expectIdent (expect .comma) s with
+    match many1 expectIdent s with
     | .ok (params, s') =>
       match expect .fatArrow s' with
       | .ok (_, s'') =>

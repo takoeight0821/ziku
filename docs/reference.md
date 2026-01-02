@@ -123,7 +123,7 @@ let rec name = expr in body
 
 ```
 \param => body
-\param1, param2 => body
+\param1 param2 => body
 \param1 => \param2 => body
 ```
 
