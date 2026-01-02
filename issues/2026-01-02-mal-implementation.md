@@ -1,10 +1,41 @@
 ---
 date: 2026-01-02
 title: MAL (Make A Lisp) Implementation in Ziku
-status: open
+status: in-progress
 ---
 
 # MAL (Make A Lisp) Implementation in Ziku
+
+## Progress
+
+### Completed
+
+- [x] **Phase 0**: String built-ins (`strLen`, `strAt`, `strSub`, `strToInt`, `intToStr`, `intToRune`, `runeToInt`, `runeToStr`)
+- [x] **Phase 1**: MAL types and prStr function
+  - `mal_step1_types.ziku` - Type constructors (MNum, MSym, MStr, MNil, MBool, MList, MCons)
+  - `mal_step1_constructors.ziku` - Basic data constructors
+  - `mal_step1_print_atoms.ziku` - prStr for atoms
+  - `mal_step1_print_list.ziku` - prStr for lists
+- [x] **Phase 2**: READ (tokenizer + parser)
+  - `mal_step2_skip_ws.ziku` - Whitespace skipping
+  - `mal_step2_read_token.ziku` - Single token reading
+  - `mal_step2_tokenize.ziku` - Full tokenizer
+  - `mal_step2_helpers.ziku` - Helper functions
+  - `mal_step2_parse_atom.ziku` - Atom parsing
+  - `mal_step2_read.ziku` - Full read function (tokenize + parse integrated)
+
+### In Progress
+
+- [ ] **Phase 3**: Basic EVAL with environments
+
+### Blockers Resolved
+
+- String/Rune equality comparison (fixed in `38aa3cf`)
+- Lazy evaluation issue with recursive data (fixed in `5082ed5` via focusing transformation)
+- Scheme string escaping (fixed in `b6e1217`)
+- Wildcard pattern matching (fixed in `aa54f4f`)
+
+---
 
 ## Goal
 
@@ -250,21 +281,34 @@ Test self-hosting by running MAL's `stepA_mal.mal` on our implementation.
 
 ## Test Files Summary
 
-| Step | File                        | Features                  |
-| ---- | --------------------------- | ------------------------- |
-| 0    | `mal_step0_string_ops.ziku` | Test new string built-ins |
-| 1a   | `mal_step1_types.ziku`      | MAL types and print       |
-| 1b   | `mal_step1_tokenize.ziku`   | Tokenizer                 |
-| 1c   | `mal_step1_read.ziku`       | Parser                    |
-| 2    | `mal_step2_eval.ziku`       | Basic eval                |
-| 3    | `mal_step3_env.ziku`        | Environments, def!, let\* |
-| 4    | `mal_step4_fn.ziku`         | if, do, fn\*, closures    |
-| 5    | `mal_step5_tco.ziku`        | Tail-call optimization    |
-| 6    | `mal_step6_atoms.ziku`      | Atoms, eval, read-string  |
-| 7    | `mal_step7_quote.ziku`      | quote, quasiquote         |
-| 8    | `mal_step8_macros.ziku`     | defmacro!, macroexpand    |
-| 9    | `mal_step9_try.ziku`        | try*/catch*, throw        |
-| A    | `mal_stepA_mal.ziku`        | Full implementation       |
+### Implemented Tests
+
+| File                          | Status | Features                           |
+| ----------------------------- | ------ | ---------------------------------- |
+| `mal_step1_types.ziku`        | ✅     | MAL types and constructors         |
+| `mal_step1_constructors.ziku` | ✅     | Basic data constructors            |
+| `mal_step1_print_atoms.ziku`  | ✅     | prStr for atoms (num, sym, nil)    |
+| `mal_step1_print_list.ziku`   | ✅     | prStr for lists                    |
+| `mal_step2_skip_ws.ziku`      | ✅     | Whitespace skipping                |
+| `mal_step2_read_token.ziku`   | ✅     | Single token reading               |
+| `mal_step2_tokenize.ziku`     | ✅     | Full tokenizer                     |
+| `mal_step2_helpers.ziku`      | ✅     | Helper functions (lookup, etc.)    |
+| `mal_step2_parse_atom.ziku`   | ✅     | Atom parsing (num, sym, nil, bool) |
+| `mal_step2_read.ziku`         | ✅     | Full read function                 |
+
+### Planned Tests
+
+| File                    | Features                  |
+| ----------------------- | ------------------------- |
+| `mal_step3_eval.ziku`   | Basic eval                |
+| `mal_step4_env.ziku`    | Environments, def!, let\* |
+| `mal_step5_fn.ziku`     | if, do, fn\*, closures    |
+| `mal_step6_tco.ziku`    | Tail-call optimization    |
+| `mal_step7_atoms.ziku`  | Atoms, eval, read-string  |
+| `mal_step8_quote.ziku`  | quote, quasiquote         |
+| `mal_step9_macros.ziku` | defmacro!, macroexpand    |
+| `mal_stepA_try.ziku`    | try*/catch*, throw        |
+| `mal_stepB_mal.ziku`    | Full implementation       |
 
 ---
 

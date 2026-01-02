@@ -1,7 +1,7 @@
 ---
 date: 2026-01-02
 title: IR evaluator limitations for string/rune operations
-status: partially-resolved
+status: closed
 ---
 
 # IR evaluator limitations for string/rune operations
@@ -34,24 +34,20 @@ if c == '(' then true else false
 
 **Fix:** Added pattern match for Char literals in `evalBinOp` (`Ziku/IR/Eval.lean`).
 
-### 3. Lazy evaluation issue with complex recursion - KNOWN LIMITATION
+### 3. Lazy evaluation issue with complex recursion - FIXED
 
-When combining tokenizer output with parser in a full `read` function, the IR evaluator gets stuck. The second element of Cons cells appears as suspended computation `(μ_α166. ⟨(fix tokenize...` instead of being evaluated.
+When combining tokenizer output with parser in a full `read` function, the IR evaluator was getting stuck. The second element of Cons cells appeared as suspended computation `(μ_α166. ⟨(fix tokenize...` instead of being evaluated.
 
 ```ziku
-// This fails - tokenize result not fully evaluated when matched
+// This now works
 let read = \s =>
   let tokens = tokenize s in
   match readForm tokens { ... }
 ```
 
-**Status:** This is a fundamental design limitation, not a bug.
+**Fix:** Implemented static focusing transformation (`5082ed5`) that converts lazy data constructors to eager evaluation. The transformation wraps `dataCon` arguments in `let` bindings to force evaluation before construction. This allows pattern matching on recursively-constructed data structures.
 
-**Explanation:** The IR evaluator uses lazy evaluation for data constructors. A `dataCon` (including `Cons` cells) is only considered a "value" when ALL its arguments are values. Recursive calls create μ-abstractions (suspended computations) in tail position, which prevents the entire structure from being a value. Pattern matching on such structures gets stuck because reduction rules require values.
-
-This design enables lazy evaluation and potentially infinite data structures, but means that deeply recursive constructions may not fully evaluate in some contexts.
-
-**Workaround:** Structure code to avoid deeply nested recursive Cons constructions that need to be pattern-matched immediately. Consider using continuation-passing style or explicit forcing where needed.
+See: `Ziku/IR/Syntax.lean` - `focusStatement`, `focusProducer` functions.
 
 ### 4. `&&` operator issue in Scheme backend - FIXED
 
@@ -61,9 +57,12 @@ The `&&` operator now generates correct Scheme code.
 
 ## Impact
 
-- MAL Phase 2 individual components (tokenizer, parser) work correctly with native `==`
-- Full integration of `read` function (tokenize + parse) still fails due to lazy evaluation design
-- String/Rune equality now works natively without workarounds
+All issues have been resolved:
+
+- MAL Phase 1 and Phase 2 tests pass in both IR evaluator and Scheme backend
+- Full integration of `read` function (tokenize + parse) works correctly
+- String/Rune equality works natively
+- Focusing transformation enables eager evaluation of recursive data structures
 
 ## Test Files
 
