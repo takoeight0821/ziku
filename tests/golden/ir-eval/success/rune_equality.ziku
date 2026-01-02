@@ -1,0 +1,9 @@
+-- Test rune equality comparison
+let c1 = 'a' in
+let c2 = 'a' in
+let c3 = 'b' in
+if c1 == c2 then
+  if c2 == c3 then 0
+  else if c1 != c3 then 1
+  else 2
+else 3

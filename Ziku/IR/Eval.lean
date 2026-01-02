@@ -145,6 +145,13 @@ def evalBinOp (op : BinOp) (p1 p2 : Producer) : Option Producer :=
   | .lit pos (.string s1), .lit _ (.string s2) =>
     match op with
     | .concat => some (.lit pos (.string (s1 ++ s2)))
+    | .eq => some (.lit pos (.bool (s1 == s2)))
+    | .ne => some (.lit pos (.bool (s1 != s2)))
+    | _ => none
+  | .lit pos (.char c1), .lit _ (.char c2) =>
+    match op with
+    | .eq => some (.lit pos (.bool (c1 == c2)))
+    | .ne => some (.lit pos (.bool (c1 != c2)))
     | _ => none
   | _, _ => none
 

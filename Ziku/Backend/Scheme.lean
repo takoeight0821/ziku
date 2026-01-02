@@ -59,22 +59,19 @@ def translateBinOp : BinOp → String
   | .sub => "-"
   | .mul => "*"
   | .div => "quotient"
-  | .eq => "="
-  | .ne => "(lambda (a b) (not (= a b)))"
+  | .eq => "equal?"
+  | .ne => "ziku-ne"
   | .lt => "<"
   | .le => "<="
   | .gt => ">"
   | .ge => ">="
-  | .and => "(lambda (a b) (and a b))"
-  | .or => "(lambda (a b) (or a b))"
+  | .and => "ziku-and"
+  | .or => "ziku-or"
   | .concat => "string-append"
   | .pipe => "(lambda (x f) (f x))"
 
 -- Check if binary operator needs wrapping (is not a simple procedure)
 def binOpNeedsWrap : BinOp → Bool
-  | .ne => true
-  | .and => true
-  | .or => true
   | .pipe => true
   | _ => false
 
@@ -465,6 +462,13 @@ def schemeRuntime : String :=
     ((procedure? v) (display \"<function>\"))
     (else (display v)))
   (newline))
+
+;; Logical operators as functions (Scheme's and/or are special forms, not procedures)
+(define (ziku-and a b) (and a b))
+(define (ziku-or a b) (or a b))
+
+;; Not-equal operator (works for all types)
+(define (ziku-ne a b) (not (equal? a b)))
 
 "
 

@@ -50,7 +50,7 @@
 
 ;; Main program
 (define (ziku-main halt)
-  (let ((_alpha0 halt)) (_alpha0 (string->number "42"))))
+  (let ((_alpha0 halt)) (let ((s1 "hello")) (let ((_alpha1 _alpha0)) (let ((s2 "hello")) (let ((_alpha2 _alpha1)) (let ((s3 "world")) (let ((_alpha3 _alpha2)) ((lambda (_alpha4) (_alpha4 (equal? s1 s2))) (lambda (%cond) (if %cond (let ((_alpha5 _alpha3)) ((lambda (_alpha6) (_alpha6 (equal? s2 s3))) (lambda (%cond) (if %cond (let ((%p 0)) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) _alpha5) (_alpha5 %p))) (let ((_alpha7 _alpha5)) ((lambda (_alpha8) (_alpha8 (ziku-ne s1 s3))) (lambda (%cond) (if %cond (let ((%p 1)) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) _alpha7) (_alpha7 %p))) (let ((%p 2)) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) _alpha7) (_alpha7 %p))))))))))) (let ((%p 3)) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) _alpha3) (_alpha3 %p))))))))))))))
 
 ;; Run with result printer
 (ziku-main ziku-print-result)

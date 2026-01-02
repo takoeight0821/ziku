@@ -41,6 +41,13 @@
     (else (display v)))
   (newline))
 
+;; Logical operators as functions (Scheme's and/or are special forms, not procedures)
+(define (ziku-and a b) (and a b))
+(define (ziku-or a b) (or a b))
+
+;; Not-equal operator (works for all types)
+(define (ziku-ne a b) (not (equal? a b)))
+
 ;; Main program
 (define (ziku-main halt)
   (let ((_alpha0 halt)) (let ((add (lambda (x) (lambda (_alpha1) (let ((%p (lambda (y) (lambda (_alpha2) (let ((_alpha3 _alpha2)) (_alpha3 (+ x y))))))) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) _alpha1) (_alpha1 %p))))))) (let ((_alpha4 _alpha0)) (let ((_alpha5 (lambda (%fn0) (let ((%arg 20)) (if (and (vector? %arg) (eq? (vector-ref %arg 0) 'ziku-thunk)) ((vector-ref %arg 1) (lambda (%v) ((%fn0 %v) _alpha4))) ((%fn0 %arg) _alpha4)))))) (let ((%p add)) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) (lambda (%fn1) (let ((%arg 10)) (if (and (vector? %arg) (eq? (vector-ref %arg 0) 'ziku-thunk)) ((vector-ref %arg 1) (lambda (%v) ((%fn1 %v) _alpha5))) ((%fn1 %arg) _alpha5))))) ((lambda (%fn1) (let ((%arg 10)) (if (and (vector? %arg) (eq? (vector-ref %arg 0) 'ziku-thunk)) ((vector-ref %arg 1) (lambda (%v) ((%fn1 %v) _alpha5))) ((%fn1 %arg) _alpha5)))) %p))))))))

@@ -41,6 +41,13 @@
     (else (display v)))
   (newline))
 
+;; Logical operators as functions (Scheme's and/or are special forms, not procedures)
+(define (ziku-and a b) (and a b))
+(define (ziku-or a b) (or a b))
+
+;; Not-equal operator (works for all types)
+(define (ziku-ne a b) (not (equal? a b)))
+
 ;; Main program
 (define (ziku-main halt)
   (let ((result halt)) (let ((_alpha0 result)) (let ((x 100)) (let ((_alpha1 _alpha0)) ((lambda (_alpha2) (_alpha2 (> x 50))) (lambda (%cond) (if %cond (let ((_alpha3 _alpha1)) (let ((_alpha4 result)) (_alpha4 (- x 50)))) (let ((%p x)) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) _alpha1) (_alpha1 %p)))))))))))

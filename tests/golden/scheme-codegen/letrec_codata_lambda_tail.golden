@@ -41,6 +41,13 @@
     (else (display v)))
   (newline))
 
+;; Logical operators as functions (Scheme's and/or are special forms, not procedures)
+(define (ziku-and a b) (and a b))
+(define (ziku-or a b) (or a b))
+
+;; Not-equal operator (works for all types)
+(define (ziku-ne a b) (not (equal? a b)))
+
 ;; Main program
 (define (ziku-main halt)
   (let ((_alpha0 halt)) (let ((nats (letrec ((nats (lambda (n) (lambda (_alpha1) (let ((%p (list (cons 'tail (vector 'ziku-thunk (lambda (_alpha2) (let ((%p nats)) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) (lambda (%fn0) ((lambda (_alpha3) (_alpha3 (+ n 1))) (lambda (%v1) ((%fn0 %v1) _alpha2))))) ((lambda (%fn0) ((lambda (_alpha3) (_alpha3 (+ n 1))) (lambda (%v1) ((%fn0 %v1) _alpha2)))) %p)))))) (cons 'head n)))) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) _alpha1) (_alpha1 %p))))))) nats))) (let ((_alpha4 _alpha0)) (let ((_alpha5 (lambda (%rec) (let* ((%is-dispatch (and (vector? %rec) (eq? (vector-ref %rec 0) 'ziku-dispatch))) (%v (cond (%is-dispatch ((vector-ref %rec 1) 'head)) ((procedure? %rec) (%rec 'head)) (else (cdr (assq 'head %rec)))))) (if (and (vector? %v) (eq? (vector-ref %v 0) 'ziku-thunk)) ((vector-ref %v 1) _alpha4) (_alpha4 %v)))))) (let ((_alpha6 (lambda (%rec) (let* ((%is-dispatch (and (vector? %rec) (eq? (vector-ref %rec 0) 'ziku-dispatch))) (%v (cond (%is-dispatch ((vector-ref %rec 1) 'tail)) ((procedure? %rec) (%rec 'tail)) (else (cdr (assq 'tail %rec)))))) (if (and (vector? %v) (eq? (vector-ref %v 0) 'ziku-thunk)) ((vector-ref %v 1) _alpha5) (_alpha5 %v)))))) (let ((%p nats)) (if (and (vector? %p) (eq? (vector-ref %p 0) 'ziku-thunk)) ((vector-ref %p 1) (lambda (%fn2) (let ((%arg 0)) (if (and (vector? %arg) (eq? (vector-ref %arg 0) 'ziku-thunk)) ((vector-ref %arg 1) (lambda (%v) ((%fn2 %v) _alpha6))) ((%fn2 %arg) _alpha6))))) ((lambda (%fn2) (let ((%arg 0)) (if (and (vector? %arg) (eq? (vector-ref %arg 0) 'ziku-thunk)) ((vector-ref %arg 1) (lambda (%v) ((%fn2 %v) _alpha6))) ((%fn2 %arg) _alpha6)))) %p)))))))))
