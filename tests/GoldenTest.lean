@@ -63,16 +63,14 @@ def runInferTest (input : String) : Except String TestOutput :=
     | .error e => .ok { output := toString e, isError := true }
   | .error e => .error e
 
-/-- Run an IR evaluation test (parse → elaborate → translate → IR eval) -/
+/-- Run an IR evaluation test (parse → elaborate → translate → focus → IR eval) -/
 def runIREvalTest (input : String) : Except String TestOutput :=
   match Ziku.parseExprString input.trim with
   | .ok expr =>
     match Ziku.elaborateAll expr with
     | .ok elaborated =>
-      match Ziku.Translate.translate elaborated with
-      | .ok producer =>
-        let dummyPos : Ziku.SourcePos := { line := 0, col := 0 }
-        let stmt := Ziku.IR.Statement.cut dummyPos producer (Ziku.IR.Consumer.covar dummyPos "halt")
+      match Ziku.Translate.translateToStatement elaborated with
+      | .ok stmt =>
         let result := Ziku.IR.eval stmt
         match result with
         | .value p => .ok { output := Ziku.IR.truncate p.toString, isError := false }

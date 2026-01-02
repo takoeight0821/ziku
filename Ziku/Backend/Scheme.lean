@@ -1,5 +1,6 @@
 import Ziku.Syntax
 import Ziku.IR.Syntax
+import Ziku.IR.Focusing
 
 namespace Ziku.Backend.Scheme
 
@@ -484,9 +485,10 @@ def compile (s : Statement) : String :=
 (ziku-main ziku-print-result)
 "
 
--- Compile a producer (wrapped with halt continuation)
+-- Compile a producer (wrapped with halt continuation, with focusing applied)
 def compileProducer (p : Producer) : String :=
   let stmt := Statement.cut { line := 0, col := 0 } p (Consumer.covar { line := 0, col := 0 } "halt")
-  compile stmt
+  let focused := Ziku.IR.Focusing.focus stmt
+  compile focused
 
 end Ziku.Backend.Scheme

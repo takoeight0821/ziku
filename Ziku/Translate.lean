@@ -1,6 +1,7 @@
 import Ziku.Syntax
 import Ziku.IR.Syntax
 import Ziku.IR.Eval
+import Ziku.IR.Focusing
 
 namespace Ziku.Translate
 
@@ -295,10 +296,13 @@ def translate (e : Expr) : Except TranslateError Producer :=
   | .error e => .error e
 
 -- Translate to Statement (wrapping producer with top-level continuation)
+-- Applies static focusing transformation to ensure all non-values are lifted
 def translateToStatement (e : Expr) : Except TranslateError Statement := do
   let p ← translate e
   -- Return the producer connected to top-level continuation "halt"
   -- Use the producer's position for the generated cut and covar
-  return .cut p.pos p (.covar p.pos "halt")
+  let unfocused := Statement.cut p.pos p (.covar p.pos "halt")
+  -- Apply focusing transformation to ensure proper evaluation order
+  return IR.Focusing.focus unfocused
 
 end Ziku.Translate
