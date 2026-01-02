@@ -318,74 +318,58 @@ def runConsistencyCategory : IO (Nat × Nat) := do
 
   pure (passed, failed)
 
-/-- Run translate tests: verify IR translation output -/
-def runTranslateCategory : IO (Nat × Nat) := do
+/-- Run emit-translate tests: verify IR translation succeeds -/
+def runEmitTranslateCategory : IO (Nat × Nat) := do
   let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"
-  let goldenDir := "tests/golden/translate"
   let tests ← discoverTests sourceDir
 
   let mut passed := 0
   let mut failed := 0
 
-  IO.println s!"\n=== translate tests ==="
+  IO.println s!"\n=== emit-translate tests ==="
 
   for baseName in tests do
-    let tc : TestCase := {
-      name := baseName
-      inputPath := s!"{sourceDir}/{baseName}.ziku"
-      goldenPath := s!"{goldenDir}/{baseName}.golden"
-      testType := "translate"
-      expectError := false
-    }
-
-    let result ← runTest tc
+    let inputPath := s!"{sourceDir}/{baseName}.ziku"
+    let input ← IO.FS.readFile inputPath
+    let result := runTranslateTest input
     match result with
-    | .pass =>
-      IO.println s!"  ✓ {baseName}"
-      passed := passed + 1
-    | .fail expected actual =>
-      IO.println s!"  ✗ {baseName}"
-      IO.println s!"    Expected: {expected}"
-      IO.println s!"    Actual:   {actual}"
-      failed := failed + 1
-    | .error msg =>
-      IO.println s!"  ✗ {baseName}: {msg}"
+    | .ok output =>
+      if output.isError then
+        IO.println s!"  ✗ {baseName}: {output.output}"
+        failed := failed + 1
+      else
+        IO.println s!"  ✓ {baseName}"
+        passed := passed + 1
+    | .error e =>
+      IO.println s!"  ✗ {baseName}: {e}"
       failed := failed + 1
 
   pure (passed, failed)
 
-/-- Run scheme-codegen tests: verify Scheme code generation output -/
-def runSchemeCodegenCategory : IO (Nat × Nat) := do
+/-- Run emit-scheme tests: verify Scheme code generation succeeds -/
+def runEmitSchemeCategory : IO (Nat × Nat) := do
   let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"
-  let goldenDir := "tests/golden/scheme-codegen"
   let tests ← discoverTests sourceDir
 
   let mut passed := 0
   let mut failed := 0
 
-  IO.println s!"\n=== scheme-codegen tests ==="
+  IO.println s!"\n=== emit-scheme tests ==="
 
   for baseName in tests do
-    let tc : TestCase := {
-      name := baseName
-      inputPath := s!"{sourceDir}/{baseName}.ziku"
-      goldenPath := s!"{goldenDir}/{baseName}.golden"
-      testType := "scheme-codegen"
-      expectError := false
-    }
-
-    let result ← runTest tc
+    let inputPath := s!"{sourceDir}/{baseName}.ziku"
+    let input ← IO.FS.readFile inputPath
+    let result := runSchemeCodegenTest input
     match result with
-    | .pass =>
-      IO.println s!"  ✓ {baseName}"
-      passed := passed + 1
-    | .fail expected actual =>
-      IO.println s!"  ✗ {baseName}"
-      IO.println s!"    Expected: {expected}"
-      IO.println s!"    Actual:   {actual}"
-      failed := failed + 1
-    | .error msg =>
-      IO.println s!"  ✗ {baseName}: {msg}"
+    | .ok output =>
+      if output.isError then
+        IO.println s!"  ✗ {baseName}: {output.output}"
+        failed := failed + 1
+      else
+        IO.println s!"  ✓ {baseName}"
+        passed := passed + 1
+    | .error e =>
+      IO.println s!"  ✗ {baseName}: {e}"
       failed := failed + 1
 
   pure (passed, failed)
@@ -396,13 +380,13 @@ def main : IO UInt32 := do
   let (parserPassed, parserFailed) ← runCategory "parser" "parser"
   let (inferPassed, inferFailed) ← runCategory "infer" "infer"
   let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" "ir-eval"
-  let (translatePassed, translateFailed) ← runTranslateCategory
-  let (schemeCodegenPassed, schemeCodegenFailed) ← runSchemeCodegenCategory
+  let (emitTranslatePassed, emitTranslateFailed) ← runEmitTranslateCategory
+  let (emitSchemePassed, emitSchemeFailed) ← runEmitSchemeCategory
   let (schemePassed, schemeFailed) ← runSchemeCategory
   let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
 
-  let totalPassed := parserPassed + inferPassed + irEvalPassed + translatePassed + schemeCodegenPassed + schemePassed + consistencyPassed
-  let totalFailed := parserFailed + inferFailed + irEvalFailed + translateFailed + schemeCodegenFailed + schemeFailed + consistencyFailed
+  let totalPassed := parserPassed + inferPassed + irEvalPassed + emitTranslatePassed + emitSchemePassed + schemePassed + consistencyPassed
+  let totalFailed := parserFailed + inferFailed + irEvalFailed + emitTranslateFailed + emitSchemeFailed + schemeFailed + consistencyFailed
 
   IO.println s!"\n=== Summary ==="
   IO.println s!"Passed: {totalPassed}"

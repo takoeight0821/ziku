@@ -27,3 +27,6 @@ lean_exe «scheme-backend» where
 
 lean_exe «ziku-test» where
   root := `ZikuTest
+
+lean_exe «emit-compiled-code» where
+  root := `tests.EmitCompiledCode
