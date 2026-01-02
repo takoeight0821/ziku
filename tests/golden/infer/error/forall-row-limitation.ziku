@@ -1,0 +1,4 @@
+let getX = \r => r.x in
+let point = { x = 1, y = 2 } in
+let point3d = { x = 10, y = 20, z = 30 } in
+getX point + getX point3d

@@ -1,0 +1,3 @@
+Type error at 4:14: Record field mismatch: cannot unify closed records with different fields
+  Expected: { y : Int }
+  Actual: { y : Int, z : Int }

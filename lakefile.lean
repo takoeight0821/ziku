@@ -24,3 +24,6 @@ lean_exe «truncate-test» where
 
 lean_exe «scheme-backend» where
   root := `Backend.SchemeMain
+
+lean_exe «ziku-test» where
+  root := `ZikuTest
