@@ -224,12 +224,31 @@ partial def translateConsumerM : Consumer → GenM String
     pure s!"(lambda ({xName}) {sCode})"
   | .case _ branches => do
     -- case { K(x̄) ⇒ s, ... }
-    -- Pattern matching on tagged data (list 'K v1 v2 ...)
-    -- Generate: (lambda (%v) (let ((%tag (car %v))) (cond ((eq? %tag 'K1) (let ((x1 (list-ref %v 1)) ...) body1)) ...)))
-    let branchCodes ← branches.mapM fun (k, vars, body) => do
+    -- Pattern matching: handles both tagged data and literal patterns
+    -- Separate branches by type: wildcard, literal patterns, constructor patterns
+    let (wildcardBranch, nonWildcard) := branches.partition fun (k, _, _) => k == "_wild" || k == "_var"
+    let (literalBranches, conBranches) := nonWildcard.partition fun (k, _, _) => k.startsWith "_lit_"
+    -- Generate literal pattern checks (direct value comparison)
+    let literalCodes ← literalBranches.mapM fun (k, _, body) => do
+      let bodyCode ← translateStatementM body
+      -- Parse literal from pattern name like "_lit_int_42" or "_lit_bool_true"
+      let cond := if k.startsWith "_lit_int_" then
+        let numStr := k.drop 9  -- drop "_lit_int_"
+        s!"(equal? %v {numStr})"
+      else if k.startsWith "_lit_bool_" then
+        let boolStr := k.drop 10  -- drop "_lit_bool_"
+        let schemeBool := if boolStr == "true" then "#t" else "#f"
+        s!"(equal? %v {schemeBool})"
+      else if k.startsWith "_lit_string_" then
+        let strVal := k.drop 12  -- drop "_lit_string_"
+        s!"(equal? %v \"{strVal}\")"
+      else
+        s!"(equal? %v '{k})"
+      pure s!"({cond} {bodyCode})"
+    -- Generate constructor pattern checks (tagged data)
+    let conCodes ← conBranches.mapM fun (k, vars, body) => do
       let kName := mangleIdent k
       let varNames := vars.map mangleIdent
-      -- Generate let bindings for extracting values from the list
       let indices := List.range varNames.length
       let bindings := indices.zip varNames |>.map fun (i, name) =>
         s!"({name} (list-ref %v {i + 1}))"
@@ -239,7 +258,31 @@ partial def translateConsumerM : Consumer → GenM String
         pure s!"((eq? %tag '{kName}) {bodyCode})"
       else
         pure s!"((eq? %tag '{kName}) (let ({bindingsStr}) {bodyCode}))"
-    pure s!"(lambda (%v) (let ((%tag (car %v))) (cond {String.intercalate " " branchCodes})))"
+    -- Handle wildcard/variable pattern as else clause
+    let elseCode ← match wildcardBranch with
+      | (_, vars, body) :: _ => do
+        let bodyCode ← translateStatementM body
+        match vars with
+        | [x] =>
+          let xName := mangleIdent x
+          pure s!"(else (let (({xName} %v)) {bodyCode}))"
+        | _ =>
+          pure s!"(else {bodyCode})"
+      | [] => pure ""
+    -- Combine: if we have literals, we need a different structure
+    if literalBranches.isEmpty then
+      -- Only constructor patterns: use tag-based matching
+      let allCodes := if elseCode.isEmpty then conCodes else conCodes ++ [elseCode]
+      pure s!"(lambda (%v) (let ((%tag (car %v))) (cond {String.intercalate " " allCodes})))"
+    else if conBranches.isEmpty then
+      -- Only literal patterns: direct value comparison
+      let allCodes := if elseCode.isEmpty then literalCodes else literalCodes ++ [elseCode]
+      pure s!"(lambda (%v) (cond {String.intercalate " " allCodes}))"
+    else
+      -- Mixed: check if pair first, then dispatch
+      let conAllCodes := if elseCode.isEmpty then conCodes else conCodes ++ [elseCode]
+      let litAllCodes := if elseCode.isEmpty then literalCodes else literalCodes ++ [elseCode]
+      pure s!"(lambda (%v) (if (pair? %v) (let ((%tag (car %v))) (cond {String.intercalate " " conAllCodes})) (cond {String.intercalate " " litAllCodes})))"
   | .destructor _ d args cont => do
     -- D(p̄; c) - apply destructor with arguments and continuation
     -- For "ap" (function application): ((fn arg) cont)

@@ -240,14 +240,50 @@ partial def step : Statement → Option Statement
       | some (_, value) => some (.cut pos value cont)
       | none => none
     -- Data constructor + case: ⟨K(v1,...,vn) | case { K(x1,...,xn) => s, ... }⟩ ⊲ s[v1/x1,...,vn/xn]
-    | .dataCon _ conName args, .case _ branches =>
+    | .dataCon pos conName args, .case _ branches =>
+      -- First try exact constructor match
       match branches.find? (fun (k, _, _) => k == conName) with
       | some (_, vars, body) =>
         if vars.length != args.length then none
         else
           let body' := vars.zip args |>.foldl (fun s (x, v) => s.substVar x v) body
           some body'
-      | none => none
+      | none =>
+        -- Try wildcard fallback (_wild has no bindings)
+        match branches.find? (fun (k, _, _) => k == "_wild") with
+        | some (_, _, body) => some body
+        | none =>
+          -- Try variable fallback (_var binds the entire value)
+          match branches.find? (fun (k, _, _) => k == "_var") with
+          | some (_, vars, body) =>
+            match vars with
+            | [x] => some (body.substVar x (.dataCon pos conName args))
+            | _ => none
+          | none => none
+    -- Literal + case: ⟨n | case { _lit_int_n => s, ... }⟩
+    | .lit pos l, .case _ branches =>
+      let litConName := match l with
+        | .int n => s!"_lit_int_{n}"
+        | .bool b => s!"_lit_bool_{b}"
+        | .string s => s!"_lit_string_{s}"
+        | .char c => s!"_lit_rune_{c.val}"
+        | .float f => s!"_lit_float_{f}"
+        | .unit => "_lit_unit"
+      -- Try exact literal match
+      match branches.find? (fun (k, _, _) => k == litConName) with
+      | some (_, _, body) => some body
+      | none =>
+        -- Try wildcard fallback
+        match branches.find? (fun (k, _, _) => k == "_wild") with
+        | some (_, _, body) => some body
+        | none =>
+          -- Try variable fallback
+          match branches.find? (fun (k, _, _) => k == "_var") with
+          | some (_, vars, body) =>
+            match vars with
+            | [x] => some (body.substVar x (.lit pos l))
+            | _ => none
+          | none => none
     | _, _ => none
   -- Binary operation: ⊙(p₁, p₂; c)
   | .binOp pos op p1 p2 c =>
