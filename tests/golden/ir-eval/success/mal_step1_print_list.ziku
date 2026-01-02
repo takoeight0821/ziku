@@ -1,0 +1,26 @@
+let rec prListContents = \pr, h, t =>
+  let hStr = pr h in
+  match t {
+  | MNil => hStr
+  | Cons(h2, t2) => hStr ++ " " ++ prListContents pr h2 t2
+  | MNum(n) => hStr ++ " . " ++ pr t
+  | MSym(s) => hStr ++ " . " ++ pr t
+  | MStr(s) => hStr ++ " . " ++ pr t
+  | MTrue => hStr ++ " . " ++ pr t
+  | MFalse => hStr ++ " . " ++ pr t
+  }
+in
+
+let rec prStr = \val =>
+  match val {
+  | MNum(n) => intToStr n
+  | MSym(s) => s
+  | MStr(s) => "\"" ++ s ++ "\""
+  | MNil => "nil"
+  | MTrue => "true"
+  | MFalse => "false"
+  | Cons(h, t) => "(" ++ prListContents prStr h t ++ ")"
+  }
+in
+
+prStr (Cons(MNum(1), Cons(MNum(2), Cons(MNum(3), MNil))))

@@ -1,0 +1,17 @@
+let num = MNum(42) in
+let sym = MSym("hello") in
+let str = MStr("world") in
+let nil = MNil in
+let t = MTrue in
+let f = MFalse in
+let list = Cons(MNum(1), Cons(MNum(2), MNil)) in
+
+match num {
+| MNum(n) => n
+| MSym(s) => -1
+| MStr(s) => -1
+| MNil => -1
+| MTrue => -1
+| MFalse => -1
+| Cons(h, t) => -1
+}

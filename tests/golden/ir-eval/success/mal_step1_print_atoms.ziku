@@ -1,0 +1,13 @@
+let rec prStr = \val =>
+  match val {
+  | MNum(n) => intToStr n
+  | MSym(s) => s
+  | MStr(s) => "\"" ++ s ++ "\""
+  | MNil => "nil"
+  | MTrue => "true"
+  | MFalse => "false"
+  | Cons(h, t) => "list"
+  }
+in
+
+prStr (MNum(42))
