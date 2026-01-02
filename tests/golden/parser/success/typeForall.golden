@@ -1,0 +1,1 @@
+(Ann (Lam "x" (Var "x")) (forall a. (a -> a)))

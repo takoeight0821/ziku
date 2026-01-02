@@ -1,0 +1,1 @@
+let id : forall a. a -> a = \x => x in id 42 + if id true then 1 else 2

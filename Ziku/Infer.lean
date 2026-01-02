@@ -160,6 +160,12 @@ partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) (nextVar : Nat) : Except Type
       .ok ([], nextVar)
     else
       .error $ .unificationError pos t1 t2 s!"Cannot unify type constructors '{c1}' and '{c2}'"
+  | .var _ x, .var _ y =>
+    -- Two variables: if same, no substitution needed; otherwise unify
+    if x == y then
+      .ok ([], nextVar)
+    else
+      .ok ([(x, .var pos y)], nextVar)
   | .var _ x, t =>
     if occursIn x t then
       .error $ .occursCheck pos x t
@@ -270,6 +276,30 @@ def instantiate (scheme : Scheme) : GenM Ty := do
     subst := (v, fresh) :: subst
   return scheme.ty.applySubst subst
 
+-- Convert a Ty.forall_ to a Scheme by extracting quantified variables
+-- Used for explicit forall annotations like `let id : forall a. a -> a = ...`
+def tyToScheme (ty : Ty) : Scheme :=
+  match ty with
+  | .forall_ _ x inner =>
+    let innerScheme := tyToScheme inner
+    { vars := x :: innerScheme.vars, ty := innerScheme.ty }
+  | .var _ _ => { vars := [], ty := ty }
+  | .con _ _ => { vars := [], ty := ty }
+  | .app _ _ _ => { vars := [], ty := ty }
+  | .arrow _ _ _ => { vars := [], ty := ty }
+  | .record _ _ _ => { vars := [], ty := ty }
+  | .bottom _ => { vars := [], ty := ty }
+
+-- Instantiate a Ty: if it's a forall type, replace quantified variables with fresh ones
+-- This handles explicit forall types in annotations like `(e : forall a. a -> a)`
+partial def instantiateTy (ty : Ty) : GenM Ty :=
+  match ty with
+  | .forall_ _ x inner => do
+    let fresh ← freshTyVar
+    let body := inner.applySubst [(x, fresh)]
+    instantiateTy body  -- Handle nested foralls
+  | _ => pure ty
+
 -- Pattern type checking: returns variable bindings
 -- Given a pattern and expected type, extract variable bindings and add unification constraints
 partial def checkPattern (pat : Pat) (expectedTy : Ty) : GenM (List (Ident × Scheme)) :=
@@ -360,13 +390,20 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     return resultTy
   | .let_ pos x tyOpt e1 e2 => do
     let t1 ← genConstraints env e1
+    -- Determine the scheme for the binding:
+    -- If an explicit forall annotation is given, use it for polymorphism
+    let scheme := match tyOpt with
+      | some ty =>
+        let s := tyToScheme ty
+        if s.vars.isEmpty then { vars := [], ty := t1 }
+        else s  -- Use explicit forall as polymorphic scheme
+      | none => { vars := [], ty := t1 }
+    -- Unify the inferred type with the instantiated annotation
     match tyOpt with
-    | some ty => addConstraint (.unify pos t1 ty)
+    | some ty => do
+      let instantiated ← instantiateTy ty
+      addConstraint (.unify pos t1 instantiated)
     | none => pure ()
-    -- Note: In constraint-based inference, generalization is tricky.
-    -- For simplicity, we use monomorphic binding here.
-    -- Full let-polymorphism would require solving constraints before generalizing.
-    let scheme : Scheme := { vars := [], ty := t1 }
     let env' := (x, scheme) :: env
     genConstraints env' e2
   | .letRec pos x tyOpt e1 e2 => do
@@ -390,8 +427,9 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     return resultTy
   | .ann pos e ty => do
     let inferredTy ← genConstraints env e
-    addConstraint (.unify pos inferredTy ty)
-    return ty
+    let instantiatedTy ← instantiateTy ty
+    addConstraint (.unify pos inferredTy instantiatedTy)
+    return instantiatedTy
   | .match_ pos scrutinee cases => do
     -- Infer type of scrutinee
     let scrutineeTy ← genConstraints env scrutinee
