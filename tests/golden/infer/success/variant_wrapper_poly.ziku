@@ -1,0 +1,6 @@
+-- Constructor wrapper with explicit polymorphic type
+let cons : forall a b. a -> b -> [Cons a b | _r] = \x => \xs => Cons(x, xs) in
+let nil = Nil in
+let list1 = cons 1 nil in
+let list2 = cons true nil in
+list1

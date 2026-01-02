@@ -1,0 +1,4 @@
+-- Constructor wrapper functions
+let cons = \x => \xs => Cons(x, xs) in
+let nil = Nil in
+cons 1 nil
