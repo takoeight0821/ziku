@@ -82,19 +82,78 @@ def allSameKind (clauses : List Clause) : Option AccessorKind :=
     else
       none
 
+-- Group clauses by their copattern
+def groupByCopattern (clauses : List Clause) : List (Copattern × List Clause) :=
+  clauses.foldl (fun groups clause =>
+    match groups.find? (fun (cp, _) => cp == clause.copattern) with
+    | some _ =>
+      groups.map (fun (cp, cs) =>
+        if cp == clause.copattern then (cp, cs ++ [clause]) else (cp, cs))
+    | none => groups ++ [(clause.copattern, [clause])]
+  ) []
+
+-- Build a match expression from clauses with patterns
+-- Each clause should have exactly one pattern
+def buildMatchExpr (pos : SourcePos) (argName : Ident) (clauses : List Clause)
+    : Except ElaborateError Expr := do
+  let cases ← clauses.mapM fun clause =>
+    match clause.patterns with
+    | [pat] => pure (pat, clause.body)
+    | [] => throw (.customError pos "expected pattern in clause")
+    | _ => throw (.customError pos "multiple patterns not yet supported")
+  pure (.match_ pos (.var pos argName) cases)
+
+-- Inhabited instance for Except ElaborateError Expr
+instance : Inhabited (Except ElaborateError Expr) where
+  default := throw (.customError { line := 0, col := 0 } "uninhabited")
+
+mutual
+
+-- Elaborate pattern guards into lambda + match + codata
+-- { pat1 #copat1 => body1, pat2 #copat2 => body2 } becomes:
+-- \arg => { copat1 = match arg with | pat1 => body1, copat2 = match arg with | pat2 => body2 }
+partial def elaborateWithPatternGuards (pos : SourcePos) (clauses : List Clause)
+    : Except ElaborateError Expr := do
+  -- Validate: all clauses must have exactly one pattern
+  for clause in clauses do
+    if clause.patterns.isEmpty then
+      throw (.customError pos "mixed pattern guards: some clauses have patterns, some don't")
+    if clause.patterns.length > 1 then
+      throw (.customError pos "multiple pattern arguments not yet supported")
+
+  -- Generate fresh argument name
+  let argName := "_pat_arg"
+
+  -- Group clauses by copattern
+  let groups := groupByCopattern clauses
+
+  -- For each copattern group, create a match expression
+  let mut newClauses : List Clause := []
+  for (copat, groupClauses) in groups do
+    let matchExpr ← buildMatchExpr pos argName groupClauses
+    newClauses := newClauses ++ [{ patterns := [], copattern := copat, body := matchExpr }]
+
+  -- Elaborate the transformed clauses (now without pattern guards)
+  let innerExpr ← elaborate pos (newClauses.map fun c => (c.patterns, c.copattern, c.body))
+
+  -- Wrap in lambda for the argument
+  pure (.lam pos argName innerExpr)
+
 -- Elaborate pattern guards into a match expression
-def elaboratePatternMatch (pos : SourcePos) (clauses : List Clause) : Except ElaborateError Expr :=
+partial def elaboratePatternMatch (pos : SourcePos) (clauses : List Clause) : Except ElaborateError Expr :=
   if clauses.isEmpty then
     throw (.emptyCopattern pos)
   else if clauses.length == 1 && clauses.head!.patterns.isEmpty then
     -- Single clause with no patterns, just return the body
     pure clauses.head!.body
+  else if clauses.all (fun c => c.patterns.isEmpty) then
+    -- Multiple clauses without patterns - ambiguous
+    throw (.customError pos "multiple clauses without pattern guards")
+  else if clauses.any (fun c => !c.patterns.isEmpty) then
+    -- Some clauses have patterns - elaborate them
+    elaborateWithPatternGuards pos clauses
   else
     throw (.customError pos "pattern guards not yet implemented")
-
--- Inhabited instance for Except ElaborateError Expr
-instance : Inhabited (Except ElaborateError Expr) where
-  default := throw (.customError { line := 0, col := 0 } "uninhabited")
 
 -- Elaborate a codata expression into records and lambdas
 -- All helper functions are inlined to avoid partial def issues
@@ -178,6 +237,8 @@ partial def elaborate (pos : SourcePos) (rawClauses : List (List Pat × Copatter
           pure (.lam pos paramName bodyExpr)
 
         | _ => throw (.customError pos "expected call accessor")
+
+end -- mutual
 
 -- Top-level elaboration entry point
 def elaborateExpr : Expr → Except ElaborateError Expr

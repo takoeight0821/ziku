@@ -1,0 +1,30 @@
+-- Map function on S-expression lists
+let rec lispMap = \f => \lst =>
+  match lst with
+  | Nil => Nil
+  | Cons(h, t) => Cons(f h, lispMap f t)
+  | Num(n) => Nil
+  end
+in
+-- Double each number
+let double = \x =>
+  match x with
+  | Num(n) => Num(n * 2)
+  | Nil => Nil
+  | Cons(h, t) => Nil
+  end
+in
+let list1 = Cons(Num(5), Nil) in
+-- Get first element of doubled list (5 * 2 = 10)
+let getCar = \lst =>
+  match lst with
+  | Cons(h, t) => h
+  | Nil => Nil
+  | Num(n) => Nil
+  end
+in
+match getCar (lispMap double list1) with
+| Num(n) => n
+| Nil => -1
+| Cons(h, t) => -2
+end

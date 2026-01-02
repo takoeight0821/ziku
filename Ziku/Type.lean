@@ -30,6 +30,10 @@ partial def Ty.applySubst (subst : Subst) : Ty → Ty
     .record p
       (fields.map (fun (n, t) => (n, t.applySubst subst)))
       (rowTail.map (·.applySubst subst))
+  | .variant p cases rowTail =>
+    .variant p
+      (cases.map (fun (c, tys) => (c, tys.map (·.applySubst subst))))
+      (rowTail.map (·.applySubst subst))
   | .bottom p => .bottom p  -- Bottom type is not affected by substitution
 
 -- Free type variables
@@ -45,6 +49,12 @@ partial def Ty.freeVars : Ty → List Ident
       | none => []
       | some r => r.freeVars
     fieldVars ++ tailVars
+  | .variant _ cases rowTail =>
+    let caseVars := (cases.map (fun (_, tys) => (tys.map Ty.freeVars).flatten)).flatten
+    let tailVars := match rowTail with
+      | none => []
+      | some r => r.freeVars
+    caseVars ++ tailVars
   | .bottom _ => []  -- Bottom type has no free variables
 
 -- Free type variables in a scheme

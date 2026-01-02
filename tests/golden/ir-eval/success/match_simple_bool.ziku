@@ -1,0 +1,6 @@
+-- Simple pattern matching on boolean-like constructors
+-- True matches the True branch, returns 1
+match True with
+| True => 1
+| False => 0
+end

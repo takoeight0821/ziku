@@ -1,0 +1,6 @@
+-- Nested match with computation
+let x = Just(10) in
+match x with
+| Just(n) => n * 2
+| Nothing => 0
+end

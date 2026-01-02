@@ -59,6 +59,7 @@ inductive Ty where
   | arrow   : SourcePos → Ty → Ty → Ty                            -- Function type: a -> b
   | forall_ : SourcePos → Ident → Ty → Ty                         -- Polymorphic: forall a. a -> a
   | record  : SourcePos → List (Ident × Ty) → Option Ty → Ty      -- Record type: { x : Int | ρ }
+  | variant : SourcePos → List (Ident × List Ty) → Option Ty → Ty -- Variant type: [Cons Int a | Nil | ρ]
   | bottom  : SourcePos → Ty                                      -- Bottom type: ⊥ (never returns)
   deriving Repr, BEq
 
@@ -70,6 +71,7 @@ def Ty.pos : Ty → SourcePos
   | arrow p _ _ => p
   | forall_ p _ _ => p
   | record p _ _ => p
+  | variant p _ _ => p
   | bottom p => p
 
 -- Check if type is bottom
@@ -128,6 +130,7 @@ inductive Expr where
   | hash      : SourcePos → Expr                                    -- Self-reference: # (for codata)
   | label     : SourcePos → Ident → Expr → Expr                     -- Label: label name { body }
   | goto      : SourcePos → Expr → Ident → Expr                     -- Goto: goto(expr, name)
+  | con       : SourcePos → Ident → List Expr → Expr                -- Constructor: Con args...
   deriving Repr, BEq
 
 -- Get source position from Expr
@@ -151,6 +154,7 @@ def Expr.pos : Expr → SourcePos
   | hash p => p
   | label p _ _ => p
   | goto p _ _ => p
+  | con p _ _ => p
 
 -- Data constructor declaration
 structure ConDecl where
@@ -207,6 +211,7 @@ partial def Expr.exprSize : Expr → Nat
   | hash _ => 1
   | label _ _ e => 1 + e.exprSize
   | goto _ e _ => 1 + e.exprSize
+  | con _ _ args => 1 + args.foldl (fun acc e => acc + e.exprSize) 0
 
 -- Free variables in an expression
 partial def Expr.freeVars : Expr → List Ident
@@ -232,6 +237,7 @@ partial def Expr.freeVars : Expr → List Ident
   | hash _ => []
   | label _ name e => e.freeVars.filter (· != name)  -- name is bound as a label
   | goto _ e _ => e.freeVars
+  | con _ _ args => args.flatMap Expr.freeVars
 
 -- Closed expression (no free variables)
 def Expr.closed (e : Expr) : Prop := e.freeVars = []
@@ -283,6 +289,13 @@ partial def Ty.toString : Ty → String
     match rowTail with
     | none => "{ " ++ String.intercalate ", " fs ++ " }"
     | some r => "{ " ++ String.intercalate ", " fs ++ " | " ++ r.toString ++ " }"
+  | .variant _ cases rowTail =>
+    let cs := cases.map (fun (c, tys) =>
+      if tys.isEmpty then c
+      else s!"{c}(" ++ String.intercalate ", " (tys.map Ty.toString) ++ ")")
+    match rowTail with
+    | none => "[" ++ String.intercalate " | " cs ++ "]"
+    | some r => "[" ++ String.intercalate " | " cs ++ " | " ++ r.toString ++ "]"
   | .bottom _ => "⊥"
 
 instance : ToString Ty := ⟨Ty.toString⟩
@@ -343,6 +356,9 @@ partial def Expr.toString : Expr → String
   | .hash _ => "#"
   | .label _ name body => s!"(Label \"{name}\" {body.toString})"
   | .goto _ e name => s!"(Goto {e.toString} \"{name}\")"
+  | .con _ name args =>
+    let argsStr := args.map Expr.toString
+    s!"(Con \"{name}\" [{String.intercalate ", " argsStr}])"
 
 instance : ToString Expr := ⟨Expr.toString⟩
 

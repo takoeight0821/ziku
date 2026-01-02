@@ -32,6 +32,7 @@ partial def Producer.isValue : Producer → Bool
   | .cocase _ _ => true   -- cocase is a value (like a closure)
   | .record _ _ => true   -- record is a value
   | .fix _ _ _ => true    -- fix is a value (lazy, unfolds when consumed)
+  | .dataCon _ _ args => args.all Producer.isValue  -- dataCon is value when all args are values
 
 -- Substitution: replace variable x with producer p in statement
 mutual
@@ -50,6 +51,8 @@ partial def Producer.substVar (x : Ident) (p : Producer) : Producer → Producer
   | .fix pos y body =>
     if y == x then .fix pos y body  -- x is shadowed by fix binder
     else .fix pos y (Producer.substVar x p body)
+  | .dataCon pos con args =>
+    .dataCon pos con (args.map (Producer.substVar x p))
 
 partial def Consumer.substVar (x : Ident) (p : Producer) : Consumer → Consumer
   | .covar pos α => .covar pos α
@@ -87,6 +90,8 @@ partial def Producer.substCovar (α : Ident) (c : Consumer) : Producer → Produ
   | .fix pos y body =>
     -- y is a variable, doesn't shadow α (which is a covariable)
     .fix pos y (Producer.substCovar α c body)
+  | .dataCon pos con args =>
+    .dataCon pos con (args.map (Producer.substCovar α c))
 
 partial def Consumer.substCovar (α : Ident) (c : Consumer) : Consumer → Consumer
   | .covar pos β => if β == α then c else .covar pos β
@@ -178,6 +183,15 @@ partial def step : Statement → Option Statement
     | .record _ fields, .destructor pos fieldName [] cont =>
       match fields.find? (fun (f, _) => f == fieldName) with
       | some (_, value) => some (.cut pos value cont)
+      | none => none
+    -- Data constructor + case: ⟨K(v1,...,vn) | case { K(x1,...,xn) => s, ... }⟩ ⊲ s[v1/x1,...,vn/xn]
+    | .dataCon _ conName args, .case _ branches =>
+      match branches.find? (fun (k, _, _) => k == conName) with
+      | some (_, vars, body) =>
+        if vars.length != args.length then none
+        else
+          let body' := vars.zip args |>.foldl (fun s (x, v) => s.substVar x v) body
+          some body'
       | none => none
     | _, _ => none
   -- Binary operation: ⊙(p₁, p₂; c)

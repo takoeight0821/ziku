@@ -1,0 +1,10 @@
+-- Recursive length function on S-expression lists
+let rec length = \lst =>
+  match lst with
+  | Nil => 0
+  | Cons(h, t) => 1 + length t
+  | Num(n) => 0
+  end
+in
+let list1 = Cons(Num(1), Cons(Num(2), Cons(Num(3), Nil))) in
+length list1

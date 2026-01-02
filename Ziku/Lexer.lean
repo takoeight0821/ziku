@@ -81,6 +81,7 @@ inductive Token where
   | pipeOr  : Token     -- ||
   | plusPlus : Token    -- ++
   | pipeGt  : Token     -- |>
+  | at_     : Token     -- @ (constructor prefix)
   -- Special
   | eof     : Token
   deriving Repr, BEq
@@ -152,6 +153,7 @@ def Token.toString : Token → String
   | .pipeOr => "||"
   | .plusPlus => "++"
   | .pipeGt => "|>"
+  | .at_ => "@"
   | .eof => "EOF"
 
 instance : ToString Token := ⟨Token.toString⟩
@@ -417,7 +419,17 @@ partial def lexToken (s : LexState) : Except String (PosToken × LexState) := do
     | some '*', _ => .ok ({ token := .star, pos }, s.advance)
     | some '/', _ => .ok ({ token := .slash, pos }, s.advance)
     | some '\\', _ => .ok ({ token := .backslash, pos }, s.advance)
-    | some '_', _ => .ok ({ token := .underscore, pos }, s.advance)
+    | some '@', _ => .ok ({ token := .at_, pos }, s.advance)
+    | some '_', _ =>
+      -- Check if it's a standalone underscore (wildcard) or start of identifier
+      match s.peekN 1 with
+      | some c =>
+        if c.isAlphanum then
+          -- Identifier starting with underscore
+          lexIdent s >>= fun (t, s') => .ok ({ token := t, pos }, s')
+        else
+          .ok ({ token := .underscore, pos }, s.advance)
+      | none => .ok ({ token := .underscore, pos }, s.advance)
     | some 'μ', _ => .ok ({ token := .kMu, pos }, s.advance)
     -- String literal
     | some '"', _ => lexString s >>= fun (t, s') => .ok ({ token := t, pos }, s')

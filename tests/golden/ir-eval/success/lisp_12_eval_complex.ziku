@@ -1,0 +1,22 @@
+-- Complex expression evaluation
+-- Evaluates: if ((5 - 5) == 0) then (3 * 4 + 2) else 0
+-- Expected: 14
+
+let rec evalExpr = \expr =>
+  match expr with
+  | Num(n) => n
+  | Add(e1, e2) => evalExpr e1 + evalExpr e2
+  | Mul(e1, e2) => evalExpr e1 * evalExpr e2
+  | Sub(e1, e2) => evalExpr e1 - evalExpr e2
+  | IfZero(cond, thenE, elseE) =>
+    if evalExpr cond == 0 then evalExpr thenE else evalExpr elseE
+  | Nil => 0
+  | Cons(h, t) => 0
+  end
+in
+let expr = IfZero(
+  Sub(Num(5), Num(5)),
+  Add(Mul(Num(3), Num(4)), Num(2)),
+  Num(0)
+) in
+evalExpr expr

@@ -81,6 +81,48 @@ The key insight from Grokking is that surface expressions are producers,
 and we use μ to capture the continuation context.
 -/
 
+open Ziku (Pat)
+
+-- Extract constructor name and bound variables from a pattern
+-- For nested patterns, we currently only support simple variable bindings
+partial def patternToIRBranch (pat : Pat) : TranslateM (Ident × List Ident) :=
+  match pat with
+  | .con _ conName args => do
+    -- Constructor pattern: extract variable names from arguments
+    let vars ← args.mapM extractVarFromPat
+    return (conName, vars)
+  | .var _ x =>
+    -- Variable pattern: catch-all, bind to "_var" pseudo-constructor
+    return ("_var", [x])
+  | .wild _ =>
+    -- Wildcard: catch-all, bind to "_wild" pseudo-constructor
+    return ("_wild", [])
+  | .lit pos l =>
+    -- Literal pattern: treat as nullary constructor
+    let conName := match l with
+      | .int n => s!"_lit_int_{n}"
+      | .bool b => s!"_lit_bool_{b}"
+      | .string s => s!"_lit_string_{s}"
+      | _ => "_lit_other"
+    return (conName, [])
+  | .paren _ p => patternToIRBranch p
+  | .ann _ p _ => patternToIRBranch p
+where
+  -- Extract variable name from a simple pattern (for constructor arguments)
+  extractVarFromPat (pat : Pat) : TranslateM Ident :=
+    match pat with
+    | .var _ x => return x
+    | .wild _ => do
+      -- Generate fresh name for wildcard
+      let s ← get
+      let name := s!"_wild{s.freshCounter}"
+      set { s with freshCounter := s.freshCounter + 1 }
+      return name
+    | .paren _ p => extractVarFromPat p
+    | .ann _ p _ => extractVarFromPat p
+    | .con pos _ _ => throw $ .notImplemented pos "nested constructor pattern"
+    | .lit pos _ => throw $ .notImplemented pos "literal in constructor pattern"
+
 mutual
   -- Translate expression to Producer
   partial def translateExpr (e : Expr) : TranslateM Producer :=
@@ -131,8 +173,18 @@ mutual
       return .mu pos α (.ifz pos condP
         (.cut pos thenP (.covar pos α))
         (.cut pos elseP (.covar pos α)))
-    | .match_ pos _ _ => do
-      throw $ .notImplemented pos "match expression"
+    | .match_ pos scrutinee cases => do
+      -- ⟦match e with | K1(x1,...) => e1 | ... end⟧
+      -- = μα.⟨⟦e⟧ | case { K1(x1,...) => ⟨⟦e1⟧ | α⟩, ... }⟩
+      let α ← freshCovar
+      let scrutineeP ← translateExpr scrutinee
+      let branches ← cases.mapM fun (pat, body) => do
+        let (conName, vars) ← patternToIRBranch pat
+        let bodyP ← translateExpr body
+        let branchStmt := Statement.cut pos bodyP (.covar pos α)
+        return (conName, vars, branchStmt)
+      let caseConsumer := Consumer.case pos branches
+      return .mu pos α (.cut pos scrutineeP caseConsumer)
     | .codata pos _ => do
       throw $ .notImplemented pos "codata block"
     | .field pos e fieldName => do
@@ -173,6 +225,10 @@ mutual
       let β ← freshCovar
       let valueP ← translateExpr value
       return .mu pos β (.cut pos valueP (.covar pos labelName))
+    | .con pos conName args => do
+      -- ⟦Con(e1, ..., en)⟧ = dataCon Con (⟦e1⟧, ..., ⟦en⟧)
+      let argsP ← args.mapM translateExpr
+      return .dataCon pos conName argsP
 end
 
 -- Run translation

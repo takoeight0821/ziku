@@ -1,0 +1,3 @@
+{ Pair(a, b) #.fst => a
+, Pair(a, b) #.snd => b
+}

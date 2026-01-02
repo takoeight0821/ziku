@@ -34,6 +34,7 @@ inductive Producer where
       -- Destructor name, argument variables (producer vars), result covars (consumer vars), body
   | record    : SourcePos → List (Ident × Producer) → Producer      -- { x = p, y = q }
   | fix       : SourcePos → Ident → Producer → Producer             -- fix x. p (fixpoint)
+  | dataCon   : SourcePos → Ident → List Producer → Producer        -- K(v1, v2, ...) - data constructor
   deriving Repr, BEq
 
 -- Consumers: consume/destruct elements of a type
@@ -68,6 +69,7 @@ def Producer.pos : Producer → SourcePos
   | cocase p _ => p
   | record p _ => p
   | fix p _ _ => p
+  | dataCon p _ _ => p
 
 -- Get source position from Consumer
 def Consumer.pos : Consumer → SourcePos
@@ -94,6 +96,7 @@ partial def Producer.freeVars : Producer → List Ident
       s.freeVars.filter (fun v => !vars.contains v))
   | .record _ fields => fields.flatMap (fun (_, p) => p.freeVars)
   | .fix _ x body => body.freeVars.filter (· != x)  -- x is bound
+  | .dataCon _ _ args => args.flatMap Producer.freeVars
 
 partial def Consumer.freeVars : Consumer → List Ident
   | .covar _ α => [α]
@@ -125,6 +128,9 @@ partial def Producer.toString : Producer → String
     let fs := fields.map (fun (n, p) => s!"{n} = {p.toString}")
     "{ " ++ String.intercalate ", " fs ++ " }"
   | .fix _ x body => s!"(fix {x}. {body.toString})"
+  | .dataCon _ con args =>
+    if args.isEmpty then con
+    else s!"({con} {String.intercalate " " (args.map Producer.toString)})"
 
 partial def Consumer.toString : Consumer → String
   | .covar _ α => α

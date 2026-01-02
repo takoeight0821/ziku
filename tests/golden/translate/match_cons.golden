@@ -1,0 +1,1 @@
+(μ_α0. ⟨(Cons 42 Nil) | case { Cons(x, xs) ⇒ ⟨x | _α0⟩, Nil ⇒ ⟨0 | _α0⟩ }⟩)

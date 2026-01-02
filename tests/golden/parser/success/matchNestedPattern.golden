@@ -1,1 +1,1 @@
-(Match (Var "xs") [((Cons ((Cons x _)) _) => (Var "x")), (_ => (Lit 0))])
+(Match (Var "xs") [((Cons (Cons x _) _) => (Var "x")), (_ => (Lit 0))])

@@ -1,0 +1,20 @@
+-- cadr: get second element (car of cdr)
+let getCar = \lst =>
+  match lst with
+  | Cons(h, t) => h
+  | Nil => Nil
+  end
+in
+let getCdr = \lst =>
+  match lst with
+  | Cons(h, t) => t
+  | Nil => Nil
+  end
+in
+let list1 = Cons(Num(1), Cons(Num(2), Cons(Num(3), Nil))) in
+-- Get second element: 2
+match getCar (getCdr list1) with
+| Num(n) => n
+| Nil => -1
+| Cons(h, t) => -2
+end

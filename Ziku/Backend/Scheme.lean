@@ -171,6 +171,15 @@ partial def translateProducerM : Producer → GenM String
       -- Other: simple letrec
       let bodyCode ← translateProducerM body
       pure s!"(letrec (({xName} {bodyCode})) {xName})"
+  | .dataCon _ con args => do
+    -- Data constructor as tagged list: (list 'K v1 v2 ...)
+    let conName := mangleIdent con
+    let argCodes ← args.mapM translateProducerM
+    let argsStr := String.intercalate " " argCodes
+    if args.isEmpty then
+      pure s!"(list '{conName})"
+    else
+      pure s!"(list '{conName} {argsStr})"
 
 partial def translateConsumerM : Consumer → GenM String
   | .covar _ α => pure (mangleIdent α)
@@ -180,14 +189,22 @@ partial def translateConsumerM : Consumer → GenM String
     pure s!"(lambda ({xName}) {sCode})"
   | .case _ branches => do
     -- case { K(x̄) ⇒ s, ... }
-    -- Pattern matching on tagged data
+    -- Pattern matching on tagged data (list 'K v1 v2 ...)
+    -- Generate: (lambda (%v) (let ((%tag (car %v))) (cond ((eq? %tag 'K1) (let ((x1 (list-ref %v 1)) ...) body1)) ...)))
     let branchCodes ← branches.mapM fun (k, vars, body) => do
       let kName := mangleIdent k
       let varNames := vars.map mangleIdent
-      let varsPattern := String.intercalate " " varNames
+      -- Generate let bindings for extracting values from the list
+      let indices := List.range varNames.length
+      let bindings := indices.zip varNames |>.map fun (i, name) =>
+        s!"({name} (list-ref %v {i + 1}))"
+      let bindingsStr := String.intercalate " " bindings
       let bodyCode ← translateStatementM body
-      pure s!"(({kName} {varsPattern}) {bodyCode})"
-    pure s!"(lambda (v) (match v {String.intercalate " " branchCodes}))"
+      if vars.isEmpty then
+        pure s!"((eq? %tag '{kName}) {bodyCode})"
+      else
+        pure s!"((eq? %tag '{kName}) (let ({bindingsStr}) {bodyCode}))"
+    pure s!"(lambda (%v) (let ((%tag (car %v))) (cond {String.intercalate " " branchCodes})))"
   | .destructor _ d args cont => do
     -- D(p̄; c) - apply destructor with arguments and continuation
     -- For "ap" (function application): ((fn arg) cont)

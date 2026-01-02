@@ -217,6 +217,54 @@ mutual
             | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
+    | some .lbracket =>
+      -- Variant type: [Con1 ty1 ty2 | Con2 | r] for row polymorphic variants
+      let s := s.advance
+      match parseVariantTypeCases s with
+      | .ok (cases, s') =>
+        -- Check for row tail: | ident (lowercase = row variable)
+        match tryToken .pipe s' with
+        | .ok (hasPipe, s'') =>
+          if hasPipe then
+            -- Check if it's a row variable (lowercase) or another constructor (uppercase)
+            match s''.peekToken? with
+            | some (.ident rowVar) =>
+              -- Open variant with row variable: [Con | r]
+              let s''' := s''.advance
+              match expect .rbracket s''' with
+              | .ok (_, s'''') => .ok (.variant pos cases (some (.var pos rowVar)), s'''')
+              | .error msg => .error msg
+            | some (.conId _) =>
+              -- Another constructor case, continue parsing
+              match parseVariantTypeCases s'' with
+              | .ok (moreCases, s''') =>
+                match tryToken .pipe s''' with
+                | .ok (hasPipe', s'''') =>
+                  if hasPipe' then
+                    match expectIdent s'''' with
+                    | .ok (rowVar, s''''') =>
+                      match expect .rbracket s''''' with
+                      | .ok (_, s'''''') => .ok (.variant pos (cases ++ moreCases) (some (.var pos rowVar)), s'''''')
+                      | .error msg => .error msg
+                    | .error msg => .error msg
+                  else
+                    match expect .rbracket s'''' with
+                    | .ok (_, s''''') => .ok (.variant pos (cases ++ moreCases) none, s''''')
+                    | .error msg => .error msg
+                | .error msg => .error msg
+              | .error msg => .error msg
+            | _ =>
+              -- Closed variant: [Con]
+              match expect .rbracket s'' with
+              | .ok (_, s''') => .ok (.variant pos cases none, s''')
+              | .error msg => .error msg
+          else
+            -- Closed variant: [Con]
+            match expect .rbracket s'' with
+            | .ok (_, s''') => .ok (.variant pos cases none, s''')
+            | .error msg => .error msg
+        | .error msg => .error msg
+      | .error msg => .error msg
     | some tok => .error s!"expected type but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
     | none => .error "expected type but found EOF"
 
@@ -231,6 +279,36 @@ mutual
     let ty ← parseType
     return (name, ty)
 
+  -- Parse variant type cases: Con1 ty1 ty2 | Con2 ty3 | ...
+  -- Returns list of (constructor name, argument types)
+  partial def parseVariantTypeCases : Parser (List (Ident × List Ty)) :=
+    sepBy1 parseVariantTypeCase (expect .pipe)
+
+  partial def parseVariantTypeCase : Parser (Ident × List Ty) := fun s =>
+    match s.peekToken? with
+    | some (.conId name) =>
+      let s := s.advance
+      -- Parse argument types (atomic types only, until | or ])
+      match parseVariantArgTypes s with
+      | .ok (argTys, s') => .ok ((name, argTys), s')
+      | .error msg => .error msg
+    | some tok => .error s!"expected constructor name but found {tok}"
+    | none => .error "expected constructor name but found EOF"
+
+  -- Parse argument types for a variant constructor (stops at | or ])
+  partial def parseVariantArgTypes : Parser (List Ty) := fun s =>
+    match s.peekToken? with
+    | some .pipe => .ok ([], s)
+    | some .rbracket => .ok ([], s)
+    | some _ =>
+      match parseAtomType s with
+      | .ok (ty, s') =>
+        match parseVariantArgTypes s' with
+        | .ok (rest, s'') => .ok (ty :: rest, s'')
+        | .error msg => .error msg
+      | .error _ => .ok ([], s)  -- No more types, return empty
+    | none => .ok ([], s)
+
   -- Parse pattern
   partial def parsePattern : Parser Pat := parsePatternAtom
 
@@ -239,11 +317,26 @@ mutual
     match s.peekToken? with
     | some (.ident id) => .ok (.var pos id, s.advance)
     | some (.conId id) =>
-      -- Constructor pattern, possibly with arguments
+      -- Constructor pattern: Con or Con(p1, p2, ...)
       let s := s.advance
-      match many parsePatternAtom s with
-      | .ok (args, s') => .ok (.con pos id args, s')
-      | .error msg => .error msg
+      match s.peekToken? with
+      | some .lparen =>
+        -- Con(args...)
+        let s := s.advance  -- skip (
+        match s.peekToken? with
+        | some .rparen =>
+          -- Con() - nullary constructor with explicit parens
+          .ok (.con pos id [], s.advance)
+        | _ =>
+          match sepBy1 parsePattern (expect .comma) s with
+          | .ok (args, s') =>
+            match expect .rparen s' with
+            | .ok (_, s'') => .ok (.con pos id args, s'')
+            | .error msg => .error msg
+          | .error msg => .error msg
+      | _ =>
+        -- Con - nullary constructor
+        .ok (.con pos id [], s)
     | some (.int n) => .ok (.lit pos (.int n), s.advance)
     | some (.string str) => .ok (.lit pos (.string str), s.advance)
     | some (.char c) => .ok (.lit pos (.char c), s.advance)
@@ -551,9 +644,29 @@ mutual
     | some .kFalse => .ok (Expr.lit pos (.bool false), s.advance)
     -- Hash (self-reference) for codata
     | some .hash => .ok (Expr.hash pos, s.advance)
-    -- Variable or constructor
+    -- Variable
     | some (.ident id) => .ok (Expr.var pos id, s.advance)
-    | some (.conId id) => .ok (Expr.var pos id, s.advance)
+    -- Constructor expression: Con or Con(args)
+    | some (.conId conName) =>
+      let s := s.advance  -- skip constructor name
+      match s.peekToken? with
+      | some .lparen =>
+        -- Con(args...)
+        let s := s.advance  -- skip (
+        match s.peekToken? with
+        | some .rparen =>
+          -- Con() - nullary constructor with explicit parens
+          .ok (Expr.con pos conName [], s.advance)
+        | _ =>
+          match sepBy1 parseExpr (expect .comma) s with
+          | .ok (args, s') =>
+            match expect .rparen s' with
+            | .ok (_, s'') => .ok (Expr.con pos conName args, s'')
+            | .error msg => .error msg
+          | .error msg => .error msg
+      | _ =>
+        -- Con - nullary constructor
+        .ok (Expr.con pos conName [], s)
     -- Lambda
     | some .backslash => parseLambda s
     -- Let

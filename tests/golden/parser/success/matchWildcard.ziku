@@ -1,4 +1,4 @@
 match x with
-| Cons x _ => x
+| Cons(x, _) => x
 | _ => 0
 end

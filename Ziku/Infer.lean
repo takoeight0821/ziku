@@ -145,6 +145,11 @@ partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
     match rowTail with
     | some r => occursIn varName r
     | none => false
+  | .variant _ cases rowTail =>
+    cases.any (fun (_, tys) => tys.any (occursIn varName)) ||
+    match rowTail with
+    | some r => occursIn varName r
+    | none => false
   | .bottom _ => false
 
 -- Unification with error reporting
@@ -186,6 +191,8 @@ partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) (nextVar : Nat) : Except Type
     .ok (s1 ++ s2, n2)
   | .record _ fs1 r1, .record _ fs2 r2 =>
     unifyRecords pos fs1 r1 fs2 r2 nextVar
+  | .variant _ cs1 r1, .variant _ cs2 r2 =>
+    unifyVariants pos cs1 r1 cs2 r2 nextVar
   | _, _ =>
     .error $ .unificationError pos t1 t2 s!"Cannot unify types"
 
@@ -254,6 +261,73 @@ where
       let (s2, n4) ← unifyAt pos (row2.applySubst s1) (row1Rec.applySubst s1) n3
       .ok (commonSubst ++ s1 ++ s2, n4)
 
+  /-- Variant row unification algorithm (similar to records but for sum types):
+      1. Find common constructors → unify their argument types
+      2. Find constructors only in left variant (only1)
+      3. Find constructors only in right variant (only2)
+      4. Handle row tails based on which are present -/
+  unifyVariants (pos : SourcePos)
+      (cs1 : List (Ident × List Ty)) (r1 : Option Ty)
+      (cs2 : List (Ident × List Ty)) (r2 : Option Ty)
+      (nextVar : Nat) : Except TypeError (Subst × Nat) := do
+    -- Separate common and unique constructors
+    let common := cs1.filter (fun (c, _) => cs2.any (fun (c', _) => c == c'))
+    let only1 := cs1.filter (fun (c, _) => !cs2.any (fun (c', _) => c == c'))
+    let only2 := cs2.filter (fun (c, _) => !cs1.any (fun (c', _) => c == c'))
+
+    -- Unify common constructors' argument types
+    let (commonSubst, n1) ← common.foldlM (init := ([], nextVar)) fun (subst, n) (c, tys1) =>
+      match cs2.find? (fun (c', _) => c == c') with
+      | some (_, tys2) =>
+        if tys1.length != tys2.length then
+          .error $ .unificationError pos
+            (.variant dummyPos cs1 r1) (.variant dummyPos cs2 r2)
+            s!"Constructor '{c}' has different arities"
+        else
+          -- Unify each argument type
+          (List.zip tys1 tys2).foldlM (init := (subst, n)) fun (s, n') (t1, t2) =>
+            match unifyAt pos (t1.applySubst s) (t2.applySubst s) n' with
+            | .ok (s', n'') => .ok (s ++ s', n'')
+            | .error e => .error e
+      | none => .ok (subst, n)
+
+    -- Handle tails based on which are present
+    match r1, r2 with
+    | none, none =>
+      -- Both closed: only1 and only2 must be empty
+      if only1.isEmpty && only2.isEmpty then
+        .ok (commonSubst, n1)
+      else
+        .error $ .unificationError pos
+          (.variant dummyPos cs1 none) (.variant dummyPos cs2 none)
+          s!"Variant mismatch: cannot unify closed variants with different constructors"
+    | some row1, none =>
+      -- Left has tail, right is closed: row1 must equal [only2 | ∅]
+      if only1.isEmpty then
+        let (tailSubst, n2) ← unifyAt pos row1 (.variant dummyPos only2 none) n1
+        .ok (commonSubst ++ tailSubst, n2)
+      else
+        .error $ .unificationError pos
+          (.variant dummyPos cs1 (some row1)) (.variant dummyPos cs2 none)
+          s!"Variant mismatch: left has extra constructors {only1.map (·.1)}"
+    | none, some row2 =>
+      -- Right has tail, left is closed: row2 must equal [only1 | ∅]
+      if only2.isEmpty then
+        let (tailSubst, n2) ← unifyAt pos row2 (.variant dummyPos only1 none) n1
+        .ok (commonSubst ++ tailSubst, n2)
+      else
+        .error $ .unificationError pos
+          (.variant dummyPos cs1 none) (.variant dummyPos cs2 (some row2))
+          s!"Variant mismatch: right has extra constructors {only2.map (·.1)}"
+    | some row1, some row2 =>
+      -- Both have tails: create fresh row variable ρ
+      let freshRow := Ty.var dummyPos s!"_v{n1}"
+      let n2 := n1 + 1
+      let (s1, n3) ← unifyAt pos row1 (Ty.variant dummyPos only2 (some freshRow)) n2
+      let row1Var : Ty := Ty.variant dummyPos only1 (some freshRow)
+      let (s2, n4) ← unifyAt pos (row2.applySubst s1) (row1Var.applySubst s1) n3
+      .ok (commonSubst ++ s1 ++ s2, n4)
+
 -- Apply substitution to environment
 def TyEnv.applySubst (subst : Subst) (env : TyEnv) : TyEnv :=
   env.map (fun (x, scheme) => (x, scheme.applySubst subst))
@@ -288,6 +362,7 @@ def tyToScheme (ty : Ty) : Scheme :=
   | .app _ _ _ => { vars := [], ty := ty }
   | .arrow _ _ _ => { vars := [], ty := ty }
   | .record _ _ _ => { vars := [], ty := ty }
+  | .variant _ _ _ => { vars := [], ty := ty }
   | .bottom _ => { vars := [], ty := ty }
 
 -- Instantiate a Ty: if it's a forall type, replace quantified variables with fresh ones
@@ -321,10 +396,22 @@ partial def checkPattern (pat : Pat) (expectedTy : Ty) : GenM (List (Ident × Sc
   | .wild _ =>
     -- Wildcard: no bindings, matches anything
     return []
-  | .con pos conName _args =>
-    -- Constructor pattern: need to look up constructor type
-    -- For now, throw not implemented
-    throw $ .notImplemented pos s!"constructor pattern '{conName}'"
+  | .con pos conName args => do
+    -- Constructor pattern: Con(p1, ..., pn)
+    -- Create fresh type variables for each argument
+    let mut argTys : List Ty := []
+    let mut bindings : List (Ident × Scheme) := []
+    for argPat in args do
+      let argTy ← freshTyVar
+      let argBindings ← checkPattern argPat argTy
+      argTys := argTys ++ [argTy]
+      bindings := bindings ++ argBindings
+    -- Create a row-polymorphic variant type [Con T1 ... Tn | ρ]
+    let rowVar ← freshTyVar
+    let variantTy := Ty.variant pos [(conName, argTys)] (some rowVar)
+    -- Unify expected type with this variant type
+    addConstraint (.unify pos expectedTy variantTy)
+    return bindings
   | .paren _ p =>
     -- Parenthesized: recurse
     checkPattern p expectedTy
@@ -497,6 +584,13 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
         -- goto returns bottom type (never returns)
         return .bottom pos
     | none => throw $ .unboundVariable pos labelName
+  | .con pos conName args => do
+    -- Constructor application: Con(e1, ..., en)
+    -- Infer types of arguments
+    let argTys ← args.mapM (genConstraints env)
+    -- Create a row-polymorphic variant type [Con T1 ... Tn | ρ]
+    let rowVar ← freshTyVar
+    return .variant pos [(conName, argTys)] (some rowVar)
 
 /-! ## Constraint Solving
 
@@ -530,6 +624,11 @@ partial def isBottomTainted (bottomVars : List Ident) : Ty → Bool
   | .forall_ _ x t => if bottomVars.contains x then false else isBottomTainted bottomVars t
   | .record _ fields rowTail =>
     fields.any (fun (_, t) => isBottomTainted bottomVars t) ||
+    match rowTail with
+    | some r => isBottomTainted bottomVars r
+    | none => false
+  | .variant _ cases rowTail =>
+    cases.any (fun (_, tys) => tys.any (isBottomTainted bottomVars)) ||
     match rowTail with
     | some r => isBottomTainted bottomVars r
     | none => false
@@ -647,6 +746,10 @@ partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
   | .record p fields rowTail =>
     .record p
       (fields.map fun (n, t) => (n, finalizeTy bottomVars t))
+      (rowTail.map (finalizeTy bottomVars))
+  | .variant p cases rowTail =>
+    .variant p
+      (cases.map fun (c, tys) => (c, tys.map (finalizeTy bottomVars)))
       (rowTail.map (finalizeTy bottomVars))
   | .bottom p => .bottom p
 
