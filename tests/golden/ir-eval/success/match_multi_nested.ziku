@@ -1,0 +1,5 @@
+-- Test multiple levels of nested patterns
+match Cons(Cons(1, Nil), Nil) {
+| Cons(Cons(a, _), _) => a
+| _ => 0
+}

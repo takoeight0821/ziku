@@ -77,6 +77,9 @@ Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
 **Surface Language**:
 
 - **Pattern matching** (`|` clauses): destructs data types
+  - Supports nested patterns: `Cons(MNum(a), rest)` compiles to nested case expressions
+  - Literal patterns in constructor args: `Cons(42, _)`
+  - Uses join points (`mu`/`covar`) for failure handling
 - **Copattern matching** (`{}` blocks): constructs codata types
 - **`#`**: represents the object being defined (like `this`/`self`)
 - **`label name { body }`**: creates a control point
