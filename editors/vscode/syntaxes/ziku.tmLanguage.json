@@ -1,0 +1,191 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Ziku",
+  "scopeName": "source.ziku",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#characters" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constructors" },
+    { "include": "#builtins" },
+    { "include": "#operators" },
+    { "include": "#special" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-dash.ziku",
+          "match": "--.*$"
+        },
+        {
+          "name": "comment.block.ziku",
+          "begin": "\\{-",
+          "end": "-\\}",
+          "patterns": [
+            { "include": "#comments" }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.ziku",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.ziku",
+              "match": "\\\\[nrt\\\\\"']"
+            }
+          ]
+        }
+      ]
+    },
+    "characters": {
+      "patterns": [
+        {
+          "name": "string.quoted.single.ziku",
+          "match": "'(\\\\[nrt\\\\\"']|[^'\\\\])'"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.ziku",
+          "match": "-?\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.ziku",
+          "match": "-?\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.ziku",
+          "match": "\\b(if|then|else|match|with|end|label|goto)\\b"
+        },
+        {
+          "name": "keyword.declaration.ziku",
+          "match": "\\b(let|rec|in|def|data|codata)\\b"
+        },
+        {
+          "name": "keyword.other.ziku",
+          "match": "\\b(forall|module|where|import|as|infix|infixr|infixl|cut|mu)\\b|\\bμ\\b"
+        },
+        {
+          "name": "keyword.operator.logical.ziku",
+          "match": "\\bnot\\b"
+        },
+        {
+          "name": "constant.language.boolean.ziku",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.unit.ziku",
+          "match": "\\(\\)"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.ziku",
+          "match": "\\b(Int|Float|String|Rune|Bool|Unit)\\b"
+        }
+      ]
+    },
+    "constructors": {
+      "patterns": [
+        {
+          "name": "entity.name.tag.constructor.ziku",
+          "match": "\\b[A-Z][a-zA-Z0-9_']*\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.ziku",
+          "match": "\\b(strLen|strAt|strSub|strToInt|intToStr|runeToStr|intToRune|runeToInt)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.ziku",
+          "match": "->|=>"
+        },
+        {
+          "name": "keyword.operator.comparison.ziku",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.logical.ziku",
+          "match": "&&|\\|\\|"
+        },
+        {
+          "name": "keyword.operator.arithmetic.ziku",
+          "match": "\\+\\+|\\|>|\\+|-|\\*|/"
+        },
+        {
+          "name": "keyword.operator.assignment.ziku",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.lambda.ziku",
+          "match": "\\\\"
+        },
+        {
+          "name": "keyword.operator.type.ziku",
+          "match": ":"
+        },
+        {
+          "name": "keyword.operator.pipe.ziku",
+          "match": "\\|"
+        }
+      ]
+    },
+    "special": {
+      "patterns": [
+        {
+          "name": "variable.language.self.ziku",
+          "match": "#"
+        },
+        {
+          "name": "variable.language.wildcard.ziku",
+          "match": "\\b_\\b"
+        },
+        {
+          "name": "punctuation.separator.ziku",
+          "match": "[,;]"
+        },
+        {
+          "name": "punctuation.bracket.ziku",
+          "match": "[\\{\\}\\[\\]\\(\\)]"
+        },
+        {
+          "name": "punctuation.accessor.ziku",
+          "match": "\\."
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.ziku",
+          "match": "\\b[a-z_][a-zA-Z0-9_']*\\b"
+        }
+      ]
+    }
+  }
+}

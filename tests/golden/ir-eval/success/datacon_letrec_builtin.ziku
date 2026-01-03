@@ -1,0 +1,11 @@
+-- Recursive function with dataCon and builtin
+-- Tests let rec + dataCon + builtin combination
+
+let rec process = \s =>
+  if strLen s == 0 then MNil
+  else Cons(MStr(runeToStr (strAt s 0)), process (strSub s 1 (strLen s - 1)))
+in
+match process "ab" {
+| Cons(h, _) => h
+| _ => MStr("fail")
+}

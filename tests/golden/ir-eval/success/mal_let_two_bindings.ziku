@@ -1,0 +1,79 @@
+-- Test: (let* [a 2 b 3] b) -> Expected: 3
+
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else
+    let c1 = runeToInt (strAt s1 i) in
+    let c2 = runeToInt (strAt s2 i) in
+    if c1 == c2 then strEqFrom s1 s2 (i + 1)
+    else false
+in
+
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0
+  else false
+in
+
+-- Simple environment
+let emptyEnv = MNil in
+
+let rec envGet = \env sym =>
+  match env {
+  | Cons(binding, rest) =>
+    match binding {
+    | Cons(MStr(name), val) =>
+      if strEq name sym then val
+      else envGet rest sym
+    | _ => envGet rest sym
+    }
+  | _ => MErr("not found")
+  }
+in
+
+let envSet = \env sym val =>
+  Cons(Cons(MStr(sym), val), env)
+in
+
+-- Manually build AST: (let* [a 2 b 3] b)
+-- Structure: Cons(MSym("let*"), Cons([a 2 b 3], Cons(MSym("b"), MNil)))
+-- Bindings: Cons(MSym("a"), Cons(MNum(2), Cons(MSym("b"), Cons(MNum(3), MNil))))
+let bindings = Cons(MSym("a"), Cons(MNum(2), Cons(MSym("b"), Cons(MNum(3), MNil)))) in
+let body = MSym("b") in
+let ast = Cons(MSym("let*"), Cons(bindings, Cons(body, MNil))) in
+
+let rec evalBindings = \ev bindings env =>
+  match bindings {
+  | MNil => env
+  | Cons(MSym(name), Cons(value, rest)) =>
+    let val = ev ev env value in
+    evalBindings ev rest (envSet env name val)
+  | _ => env
+  }
+in
+
+let rec eval = \ev env ast =>
+  match ast {
+  | MNum(n) => MNum(n)
+  | MNil => MNil
+  | MSym(s) => envGet env s
+  | Cons(head, args) =>
+    match head {
+    | MSym(letStar) =>
+      if strEq letStar "let*" then
+        match args {
+        | Cons(bindings, Cons(body, MNil)) =>
+          let newEnv = evalBindings ev bindings env in
+          ev ev newEnv body
+        | _ => MErr("let* needs bindings and body")
+        }
+      else MErr("unknown")
+    | _ => MErr("cannot apply")
+    }
+  | _ => MErr("cannot eval")
+  }
+in
+
+match eval eval emptyEnv ast {
+| MNum(n) => n
+| _ => 0 - 1
+}

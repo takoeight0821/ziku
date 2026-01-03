@@ -1,3 +1,7 @@
 # Golden test files - exclude from language statistics
 tests/golden/**/*.ziku linguist-generated
 tests/golden/**/*.golden linguist-generated
+
+# Emit output files - exclude from language statistics
+tests/emit/**/*.ss linguist-generated
+tests/emit/**/*.ir linguist-generated

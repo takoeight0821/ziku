@@ -1,0 +1,30 @@
+-- Pattern with isSpecialCode like mal
+
+let isSpecialCode = \code =>
+  if code == runeToInt '(' then true
+  else if code == runeToInt ')' then true
+  else false
+in
+let readToken = \s =>
+  if strLen s == 0 then Cons(MStr(""), MStr(""))
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if isSpecialCode code
+    then Cons(MStr(runeToStr c), MStr(strSub s 1 (strLen s - 1)))
+    else Cons(MStr(s), MStr(""))
+in
+let rec tokenize = \s =>
+  if strLen s == 0 then MNil
+  else
+    match readToken s {
+    | Cons(MStr(tok), MStr(rest)) =>
+      if strLen tok == 0 then MNil
+      else Cons(MStr(tok), tokenize rest)
+    | _ => MNil
+    }
+in
+match tokenize "(a)" {
+| Cons(h, _) => h
+| _ => MStr("fail")
+}

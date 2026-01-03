@@ -1,0 +1,57 @@
+-- Test eval directly without parsing
+-- Tests: (+ 1 (+ 2 3)) = 6
+
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else
+    let c1 = runeToInt (strAt s1 i) in
+    let c2 = runeToInt (strAt s2 i) in
+    if c1 == c2 then strEqFrom s1 s2 (i + 1)
+    else false
+in
+
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0
+  else false
+in
+
+-- Apply arithmetic operation
+let applyOp = \op args =>
+  match args {
+  | Cons(MNum(a), Cons(MNum(b), MNil)) =>
+    if strEq op "+" then MNum(a + b)
+    else MErr("unknown op")
+  | _ => MErr("arity error")
+  }
+in
+
+-- Main eval function
+let rec eval = \ev ast =>
+  match ast {
+  | MNum(n) => MNum(n)
+  | MNil => MNil
+  | Cons(head, args) =>
+    match head {
+    | MSym(op) =>
+      let rec evalList = \ev2 lst =>
+        match lst {
+        | MNil => MNil
+        | Cons(h, t) => Cons(ev2 ev2 h, evalList ev2 t)
+        | _ => MNil
+        }
+      in
+      let evaledArgs = evalList ev args in
+      applyOp op evaledArgs
+    | _ => MErr("cannot apply")
+    }
+  | _ => MErr("cannot eval")
+  }
+in
+
+-- Test: (+ 1 (+ 2 3)) manually constructed as AST
+let ast = Cons(MSym("+"), Cons(MNum(1), Cons(Cons(MSym("+"), Cons(MNum(2), Cons(MNum(3), MNil))), MNil))) in
+
+match eval eval ast {
+| MNum(n) => n
+| _ => 0 - 1
+}

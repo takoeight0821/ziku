@@ -1,0 +1,54 @@
+-- Isolated tokenize from mal_step3
+
+let rec skipWhitespace = \s =>
+  if strLen s == 0 then s
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if code == runeToInt ' ' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else s
+in
+
+let isSpecialCode = \code =>
+  if code == runeToInt '(' then true
+  else if code == runeToInt ')' then true
+  else false
+in
+
+let rec readSymbol = \s i =>
+  if i >= strLen s then Cons(MStr(s), MStr(""))
+  else
+    let c = strAt s i in
+    let code = runeToInt c in
+    if code == runeToInt ' ' then Cons(MStr(strSub s 0 i), MStr(strSub s i (strLen s - i)))
+    else if isSpecialCode code then Cons(MStr(strSub s 0 i), MStr(strSub s i (strLen s - i)))
+    else readSymbol s (i + 1)
+in
+
+let readToken = \s =>
+  let s2 = skipWhitespace s in
+  if strLen s2 == 0 then Cons(MStr(""), MStr(""))
+  else
+    let c = strAt s2 0 in
+    let code = runeToInt c in
+    if isSpecialCode code
+    then Cons(MStr(runeToStr c), MStr(strSub s2 1 (strLen s2 - 1)))
+    else readSymbol s2 0
+in
+
+let rec tokenize = \s =>
+  let s2 = skipWhitespace s in
+  if strLen s2 == 0 then MNil
+  else
+    match readToken s2 {
+    | Cons(MStr(tok), MStr(rest)) =>
+      if strLen tok == 0 then MNil
+      else Cons(MStr(tok), tokenize rest)
+    | _ => MNil
+    }
+in
+
+match tokenize "(+ 1 2)" {
+| Cons(h, _) => h
+| _ => MStr("fail")
+}

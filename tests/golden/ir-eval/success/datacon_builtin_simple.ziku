@@ -1,0 +1,4 @@
+-- Simple test: dataCon with builtin call as argument
+-- This should test if focusing correctly lifts the μ out of dataCon args
+
+MStr(runeToStr 'x')

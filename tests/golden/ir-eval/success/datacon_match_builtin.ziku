@@ -1,0 +1,8 @@
+-- Pattern matching on dataCon with builtin result
+-- This tests the case that was getting stuck
+
+let x = Cons(MStr(runeToStr 'a'), MNil) in
+match x {
+| Cons(h, t) => h
+| _ => MStr("fail")
+}

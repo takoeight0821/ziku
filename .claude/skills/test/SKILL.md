@@ -9,7 +9,7 @@ Test and debug Ziku expressions through different compilation phases.
 ## Usage
 
 ```bash
-lake exe ziku-test <phase> <expression-or-file>
+./scripts/ziku-test.sh <phase> <expression-or-file>
 ```
 
 ### Phases
@@ -21,57 +21,61 @@ lake exe ziku-test <phase> <expression-or-file>
 | `eval` | Evaluate via IR interpreter |
 | `translate` | Show IR translation |
 | `scheme` | Generate Scheme code |
+| `scheme-run` | Generate and run Scheme code |
 
 ### Examples
 
 ```bash
 # Type inference
-lake exe ziku-test infer 'let x = 1 in x + 1'
+./scripts/ziku-test.sh infer 'let x = 1 in x + 1'
 
 # Evaluation
-lake exe ziku-test eval 'let f = \x => x * 2 in f 5'
-
-# From stdin
-echo 'let x = { a = 1 } in x.a' | lake exe ziku-test infer
+./scripts/ziku-test.sh eval 'let f = \x => x * 2 in f 5'
 
 # From file
-lake exe ziku-test eval tests/golden/ir-eval/success/arithmetic.ziku
+./scripts/ziku-test.sh eval tests/golden/ir-eval/success/arithmetic.ziku
+
+# Generate and run Scheme
+./scripts/ziku-test.sh scheme-run 'let x = 1 in x + 1'
 ```
 
 ## Workflow
 
-1. Build if needed: `lake build`
-2. Run the test: `lake exe ziku-test <phase> <input>`
-3. Analyze output for errors or unexpected behavior
+1. Run the test: `./scripts/ziku-test.sh <phase> <input>`
+   - The script automatically builds if needed
+2. Analyze output for errors or unexpected behavior
 
 ## Common Debugging Scenarios
 
 ### Type Inference Issues
 ```bash
 # Check what type is inferred
-lake exe ziku-test infer '\r => r.x'
+./scripts/ziku-test.sh infer '\r => r.x'
 # Output: ({ x : _t1 | _t2 } -> _t1)
 
 # Check polymorphic function usage
-lake exe ziku-test infer 'let id = \x => x in id 1'
+./scripts/ziku-test.sh infer 'let id = \x => x in id 1'
 # Output: Int
 ```
 
 ### IR Translation Issues
 ```bash
 # See the generated IR
-lake exe ziku-test translate 'let x = 1 in x + 1'
+./scripts/ziku-test.sh translate 'let x = 1 in x + 1'
 ```
 
 ### Evaluation Issues
 ```bash
 # Compare eval result with expected
-lake exe ziku-test eval 'let rec f = \n => if n == 0 then 1 else n * f (n - 1) in f 5'
+./scripts/ziku-test.sh eval 'let rec f = \n => if n == 0 then 1 else n * f (n - 1) in f 5'
 # Output: 120
 ```
 
 ### Scheme Code Generation
 ```bash
 # Generate and inspect Scheme code
-lake exe ziku-test scheme 'let x = 1 in x + 1'
+./scripts/ziku-test.sh scheme 'let x = 1 in x + 1'
+
+# Generate and execute Scheme code
+./scripts/ziku-test.sh scheme-run 'let x = 1 in x + 1'
 ```

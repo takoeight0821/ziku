@@ -1,0 +1,4 @@
+-- Nested dataCon with builtin call
+-- Tests focusing with nested constructors
+
+Cons(MStr(runeToStr 'x'), MNil)

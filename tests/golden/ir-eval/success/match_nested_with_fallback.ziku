@@ -1,0 +1,7 @@
+-- Test nested pattern with fallback to later branch
+let x = Cons(MNum(5), Nil) in
+match x {
+| Cons(MNum(a), rest) => a
+| Cons(b, rest) => 0
+| Nil => -1
+}

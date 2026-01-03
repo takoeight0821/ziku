@@ -1,1 +1,0 @@
-(μ_α0. ⟨(fix length. cocase { ap(lst, _α1) ⇒ ⟨(μ_α2. ⟨lst | case { Nil ⇒ ⟨0 | _α2⟩, Cons(h, t) ⇒ ⟨(μ_α3. +(1, (μ_α4. ⟨length | ap(t); _α4⟩); _α3)) | _α2⟩, Num(n) ⇒ ⟨0 | _α2⟩ }⟩) | _α1⟩ }) | (μ~length. ⟨(μ_α5. ⟨(Cons (Num 1) (Cons (Num 2) (Cons (Num 3) Nil))) | (μ~list1. ⟨(μ_α6. ⟨length | ap(list1); _α6⟩) | _α5⟩)⟩) | _α0⟩)⟩)

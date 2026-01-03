@@ -1,1 +1,0 @@
-(μ_α0. ⟨(fix counter. cocase { ap(n, _α1) ⇒ ⟨{ next = (μ_α2. ⟨counter | ap((μ_α3. +(n, 1; _α3))); _α2⟩), value = n } | _α1⟩ }) | (μ~counter. ⟨(μ_α4. ⟨(μ_α5. ⟨(μ_α6. ⟨(μ_α7. ⟨(μ_α8. ⟨counter | ap(0); _α8⟩) | next; _α7⟩) | next; _α6⟩) | next; _α5⟩) | value; _α4⟩) | _α0⟩)⟩)

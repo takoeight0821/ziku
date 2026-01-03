@@ -1,0 +1,6 @@
+-- Test literal pattern inside constructor
+match Cons(42, Nil) {
+| Cons(42, _) => 1
+| Cons(_, _) => 2
+| Nil => 0
+}

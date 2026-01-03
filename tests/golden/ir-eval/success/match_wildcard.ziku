@@ -1,0 +1,14 @@
+let test1 = match Cons(1, Nil) {
+  | Cons(h, _) => h
+  | _ => 0
+} in
+let test2 = match Nil {
+  | Cons(h, _) => h
+  | _ => 42
+} in
+let test3 = match 5 {
+  | 1 => 100
+  | 2 => 200
+  | _ => 999
+} in
+test1 + test2 + test3

@@ -1,0 +1,11 @@
+-- Simplified tokenizer pattern from mal
+-- Tests the readToken pattern
+
+let readToken = \s =>
+  if strLen s == 0 then Cons(MStr(""), MStr(""))
+  else Cons(MStr(runeToStr (strAt s 0)), MStr(strSub s 1 (strLen s - 1)))
+in
+match readToken "(abc" {
+| Cons(MStr(tok), MStr(rest)) => tok
+| _ => "fail"
+}
