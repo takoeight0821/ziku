@@ -10,11 +10,12 @@ INPUT="${2:-}"
 
 if [[ -z "$INPUT" ]]; then
     echo "Usage: $0 <phase> <expression-or-file>"
-    echo "Phases: parse, infer, eval, translate, scheme"
+    echo "Phases: parse, infer, eval, translate, scheme, scheme-run"
     echo ""
     echo "Examples:"
     echo "  $0 infer 'let x = 1 in x + 1'"
-    echo "  $0 eval tests/golden/ir-eval/success/arithmetic.ziku"
+    echo "  $0 eval tests/golden/parser/success/arithmetic.ziku"
+    echo "  $0 scheme-run '(\\x -> x + 1)(41)'"
     exit 1
 fi
 
@@ -39,7 +40,7 @@ case "$PHASE" in
         echo "$EXPR" | lake exe ziku --infer
         ;;
     eval)
-        echo "$EXPR" | lake exe ziku
+        echo "$EXPR" | lake exe ziku --eval
         ;;
     translate)
         echo "$EXPR" | lake exe ziku --translate

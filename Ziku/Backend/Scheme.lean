@@ -477,6 +477,11 @@ def schemeRuntime : String :=
 
 ;; Pretty print result (matching IR eval output format)
 (define (ziku-print-result v)
+  (ziku-print-value v)
+  (newline))
+
+;; Print a value without trailing newline
+(define (ziku-print-value v)
   (cond
     ((boolean? v) (display (if v \"true\" \"false\")))
     ((null? v) (display \"()\"))
@@ -492,28 +497,43 @@ def schemeRuntime : String :=
      (display \"'\"))
     ((pair? v)
      (if (and (pair? (car v)) (symbol? (caar v)))
-         ;; Record
+         ;; Record: ((field1 . val1) (field2 . val2) ...)
          (begin
            (display \"{ \")
            (let loop ((fields v))
              (unless (null? fields)
                (display (caar fields))
                (display \" = \")
-               (ziku-print-result (cdar fields))
+               (ziku-print-value (cdar fields))
                (unless (null? (cdr fields))
                  (display \", \"))
                (loop (cdr fields))))
            (display \" }\"))
-         ;; Regular pair/list
-         (begin
-           (display \"(\")
-           (ziku-print-result (car v))
-           (display \" . \")
-           (ziku-print-result (cdr v))
-           (display \")\"))))
+         ;; Check for tagged data constructor: (symbol arg1 arg2 ...)
+         (if (symbol? (car v))
+             ;; Data constructor: output as (ConName arg1 arg2 ...) or just ConName if no args
+             (if (null? (cdr v))
+                 ;; Nullary constructor: just the name without parens
+                 (display (car v))
+                 ;; Constructor with args: (ConName arg1 arg2 ...)
+                 (begin
+                   (display \"(\")
+                   (display (car v))
+                   (let loop ((args (cdr v)))
+                     (unless (null? args)
+                       (display \" \")
+                       (ziku-print-value (car args))
+                       (loop (cdr args))))
+                   (display \")\")))
+             ;; Regular pair
+             (begin
+               (display \"(\")
+               (ziku-print-value (car v))
+               (display \" . \")
+               (ziku-print-value (cdr v))
+               (display \")\")))))
     ((procedure? v) (display \"<function>\"))
-    (else (display v)))
-  (newline))
+    (else (display v))))
 
 ;; Logical operators as functions (Scheme's and/or are special forms, not procedures)
 (define (ziku-and a b) (and a b))

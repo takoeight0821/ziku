@@ -23,14 +23,24 @@ The IR evaluator gets stuck (returns `Stuck`) when evaluating complex expression
 
 ## Analysis
 
-The issue appears to be that the IR evaluator doesn't fully reduce the scrutinee before attempting pattern matching. When the scrutinee is a `Cons` containing lazy producers (like `(μ_α. runeToStr(...))`) instead of values, the case expression cannot match.
+The issue is **code explosion during substitution-based evaluation**, not focusing or pattern matching semantics.
 
-**Example stuck expression (simplified):**
-```
-⟨(Cons (MStr (μ_α. runeToStr('('; _α))) ...) | case { Cons(_tmp, rest) ⇒ ... }⟩
-```
+**Key findings:**
+1. **Focusing is correctly implemented** - the `Focusing.lean` module properly lifts μ-abstractions out of dataCon arguments
+2. **Simpler tests pass** - `mal_parser_only.ziku`, `mal_eval_only.ziku`, `mal_with_let.ziku` (single binding) all work
+3. **Code explosion** - when combining parser + eval, each substitution duplicates large IR code blocks
+4. **Fuel exhaustion** - the program exhausts the 100,000 step fuel limit due to exponential code growth
 
-The `MStr` constructor contains an unevaluated `μ_α. runeToStr(...)` instead of an actual string value.
+**The pattern that triggers the issue:**
+- Complex programs with many recursive functions (parser, tokenizer, eval, etc.)
+- Each function application duplicates the entire closure body
+- With nested calls, IR term size grows exponentially
+
+**Evidence:**
+- `mal_parser_only.ziku` (just parser, no eval) → works, outputs correct AST
+- `mal_let_two_bindings.ziku` (eval with manual AST, no parser) → works, outputs 3
+- `mal_let_two_simple.ziku` (parser + eval with two bindings) → stuck/timeout
+- Translated IR for `mal_let_two_simple.ziku` is ~10KB of text for a simple test
 
 ## Workaround
 
@@ -38,9 +48,10 @@ Use the Scheme backend for complex MAL-style programs. The Scheme backend correc
 
 ## Potential Solutions
 
-1. **Eager evaluation of constructor arguments**: When constructing data, force evaluation of arguments to values
-2. **Pattern-match driven evaluation**: When matching against a case, recursively evaluate the scrutinee until it becomes a value
-3. **WHNF normalization**: Implement weak head normal form reduction before case analysis
+1. **Graph reduction / sharing**: Instead of textual substitution, use sharing to avoid duplicating code
+2. **Environment-based evaluation**: Use closures with environments instead of direct substitution
+3. **Increase fuel limit**: Simple workaround but doesn't scale for very complex programs
+4. **Use Scheme backend**: The Scheme backend compiles to efficient code without substitution overhead
 
 ## Impact
 
