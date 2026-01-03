@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache elan
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.elan
           key: ${{ runner.os }}-elan-${{ hashFiles('lean-toolchain') }}
@@ -32,7 +32,7 @@ jobs:
         run: lake --version
 
       - name: Cache Lake build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .lake
           key: ${{ runner.os }}-lake-${{ hashFiles('lake-manifest.json', 'lakefile.lean') }}
