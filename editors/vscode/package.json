@@ -1,0 +1,39 @@
+{
+  "name": "ziku-lang",
+  "displayName": "Ziku Language",
+  "description": "Syntax highlighting for the Ziku programming language",
+  "version": "0.1.0",
+  "publisher": "ziku",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/takoeight0821/ziku"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "ziku",
+        "aliases": [
+          "Ziku",
+          "ziku"
+        ],
+        "extensions": [
+          ".ziku"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ziku",
+        "scopeName": "source.ziku",
+        "path": "./syntaxes/ziku.tmLanguage.json"
+      }
+    ]
+  }
+}
