@@ -1,0 +1,19 @@
+-- Pattern with skipWhitespace similar to mal
+
+let rec skipWhitespace = \s =>
+  if strLen s == 0 then s
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if code == runeToInt ' ' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else s
+in
+let readToken = \s =>
+  let s2 = skipWhitespace s in
+  if strLen s2 == 0 then Cons(MStr(""), MStr(""))
+  else Cons(MStr(runeToStr (strAt s2 0)), MStr(strSub s2 1 (strLen s2 - 1)))
+in
+match readToken "  (abc" {
+| Cons(MStr(tok), MStr(rest)) => tok
+| _ => "fail"
+}
