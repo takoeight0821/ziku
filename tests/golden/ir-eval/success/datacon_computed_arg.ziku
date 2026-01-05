@@ -1,0 +1,8 @@
+-- Test: data constructor with computed argument
+-- This should work but currently gets stuck due to missing focusing
+
+let x = MStr(intToStr 42) in
+match x {
+| MStr(s) => s
+| _ => "fail"
+}
