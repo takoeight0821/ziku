@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_ir_eval_stuck_20260105",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-05T08:53:47Z",
+  "updated_at": "2026-01-05T08:53:47Z",
+  "description": "Fix IR evaluator getting stuck on complex nested patterns by refactoring to an environment-based approach."
+}
