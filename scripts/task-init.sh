@@ -27,8 +27,8 @@ ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
 
 BRANCH_NAME="task/${ISSUE_NUMBER}-${SLUG}"
 
-echo "Creating branch: $BRANCH_NAME"
-git checkout -b "$BRANCH_NAME"
+echo "Creating and linking branch: $BRANCH_NAME"
+gh issue develop "$ISSUE_NUMBER" --name "$BRANCH_NAME" --checkout
 
 echo "✅ Task initialized successfully."
 echo "Issue: $ISSUE_URL"

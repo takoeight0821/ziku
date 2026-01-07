@@ -7,6 +7,20 @@ gh() {
     echo "https://github.com/takoeight0821/ziku/issues/123"
     return 0
   fi
+  if [[ "$1" == "issue" && "$2" == "develop" ]]; then
+    # find --name flag
+    local name=""
+    shift 2
+    while [[ $# -gt 0 ]]; do
+      if [[ "$1" == "--name" ]]; then
+        name="$2"
+        break
+      fi
+      shift
+    done
+    git checkout -b "$name"
+    return 0
+  fi
   command gh "$@"
 }
 export -f gh
