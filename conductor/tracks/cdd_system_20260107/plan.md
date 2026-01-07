@@ -7,7 +7,7 @@ Setup the foundational GitHub artifacts (templates) and ensure the environment c
 
 - [x] Task: Create GitHub Issue templates (Feature, Bug, Task) in `.github/ISSUE_TEMPLATE/` [c03473f]
 - [x] Task: Create GitHub Pull Request template in `.github/PULL_REQUEST_TEMPLATE.md` [e604f5c]
-- [ ] Task: Verify GitHub CLI (`gh`) authentication and basic connectivity in the dev environment [ ]
+- [x] Task: Verify GitHub CLI (`gh`) authentication and basic connectivity in the dev environment [b7ab536]
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: GitHub Integration & Templates' (Protocol in workflow.md) [ ]
 
 ## Phase 2: CLI Tooling - `task init` [ ]
