@@ -15,7 +15,7 @@ Implement the primary entry point for the new workflow.
 
 - [x] Task: Implement `task init` CLI logic (branch creation, issue creation via `gh` or API) [b3b28d1]
 - [x] Task: Write tests for `task init` ensuring correct branch naming and issue template application [b3b28d1]
-- [ ] Task: Implement automated linking of the local branch to the created GitHub Issue [ ]
+- [x] Task: Implement automated linking of the local branch to the created GitHub Issue [bd81541]
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: CLI Tooling - `task init`' (Protocol in workflow.md) [ ]
 
 ## Phase 3: AI Agent Tools Implementation [ ]
