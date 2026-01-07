@@ -10,7 +10,7 @@ Setup the foundational GitHub artifacts (templates) and ensure the environment c
 - [x] Task: Verify GitHub CLI (`gh`) authentication and basic connectivity in the dev environment [b7ab536]
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: GitHub Integration & Templates' (Protocol in workflow.md) [ ]
 
-## Phase 2: CLI Tooling - `task init` [ ]
+## Phase 2: CLI Tooling - `task init` [checkpoint: b613e4e]
 Implement the primary entry point for the new workflow.
 
 - [x] Task: Implement `task init` CLI logic (branch creation, issue creation via `gh` or API) [b3b28d1]
