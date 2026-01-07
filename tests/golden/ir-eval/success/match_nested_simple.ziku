@@ -1,0 +1,5 @@
+-- Test nested constructor pattern matching
+match Just(Pair(1, 2)) {
+| Just(Pair(a, b)) => a + b
+| Nothing => 0
+}

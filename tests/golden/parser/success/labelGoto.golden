@@ -1,1 +1,1 @@
-(Label "result" (If (Lit true) (Goto (Lit 42) "result") (Lit 0)))
+(Label "result" (If (Lit true) (Goto (Lit 42) (Var "result")) (Lit 0)))

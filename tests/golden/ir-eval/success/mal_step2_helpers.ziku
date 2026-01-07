@@ -1,0 +1,15 @@
+let isDigit = \c =>
+  let code = runeToInt c in
+  code >= 48 && code <= 57
+in
+
+let isWhitespace = \c =>
+  let code = runeToInt c in
+  code == 32 || code == 9 || code == 10 || code == 13 || code == 44
+in
+
+let isSpecial = \c =>
+  c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}'
+in
+
+isDigit '5'

@@ -10,11 +10,12 @@ INPUT="${2:-}"
 
 if [[ -z "$INPUT" ]]; then
     echo "Usage: $0 <phase> <expression-or-file>"
-    echo "Phases: parse, infer, eval, translate, scheme"
+    echo "Phases: parse, infer, eval, translate, scheme, scheme-run"
     echo ""
     echo "Examples:"
     echo "  $0 infer 'let x = 1 in x + 1'"
-    echo "  $0 eval tests/golden/ir-eval/success/arithmetic.ziku"
+    echo "  $0 eval tests/golden/parser/success/arithmetic.ziku"
+    echo "  $0 scheme-run '(\\x -> x + 1)(41)'"
     exit 1
 fi
 
@@ -26,29 +27,29 @@ else
 fi
 
 # Build if needed
-if [[ ! -f .lake/build/bin/ziku ]]; then
+if [[ ! -f .lake/build/bin/ziku-test ]]; then
     echo "Building Ziku..." >&2
     lake build >&2
 fi
 
 case "$PHASE" in
     parse)
-        echo "$EXPR" | lake exe ziku --parse
+        echo "$EXPR" | lake exe ziku-test parse
         ;;
     infer)
-        echo "$EXPR" | lake exe ziku --infer
+        echo "$EXPR" | lake exe ziku-test infer
         ;;
     eval)
-        echo "$EXPR" | lake exe ziku
+        echo "$EXPR" | lake exe ziku-test eval
         ;;
     translate)
-        echo "$EXPR" | lake exe ziku --translate
+        echo "$EXPR" | lake exe ziku-test translate
         ;;
     scheme)
-        echo "$EXPR" | lake exe ziku --scheme
+        echo "$EXPR" | lake exe ziku-test scheme
         ;;
     scheme-run)
-        SCHEME_CODE=$(echo "$EXPR" | lake exe ziku --scheme)
+        SCHEME_CODE=$(echo "$EXPR" | lake exe ziku-test scheme)
         echo "$SCHEME_CODE" | scheme --script /dev/stdin
         ;;
     *)

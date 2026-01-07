@@ -1,0 +1,9 @@
+-- Test triple-curried recursive function with function arg
+let rec mapWithFn = \f xs extra =>
+  match xs {
+  | Cons(h, t) => Cons(f h, mapWithFn f t extra)
+  | _ => Cons(extra, MNil)
+  }
+in
+let double = \x => x * 2 in
+mapWithFn double (Cons(1, Cons(2, Cons(3, MNil)))) 99

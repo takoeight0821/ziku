@@ -24,16 +24,14 @@ def runPhase (phase : String) (input : String) : IO Unit := do
       | .error e =>
         IO.println s!"Elaboration error: {e}"
       | .ok elaborated =>
-        match Ziku.Translate.translate elaborated with
+        match Ziku.Translate.translateToStatement elaborated with
         | .error e =>
           IO.println s!"Translation error: {e}"
-        | .ok producer =>
-          let dummyPos : Ziku.SourcePos := { line := 0, col := 0 }
-          let stmt := Ziku.IR.Statement.cut dummyPos producer (Ziku.IR.Consumer.covar dummyPos "halt")
+        | .ok stmt =>
           let result := Ziku.IR.eval stmt
           match result with
-          | .value p => IO.println (Ziku.IR.truncate p.toString)
-          | .stuck s => IO.println s!"Stuck: {s}"
+          | .value p _ => IO.println (Ziku.IR.truncate p.toString)
+          | .stuck s _ => IO.println s!"Stuck: {s}"
           | .error msg => IO.println s!"Runtime error: {msg}"
     | "translate" =>
       match Ziku.elaborateAll expr with

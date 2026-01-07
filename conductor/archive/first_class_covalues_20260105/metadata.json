@@ -1,0 +1,8 @@
+{
+  "track_id": "first_class_covalues_20260105",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-05T10:00:00Z",
+  "updated_at": "2026-01-05T10:00:00Z",
+  "description": "Implement first class covalues to allow passing consumers as function arguments"
+}

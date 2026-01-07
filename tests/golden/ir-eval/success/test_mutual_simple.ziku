@@ -1,0 +1,17 @@
+-- Simpler mutual recursion pattern
+let rec evalList = \ev args =>
+  match args {
+  | MNil => MNil
+  | Cons(h, t) => Cons(ev ev h, evalList ev t)
+  | _ => MNil
+  }
+in
+
+let rec eval = \ev ast =>
+  match ast {
+  | MNum(n) => MNum(n)
+  | _ => ast
+  }
+in
+
+evalList eval (Cons(MNum(1), Cons(MNum(2), MNil)))

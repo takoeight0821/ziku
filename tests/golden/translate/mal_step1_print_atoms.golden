@@ -1,1 +1,0 @@
-(μ_α0. ⟨(fix prStr. cocase { ap(val, _α1) ⇒ ⟨(μ_α2. ⟨val | case { MNum(n) ⇒ ⟨(μ_α3. intToStr(n; _α3)) | _α2⟩, MSym(s) ⇒ ⟨s | _α2⟩, MStr(s) ⇒ ⟨(μ_α4. ++(""", (μ_α5. ++(s, """; _α5)); _α4)) | _α2⟩, MNil ⇒ ⟨"nil" | _α2⟩, MTrue ⇒ ⟨"true" | _α2⟩, MFalse ⇒ ⟨"false" | _α2⟩, Cons(h, t) ⇒ ⟨"list" | _α2⟩ }⟩) | _α1⟩ }) | (μ~prStr. ⟨(μ_α6. ⟨prStr | ap((MNum 42)); _α6⟩) | _α0⟩)⟩)

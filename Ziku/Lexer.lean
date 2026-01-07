@@ -82,6 +82,7 @@ inductive Token where
   | plusPlus : Token    -- ++
   | pipeGt  : Token     -- |>
   | at_     : Token     -- @ (constructor prefix)
+  | tilde   : Token     -- ~ (covalue marker)
   -- Special
   | eof     : Token
   deriving Repr, BEq
@@ -135,6 +136,7 @@ def Token.toString : Token → String
   | .pipe => "|"
   | .hash => "#"
   | .underscore => "_"
+  | .tilde => "~"
   | .arrow => "->"
   | .fatArrow => "=>"
   | .backslash => "\\"
@@ -405,6 +407,7 @@ partial def lexToken (s : LexState) : Except String (PosToken × LexState) := do
     | some ';', _ => .ok ({ token := .semi, pos }, s.advance)
     | some '|', _ => .ok ({ token := .pipe, pos }, s.advance)
     | some '#', _ => .ok ({ token := .hash, pos }, s.advance)
+    | some '~', _ => .ok ({ token := .tilde, pos }, s.advance)
     | some '=', _ => .ok ({ token := .eq, pos }, s.advance)
     | some '<', _ => .ok ({ token := .langle, pos }, s.advance)
     | some '>', _ => .ok ({ token := .rangle, pos }, s.advance)

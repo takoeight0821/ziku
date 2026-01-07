@@ -63,20 +63,18 @@ def runInferTest (input : String) : Except String TestOutput :=
     | .error e => .ok { output := toString e, isError := true }
   | .error e => .error e
 
-/-- Run an IR evaluation test (parse → elaborate → translate → IR eval) -/
+/-- Run an IR evaluation test (parse → elaborate → translate → focus → IR eval) -/
 def runIREvalTest (input : String) : Except String TestOutput :=
   match Ziku.parseExprString input.trim with
   | .ok expr =>
     match Ziku.elaborateAll expr with
     | .ok elaborated =>
-      match Ziku.Translate.translate elaborated with
-      | .ok producer =>
-        let dummyPos : Ziku.SourcePos := { line := 0, col := 0 }
-        let stmt := Ziku.IR.Statement.cut dummyPos producer (Ziku.IR.Consumer.covar dummyPos "halt")
+      match Ziku.Translate.translateToStatement elaborated with
+      | .ok stmt =>
         let result := Ziku.IR.eval stmt
         match result with
-        | .value p => .ok { output := Ziku.IR.truncate p.toString, isError := false }
-        | .stuck s => .error s!"Stuck: {s}"
+        | .value p _ => .ok { output := Ziku.IR.truncate p.toString, isError := false }
+        | .stuck s _ => .error s!"Stuck: {s}"
         | .error msg => .ok { output := s!"Error: {msg}", isError := true }
       | .error e => .ok { output := s!"Translation error: {e}", isError := true }
     | .error e => .ok { output := s!"Elaboration error: {e}", isError := true }
@@ -146,12 +144,29 @@ def runSchemeTest (tc : TestCase) : IO TestResult := do
     else
       pure (TestResult.fail golden.trim actual)
 
+/-- Run IR eval without truncation (for consistency testing) -/
+def runIREvalFull (input : String) : Except String TestOutput :=
+  match Ziku.parseExprString input.trim with
+  | .ok expr =>
+    match Ziku.elaborateAll expr with
+    | .ok elaborated =>
+      match Ziku.Translate.translateToStatement elaborated with
+      | .ok stmt =>
+        let result := Ziku.IR.eval stmt
+        match result with
+        | .value p _ => .ok { output := p.toString, isError := false }  -- No truncation
+        | .stuck s _ => .error s!"Stuck: {s}"
+        | .error msg => .ok { output := s!"Error: {msg}", isError := true }
+      | .error e => .ok { output := s!"Translation error: {e}", isError := true }
+    | .error e => .ok { output := s!"Elaboration error: {e}", isError := true }
+  | .error e => .error e
+
 /-- Run a consistency check: compare IR eval result with Scheme backend result -/
 def runConsistencyTest (name : String) (inputPath : String) : IO TestResult := do
   let input ← IO.FS.readFile inputPath
 
-  -- Get IR eval result
-  let irResult := runIREvalTest input
+  -- Get IR eval result (without truncation for accurate comparison)
+  let irResult := runIREvalFull input
   match irResult with
   | .error e =>
     pure (TestResult.error s!"IR eval parse error: {e}")
@@ -177,7 +192,9 @@ def runConsistencyTest (name : String) (inputPath : String) : IO TestResult := d
         if irOutput.output.trim == schemeOutput then
           pure TestResult.pass
         else
-          pure (TestResult.fail s!"IR eval: {irOutput.output.trim}" s!"Scheme: {schemeOutput}")
+          -- Truncate for display only
+          let irDisplay := Ziku.IR.truncate irOutput.output.trim
+          pure (TestResult.fail s!"IR eval: {irDisplay}" s!"Scheme: {Ziku.IR.truncate schemeOutput}")
 
 /-- Run a single test case -/
 def runTest (tc : TestCase) : IO TestResult := do
@@ -228,18 +245,20 @@ def runSubCategory (category : String) (subdir : String) (testType : String) (ex
       expectError := expectError
     }
 
+    IO.print s!"  Testing {baseName}... "
+    (← IO.getStdout).flush
     let result ← runTest tc
     match result with
     | .pass =>
-      IO.println s!"  ✓ {baseName}"
+      IO.println s!"✓"
       passed := passed + 1
     | .fail expected actual =>
-      IO.println s!"  ✗ {baseName}"
+      IO.println s!"✗"
       IO.println s!"    Expected: {expected}"
       IO.println s!"    Actual:   {actual}"
       failed := failed + 1
     | .error msg =>
-      IO.println s!"  ✗ {baseName}: {msg}"
+      IO.println s!"✗ {msg}"
       failed := failed + 1
 
   pure (passed, failed)
@@ -256,38 +275,39 @@ def runCategory (category : String) (testType : String) : IO (Nat × Nat) := do
 
   pure (successPassed + errorPassed, successFailed + errorFailed)
 
-/-- Run all scheme tests (uses ir-eval/success source files but compiles to Scheme) -/
-def runSchemeCategory : IO (Nat × Nat) := do
-  let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"  -- Use ir-eval success source files
-  let goldenDir := "tests/golden/scheme"   -- But scheme-specific golden files
-  let tests ← discoverTests sourceDir
+/-- Run scheme-only tests (tests that only work with Scheme backend) -/
+def runSchemeOnlyCategory : IO (Nat × Nat) := do
+  let dir := System.FilePath.mk "tests/golden/scheme/success"
+  let tests ← discoverTests dir
 
   let mut passed := 0
   let mut failed := 0
 
-  IO.println s!"\n=== scheme tests ==="
+  IO.println s!"\n=== scheme-only tests ==="
 
   for baseName in tests do
     let tc : TestCase := {
       name := baseName
-      inputPath := s!"{sourceDir}/{baseName}.ziku"
-      goldenPath := s!"{goldenDir}/{baseName}.golden"
+      inputPath := s!"{dir}/{baseName}.ziku"
+      goldenPath := s!"{dir}/{baseName}.golden"
       testType := "scheme"
       expectError := false
     }
 
+    IO.print s!"  Testing {baseName}... "
+    (← IO.getStdout).flush
     let result ← runSchemeTest tc
     match result with
     | .pass =>
-      IO.println s!"  ✓ {baseName}"
+      IO.println s!"✓"
       passed := passed + 1
     | .fail expected actual =>
-      IO.println s!"  ✗ {baseName}"
+      IO.println s!"✗"
       IO.println s!"    Expected: {expected}"
       IO.println s!"    Actual:   {actual}"
       failed := failed + 1
     | .error msg =>
-      IO.println s!"  ✗ {baseName}: {msg}"
+      IO.println s!"✗ {msg}"
       failed := failed + 1
 
   pure (passed, failed)
@@ -304,90 +324,80 @@ def runConsistencyCategory : IO (Nat × Nat) := do
 
   for baseName in tests do
     let inputPath := s!"{sourceDir}/{baseName}.ziku"
+    IO.print s!"  Testing {baseName}... "
+    (← IO.getStdout).flush
     let result ← runConsistencyTest baseName inputPath
     match result with
     | .pass =>
-      IO.println s!"  ✓ {baseName}"
+      IO.println s!"✓"
       passed := passed + 1
     | .fail expected actual =>
-      IO.println s!"  ✗ {baseName}"
+      IO.println s!"✗"
       IO.println s!"    {expected}"
       IO.println s!"    {actual}"
       failed := failed + 1
     | .error msg =>
-      IO.println s!"  ✗ {baseName}: {msg}"
+      IO.println s!"✗ {msg}"
       failed := failed + 1
 
   pure (passed, failed)
 
-/-- Run translate tests: verify IR translation output -/
-def runTranslateCategory : IO (Nat × Nat) := do
+/-- Run emit-translate tests: verify IR translation succeeds -/
+def runEmitTranslateCategory : IO (Nat × Nat) := do
   let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"
-  let goldenDir := "tests/golden/translate"
   let tests ← discoverTests sourceDir
 
   let mut passed := 0
   let mut failed := 0
 
-  IO.println s!"\n=== translate tests ==="
+  IO.println s!"\n=== emit-translate tests ==="
 
   for baseName in tests do
-    let tc : TestCase := {
-      name := baseName
-      inputPath := s!"{sourceDir}/{baseName}.ziku"
-      goldenPath := s!"{goldenDir}/{baseName}.golden"
-      testType := "translate"
-      expectError := false
-    }
-
-    let result ← runTest tc
+    let inputPath := s!"{sourceDir}/{baseName}.ziku"
+    IO.print s!"  Testing {baseName}... "
+    (← IO.getStdout).flush
+    let input ← IO.FS.readFile inputPath
+    let result := runTranslateTest input
     match result with
-    | .pass =>
-      IO.println s!"  ✓ {baseName}"
-      passed := passed + 1
-    | .fail expected actual =>
-      IO.println s!"  ✗ {baseName}"
-      IO.println s!"    Expected: {expected}"
-      IO.println s!"    Actual:   {actual}"
-      failed := failed + 1
-    | .error msg =>
-      IO.println s!"  ✗ {baseName}: {msg}"
+    | .ok output =>
+      if output.isError then
+        IO.println s!"✗ {output.output}"
+        failed := failed + 1
+      else
+        IO.println s!"✓"
+        passed := passed + 1
+    | .error e =>
+      IO.println s!"✗ {e}"
       failed := failed + 1
 
   pure (passed, failed)
 
-/-- Run scheme-codegen tests: verify Scheme code generation output -/
-def runSchemeCodegenCategory : IO (Nat × Nat) := do
+/-- Run emit-scheme tests: verify Scheme code generation succeeds -/
+def runEmitSchemeCategory : IO (Nat × Nat) := do
   let sourceDir := System.FilePath.mk "tests/golden/ir-eval/success"
-  let goldenDir := "tests/golden/scheme-codegen"
   let tests ← discoverTests sourceDir
 
   let mut passed := 0
   let mut failed := 0
 
-  IO.println s!"\n=== scheme-codegen tests ==="
+  IO.println s!"\n=== emit-scheme tests ==="
 
   for baseName in tests do
-    let tc : TestCase := {
-      name := baseName
-      inputPath := s!"{sourceDir}/{baseName}.ziku"
-      goldenPath := s!"{goldenDir}/{baseName}.golden"
-      testType := "scheme-codegen"
-      expectError := false
-    }
-
-    let result ← runTest tc
+    let inputPath := s!"{sourceDir}/{baseName}.ziku"
+    IO.print s!"  Testing {baseName}... "
+    (← IO.getStdout).flush
+    let input ← IO.FS.readFile inputPath
+    let result := runSchemeCodegenTest input
     match result with
-    | .pass =>
-      IO.println s!"  ✓ {baseName}"
-      passed := passed + 1
-    | .fail expected actual =>
-      IO.println s!"  ✗ {baseName}"
-      IO.println s!"    Expected: {expected}"
-      IO.println s!"    Actual:   {actual}"
-      failed := failed + 1
-    | .error msg =>
-      IO.println s!"  ✗ {baseName}: {msg}"
+    | .ok output =>
+      if output.isError then
+        IO.println s!"✗ {output.output}"
+        failed := failed + 1
+      else
+        IO.println s!"✓"
+        passed := passed + 1
+    | .error e =>
+      IO.println s!"✗ {e}"
       failed := failed + 1
 
   pure (passed, failed)
@@ -398,13 +408,13 @@ def main : IO UInt32 := do
   let (parserPassed, parserFailed) ← runCategory "parser" "parser"
   let (inferPassed, inferFailed) ← runCategory "infer" "infer"
   let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" "ir-eval"
-  let (translatePassed, translateFailed) ← runTranslateCategory
-  let (schemeCodegenPassed, schemeCodegenFailed) ← runSchemeCodegenCategory
-  let (schemePassed, schemeFailed) ← runSchemeCategory
+  let (emitTranslatePassed, emitTranslateFailed) ← runEmitTranslateCategory
+  let (emitSchemePassed, emitSchemeFailed) ← runEmitSchemeCategory
+  let (schemeOnlyPassed, schemeOnlyFailed) ← runSchemeOnlyCategory
   let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
 
-  let totalPassed := parserPassed + inferPassed + irEvalPassed + translatePassed + schemeCodegenPassed + schemePassed + consistencyPassed
-  let totalFailed := parserFailed + inferFailed + irEvalFailed + translateFailed + schemeCodegenFailed + schemeFailed + consistencyFailed
+  let totalPassed := parserPassed + inferPassed + irEvalPassed + emitTranslatePassed + emitSchemePassed + schemeOnlyPassed + consistencyPassed
+  let totalFailed := parserFailed + inferFailed + irEvalFailed + emitTranslateFailed + emitSchemeFailed + schemeOnlyFailed + consistencyFailed
 
   IO.println s!"\n=== Summary ==="
   IO.println s!"Passed: {totalPassed}"

@@ -1,0 +1,8 @@
+{
+  "track_id": "cdd_system_20260107",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-07T12:00:00Z",
+  "updated_at": "2026-01-07T12:00:00Z",
+  "description": "create a system for Context-Driven Development using GitHub issues and Pull Requests based on GitHub workflow. It replaces conductor."
+}

@@ -1,0 +1,8 @@
+-- Function returning dataCon with builtin, then pattern match
+-- Closer to the actual failing case
+
+let makeToken = \c => Cons(MStr(runeToStr c), MStr("rest")) in
+match makeToken '(' {
+| Cons(MStr(tok), MStr(rest)) => tok
+| _ => "fail"
+}

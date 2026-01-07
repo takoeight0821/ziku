@@ -1,0 +1,9 @@
+-- Test string equality comparison
+let s1 = "hello" in
+let s2 = "hello" in
+let s3 = "world" in
+if s1 == s2 then
+  if s2 == s3 then 0
+  else if s1 != s3 then 1
+  else 2
+else 3

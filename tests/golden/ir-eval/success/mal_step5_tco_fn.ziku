@@ -1,0 +1,197 @@
+-- MAL Step 5: TCO - Function Application with explicit CPS (First Class Covalues)
+-- Test: Accumulator-style recursion for TCO verification
+-- Explicit recursion via self-passing:
+-- (let* [sum (fn* [self n acc] (if (= n 0) acc (self self (- n 1) (+ n acc))))] (sum sum 10 0)) -> 55
+
+-- ============================================ 
+-- String helpers
+-- ============================================ 
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else if runeToInt(strAt s1 i) == runeToInt(strAt s2 i) then strEqFrom s1 s2 (i + 1)
+  else false
+in
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0 else false
+in
+
+-- ============================================ 
+-- Environment
+-- ============================================ 
+let emptyEnv = Cons(MNil, MNil) in
+let rec lookupBindings = \bindings sym =>
+  match bindings {
+  | MNil => MNil
+  | Cons(Cons(MStr(name), val), rest) =>
+    if strEq name sym then Cons(MTrue, val)
+    else lookupBindings rest sym
+  | _ => MNil
+  }
+in
+let rec envGet = \env sym =>
+  match env {
+  | Cons(bindings, outer) =>
+    match lookupBindings bindings sym {
+    | Cons(MTrue, val) => val
+    | _ => match outer { | Cons(_, _) => envGet outer sym | _ => MErr("'" ++ sym ++ "' not found") }
+    }
+  | _ => MErr("invalid env")
+  }
+in
+let envSet = \env sym val =>
+  match env {
+  | Cons(bindings, outer) => Cons(Cons(Cons(MStr(sym), val), bindings), outer)
+  | _ => Cons(Cons(Cons(MStr(sym), val), MNil), MNil)
+  }
+in
+let rec bindParams = \params args env =>
+  match params {
+  | MNil => env
+  | Cons(MSym(name), restParams) =>
+    match args {
+    | Cons(val, restArgs) => bindParams restParams restArgs (envSet env name val)
+    | _ => env
+    }
+  | _ => env
+  }
+in
+
+-- ============================================ 
+-- Evaluator Helpers
+-- ============================================ 
+let isTruthy = \val =>
+  match val {
+  | MNil => false
+  | MFalse => false
+  | _ => true
+  }
+in
+
+let applyNative = \op args =>
+  if strEq op "+" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a + b) | _ => MErr("+ err") }
+  else if strEq op "-" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a - b) | _ => MErr("- err") }
+  else if strEq op "=" then
+    match args {
+    | Cons(MNum(a), Cons(MNum(b), MNil)) => if a == b then MTrue else MFalse
+    | _ => MErr("= err")
+    }
+  else MErr("unknown native: " ++ op)
+in
+
+-- ============================================ 
+-- Main EVAL with Explicit CPS
+-- ============================================ 
+
+-- Helper to eval a list of args using the CPS eval
+let rec evalList = \ev env args =>
+  match args {
+  | MNil => MNil
+  | Cons(h, t) => 
+    let hVal = label k { ev ev env h ~k } in
+    Cons(hVal, evalList ev env t)
+  | _ => MNil
+  }
+in
+
+-- Eval takes a continuation ~k and must call goto(result, k) or tail call another eval
+let rec eval = \ev env ast ~k =>
+  match ast {
+  | MSym(s) => goto(envGet env s, k)
+  | Cons(head, args) =>
+    match head {
+    | MSym(s) =>
+      if strEq s "if" then
+        match args {
+        | Cons(cond, Cons(thenBranch, rest)) =>
+          let condVal = label ck { ev ev env cond ~ck } in
+          if isTruthy condVal then ev ev env thenBranch ~k
+          else
+            match rest {
+            | Cons(altBranch, _) => ev ev env altBranch ~k
+            | _ => goto(MNil, k)
+            }
+        | _ => goto(MErr("if needs at least cond and then"), k)
+        }
+      else if strEq s "do" then
+        match args {
+        | MNil => goto(MNil, k)
+        | Cons(h, MNil) => ev ev env h ~k
+        | Cons(h, t) =>
+          let ignored = label dk { ev ev env h ~dk } in
+          ev ev env (Cons(MSym("do"), t)) ~k
+        | _ => goto(MErr("invalid do"), k)
+        }
+      else if strEq s "let*" then
+        match args {
+        | Cons(MNil, Cons(body, MNil)) => ev ev env body ~k
+        | Cons(Cons(MSym(name), Cons(value, restBindings)), Cons(body, MNil)) =>
+          let val = label vk { ev ev env value ~vk } in
+          let newEnv = envSet env name val in
+          ev ev newEnv (Cons(MSym("let*"), Cons(restBindings, Cons(body, MNil)))) ~k
+        | _ => goto(MErr("invalid let*"), k)
+        }
+      else if strEq s "fn*" then
+        match args {
+        | Cons(params, Cons(body, MNil)) => goto(MClosure(params, body, env), k)
+        | _ => goto(MErr("fn* needs params and body"), k)
+        }
+      else
+        -- Function application
+        let opVal = label ok { ev ev env head ~ok } in
+        match opVal {
+        | MNative(name) => goto(applyNative name (evalList ev env args), k)
+        | MClosure(params, body, cEnv) =>
+          let evaledArgs = evalList ev env args in
+          let newEnv = bindParams params evaledArgs cEnv in
+          -- Tail call: pass 'k' directly to the body evaluation
+          ev ev newEnv body ~k
+        | _ => goto(MErr("cannot apply"), k)
+        }
+    | _ =>
+      let opVal = label ok { ev ev env head ~ok } in
+      match opVal {
+      | MNative(name) => goto(applyNative name (evalList ev env args), k)
+      | MClosure(params, body, cEnv) =>
+        let evaledArgs = evalList ev env args in
+        let newEnv = bindParams params evaledArgs cEnv in
+        ev ev newEnv body ~k
+      | _ => goto(MErr("cannot apply"), k)
+      }
+    }
+  -- Literals
+  | MNum(n) => goto(MNum(n), k)
+  | MNil => goto(MNil, k)
+  | MTrue => goto(MTrue, k)
+  | MFalse => goto(MFalse, k)
+  | _ => goto(ast, k)
+  }
+in
+
+-- ============================================ 
+-- Test Setup
+-- ============================================ 
+let initialEnv =
+  let e1 = envSet emptyEnv "+" (MNative("+")) in
+  let e2 = envSet e1 "-" (MNative("-")) in
+  envSet e2 "=" (MNative("="))
+in
+
+-- (let* [sum (fn* [self n acc] (if (= n 0) acc (self self (- n 1) (+ n acc))))] (sum sum 10 0))
+let sumFnAst = Cons(MSym("fn*"), Cons(Cons(MSym("self"), Cons(MSym("n"), Cons(MSym("acc"), MNil))), 
+               Cons(Cons(MSym("if"), Cons(Cons(MSym("="), Cons(MSym("n"), Cons(MNum(0), MNil))),
+                                     Cons(MSym("acc"), 
+                                     Cons(Cons(MSym("self"), Cons(MSym("self"), Cons(Cons(MSym("-"), Cons(MSym("n"), Cons(MNum(1), MNil))),
+                                                           Cons(Cons(MSym("+"), Cons(MSym("n"), Cons(MSym("acc"), MNil))), MNil)))), MNil)))), MNil))) in
+
+let testAst = Cons(MSym("let*"), Cons(Cons(MSym("sum"), Cons(sumFnAst, MNil)), 
+              Cons(Cons(MSym("sum"), Cons(MSym("sum"), Cons(MNum(10), Cons(MNum(0), MNil)))), MNil))) in
+
+let result = label exit { eval eval initialEnv testAst ~exit } in
+
+match result {
+| MNum(n) => intToStr n
+| MErr(m) => "Error: " ++ m
+| _ => "Other"
+}

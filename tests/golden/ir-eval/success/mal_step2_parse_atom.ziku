@@ -1,0 +1,56 @@
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else
+    let c1 = runeToInt (strAt s1 i) in
+    let c2 = runeToInt (strAt s2 i) in
+    if c1 == c2 then strEqFrom s1 s2 (i + 1)
+    else false
+in
+
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0
+  else false
+in
+
+let rec isAllDigits = \s i =>
+  if i >= strLen s then true
+  else
+    let c = strAt s i in
+    let code = runeToInt c in
+    if code >= runeToInt '0' then
+      if code <= runeToInt '9' then isAllDigits s (i + 1)
+      else false
+    else false
+in
+
+let isNumber = \s =>
+  if strLen s == 0 then false
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if code == runeToInt '-' then
+      if strLen s > 1 then isAllDigits s 1 else false
+    else isAllDigits s 0
+in
+
+let parseAtom = \tok =>
+  if strEq tok "nil" then MNil
+  else if strEq tok "true" then MTrue
+  else if strEq tok "false" then MFalse
+  else if isNumber tok then MNum(strToInt tok)
+  else MSym(tok)
+in
+
+let rec prStr = \val =>
+  match val {
+  | MNum(n) => intToStr n
+  | MSym(s) => s
+  | MStr(s) => "\"" ++ s ++ "\""
+  | MNil => "nil"
+  | MTrue => "true"
+  | MFalse => "false"
+  | Cons(h, t) => "list"
+  }
+in
+
+prStr (parseAtom "42")

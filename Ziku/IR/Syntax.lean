@@ -63,6 +63,15 @@ inductive Statement where
 
 end
 
+-- Default position for Inhabited instances (not from user code)
+def defaultPos : SourcePos := { line := 0, col := 0 }
+
+instance : Inhabited Producer where
+  default := .lit defaultPos .unit
+
+instance : Inhabited Consumer where
+  default := .covar defaultPos "default"
+
 -- Get source position from Producer
 def Producer.pos : Producer → SourcePos
   | var p _ => p

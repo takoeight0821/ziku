@@ -84,15 +84,18 @@ structure GenState where
 /-- Monad for constraint generation -/
 abbrev GenM := StateT GenState (Except TypeError)
 
+-- Position for compiler-synthesized types (not from user code)
+def synthesizedPos : SourcePos := { line := 0, col := 0 }
+
 -- Nonempty instance for GenM Ty (needed for partial def)
-instance : Nonempty (GenM Ty) := ⟨pure (.con { line := 0, col := 0 } "Unit")⟩
+instance : Nonempty (GenM Ty) := ⟨pure (.con synthesizedPos "Unit")⟩
 
 -- Generate fresh type variable
 def freshTyVar : GenM Ty := do
   let s ← get
   let name := s!"_t{s.nextVar}"
   set { s with nextVar := s.nextVar + 1 }
-  return .var { line := 0, col := 0 } name
+  return .var synthesizedPos name
 
 -- Add a constraint to the state
 def addConstraint (c : Constraint) : GenM Unit :=
@@ -106,15 +109,14 @@ def addLabelBinding (name : Ident) (ty : Ty) : GenM Unit :=
 def popLabelBinding : GenM Unit :=
   modify fun s => { s with labelEnv := s.labelEnv.drop 1 }
 
--- Standard types (using dummy position)
-def dummyPos : SourcePos := { line := 0, col := 0 }
-def tyInt : Ty := .con dummyPos "Int"
-def tyBool : Ty := .con dummyPos "Bool"
-def tyUnit : Ty := .con dummyPos "Unit"
-def tyString : Ty := .con dummyPos "String"
-def tyChar : Ty := .con dummyPos "Char"
-def tyRune : Ty := .con dummyPos "Rune"
-def tyFloat : Ty := .con dummyPos "Float"
+-- Standard types (using synthesized position for compiler-generated types)
+def tyInt : Ty := .con synthesizedPos "Int"
+def tyBool : Ty := .con synthesizedPos "Bool"
+def tyUnit : Ty := .con synthesizedPos "Unit"
+def tyString : Ty := .con synthesizedPos "String"
+def tyChar : Ty := .con synthesizedPos "Char"
+def tyRune : Ty := .con synthesizedPos "Rune"
+def tyFloat : Ty := .con synthesizedPos "Float"
 
 -- Get expected and result types for binary operators
 -- Note: Comparison operators (.eq, .ne, .lt, .le, .gt, .ge) are currently
@@ -144,6 +146,8 @@ def builtinTypes : String → Option (List Ty × Ty)
   | "runeToStr" => some ([tyRune], tyString)
   | "intToRune" => some ([tyInt], tyRune)
   | "runeToInt" => some ([tyRune], tyInt)
+  | "readLine"  => some ([tyUnit], tyString)
+  | "println"   => some ([tyString], tyUnit)
   | _           => none
 
 -- Get builtin enum from name
@@ -161,7 +165,7 @@ def nameToBuiltin : String → Option Builtin
 -- Collect all curried arguments from a chain of applications
 -- e.g., ((f x) y) z  =>  (f, [x, y, z])
 def collectAppArgs : Expr → (Expr × List Expr)
-  | .app _ fn arg =>
+  | .app _ fn arg _ =>
     let (base, args) := collectAppArgs fn
     (base, args ++ [arg])
   | e => (e, [])
@@ -185,6 +189,7 @@ partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
     | some r => occursIn varName r
     | none => false
   | .bottom _ => false
+  | .tilde _ t => occursIn varName t
 
 -- Unification with error reporting
 -- Bottom type unifies with any type (⊥ <: τ for all τ)
@@ -227,6 +232,7 @@ partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) (nextVar : Nat) : Except Type
     unifyRecords pos fs1 r1 fs2 r2 nextVar
   | .variant _ cs1 r1, .variant _ cs2 r2 =>
     unifyVariants pos cs1 r1 cs2 r2 nextVar
+  | .tilde _ t1, .tilde _ t2 => unifyAt pos t1 t2 nextVar
   | _, _ =>
     .error $ .unificationError pos t1 t2 s!"Cannot unify types"
 
@@ -262,36 +268,36 @@ where
         .ok (commonSubst, n1)
       else
         .error $ .unificationError pos
-          (.record dummyPos fs1 none) (.record dummyPos fs2 none)
+          (.record synthesizedPos fs1 none) (.record synthesizedPos fs2 none)
           s!"Record field mismatch: cannot unify closed records with different fields"
     | some row1, none =>
       -- Left has tail, right is closed: row1 must equal { only2 | ∅ }
       if only1.isEmpty then
         -- row1 = { only2 fields }
-        let (tailSubst, n2) ← unifyAt pos row1 (.record dummyPos only2 none) n1
+        let (tailSubst, n2) ← unifyAt pos row1 (.record synthesizedPos only2 none) n1
         .ok (commonSubst ++ tailSubst, n2)
       else
         .error $ .unificationError pos
-          (.record dummyPos fs1 (some row1)) (.record dummyPos fs2 none)
+          (.record synthesizedPos fs1 (some row1)) (.record synthesizedPos fs2 none)
           s!"Record field mismatch: left has extra fields {only1.map (·.1)}"
     | none, some row2 =>
       -- Right has tail, left is closed: row2 must equal { only1 | ∅ }
       if only2.isEmpty then
         -- row2 = { only1 fields }
-        let (tailSubst, n2) ← unifyAt pos row2 (.record dummyPos only1 none) n1
+        let (tailSubst, n2) ← unifyAt pos row2 (.record synthesizedPos only1 none) n1
         .ok (commonSubst ++ tailSubst, n2)
       else
         .error $ .unificationError pos
-          (.record dummyPos fs1 none) (.record dummyPos fs2 (some row2))
+          (.record synthesizedPos fs1 none) (.record synthesizedPos fs2 (some row2))
           s!"Record field mismatch: right has extra fields {only2.map (·.1)}"
     | some row1, some row2 =>
       -- Both have tails: create fresh row variable ρ
       -- row1 = { only2 | ρ }
       -- row2 = { only1 | ρ }
-      let freshRow := Ty.var dummyPos s!"_r{n1}"
+      let freshRow := Ty.var synthesizedPos s!"_r{n1}"
       let n2 := n1 + 1
-      let (s1, n3) ← unifyAt pos row1 (Ty.record dummyPos only2 (some freshRow)) n2
-      let row1Rec : Ty := Ty.record dummyPos only1 (some freshRow)
+      let (s1, n3) ← unifyAt pos row1 (Ty.record synthesizedPos only2 (some freshRow)) n2
+      let row1Rec : Ty := Ty.record synthesizedPos only1 (some freshRow)
       let (s2, n4) ← unifyAt pos (row2.applySubst s1) (row1Rec.applySubst s1) n3
       .ok (commonSubst ++ s1 ++ s2, n4)
 
@@ -315,7 +321,7 @@ where
       | some (_, tys2) =>
         if tys1.length != tys2.length then
           .error $ .unificationError pos
-            (.variant dummyPos cs1 r1) (.variant dummyPos cs2 r2)
+            (.variant synthesizedPos cs1 r1) (.variant synthesizedPos cs2 r2)
             s!"Constructor '{c}' has different arities"
         else
           -- Unify each argument type
@@ -333,32 +339,32 @@ where
         .ok (commonSubst, n1)
       else
         .error $ .unificationError pos
-          (.variant dummyPos cs1 none) (.variant dummyPos cs2 none)
+          (.variant synthesizedPos cs1 none) (.variant synthesizedPos cs2 none)
           s!"Variant mismatch: cannot unify closed variants with different constructors"
     | some row1, none =>
       -- Left has tail, right is closed: row1 must equal [only2 | ∅]
       if only1.isEmpty then
-        let (tailSubst, n2) ← unifyAt pos row1 (.variant dummyPos only2 none) n1
+        let (tailSubst, n2) ← unifyAt pos row1 (.variant synthesizedPos only2 none) n1
         .ok (commonSubst ++ tailSubst, n2)
       else
         .error $ .unificationError pos
-          (.variant dummyPos cs1 (some row1)) (.variant dummyPos cs2 none)
+          (.variant synthesizedPos cs1 (some row1)) (.variant synthesizedPos cs2 none)
           s!"Variant mismatch: left has extra constructors {only1.map (·.1)}"
     | none, some row2 =>
       -- Right has tail, left is closed: row2 must equal [only1 | ∅]
       if only2.isEmpty then
-        let (tailSubst, n2) ← unifyAt pos row2 (.variant dummyPos only1 none) n1
+        let (tailSubst, n2) ← unifyAt pos row2 (.variant synthesizedPos only1 none) n1
         .ok (commonSubst ++ tailSubst, n2)
       else
         .error $ .unificationError pos
-          (.variant dummyPos cs1 none) (.variant dummyPos cs2 (some row2))
+          (.variant synthesizedPos cs1 none) (.variant synthesizedPos cs2 (some row2))
           s!"Variant mismatch: right has extra constructors {only2.map (·.1)}"
     | some row1, some row2 =>
       -- Both have tails: create fresh row variable ρ
-      let freshRow := Ty.var dummyPos s!"_v{n1}"
+      let freshRow := Ty.var synthesizedPos s!"_v{n1}"
       let n2 := n1 + 1
-      let (s1, n3) ← unifyAt pos row1 (Ty.variant dummyPos only2 (some freshRow)) n2
-      let row1Var : Ty := Ty.variant dummyPos only1 (some freshRow)
+      let (s1, n3) ← unifyAt pos row1 (Ty.variant synthesizedPos only2 (some freshRow)) n2
+      let row1Var : Ty := Ty.variant synthesizedPos only1 (some freshRow)
       let (s2, n4) ← unifyAt pos (row2.applySubst s1) (row1Var.applySubst s1) n3
       .ok (commonSubst ++ s1 ++ s2, n4)
 
@@ -398,6 +404,7 @@ def tyToScheme (ty : Ty) : Scheme :=
   | .record _ _ _ => { vars := [], ty := ty }
   | .variant _ _ _ => { vars := [], ty := ty }
   | .bottom _ => { vars := [], ty := ty }
+  | .tilde _ _ => { vars := [], ty := ty }
 
 -- Instantiate a Ty: if it's a forall type, replace quantified variables with fresh ones
 -- This handles explicit forall types in annotations like `(e : forall a. a -> a)`
@@ -407,6 +414,9 @@ partial def instantiateTy (ty : Ty) : GenM Ty :=
     let fresh ← freshTyVar
     let body := inner.applySubst [(x, fresh)]
     instantiateTy body  -- Handle nested foralls
+  | .tilde pos t => do
+    let t' ← instantiateTy t
+    return .tilde pos t'
   | _ => pure ty
 
 -- Pattern type checking: returns variable bindings
@@ -464,10 +474,14 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
   | .lit _ (.string _) => return tyString
   | .lit _ (.char _) => return tyRune  -- Char literals are Rune type
   | .lit _ (.float _) => return tyFloat
-  | .var pos x =>
+  | .var pos x => do
+    let s ← get
     match env.lookup x with
     | some scheme => instantiate scheme
-    | none => throw $ .unboundVariable pos x
+    | none =>
+      match s.labelEnv.find? (·.1 == x) with
+      | some (_, ty) => return .tilde pos ty
+      | none => throw $ .unboundVariable pos x
   -- Special case for pipe operator: e1 |> e2  ≡  e2(e1)
   -- Type rule: Γ ⊢ e1 : α, Γ ⊢ e2 : α → β  ⇒  e1 |> e2 : β
   | .binOp pos .pipe e1 e2 => do
@@ -495,52 +509,69 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     addConstraint (.unify pos resultTy normalResultTy)
     addConstraint (.bottomProp [t] resultTy)
     return resultTy
-  | .lam pos param body => do
+  | .lam pos param isCov body => do
     -- Generate fresh type variable for the single parameter
-    let paramTy ← freshTyVar
+    let paramTy ← if isCov then
+      let t_val ← freshTyVar
+      pure (.tilde pos t_val)
+    else
+      freshTyVar
     let paramScheme : Scheme := { vars := [], ty := paramTy }
     let env' := (param, paramScheme) :: env
     let bodyTy ← genConstraints env' body
     return .arrow pos paramTy bodyTy
-  | .app pos fn arg => do
-    -- Check if this is a saturated builtin call
-    let (baseExpr, allArgs) := collectAppArgs expr
-    match baseExpr with
-    | .var _ name =>
-      -- Check if base is a builtin
-      match builtinTypes name with
-      | some (argTys, resultTy) =>
-        -- Check if arity matches
-        if allArgs.length == argTys.length then
-          -- Saturated builtin call: type check each argument
-          for (argExpr, expectedTy) in allArgs.zip argTys do
-            let actualTy ← genConstraints env argExpr
-            addConstraint (.unify argExpr.pos actualTy expectedTy)
-          return resultTy
-        else
-          -- Partial application or wrong arity - normal function application
+  | .app pos fn arg isCov => do
+    if isCov then
+      -- Covalue application: f(~k)
+      let fnTy ← genConstraints env fn
+      let argTy ← genConstraints env arg
+      let t_val ← freshTyVar
+      let expectedArgTy := .tilde pos t_val
+      addConstraint (.unify arg.pos argTy expectedArgTy)
+      
+      let resultTy ← freshTyVar
+      addConstraint (.unify pos fnTy (.arrow pos expectedArgTy resultTy))
+      addConstraint (.bottomProp [fnTy, argTy] resultTy)
+      return resultTy
+    else
+      -- Check if this is a saturated builtin call
+      let (baseExpr, allArgs) := collectAppArgs expr
+      match baseExpr with
+      | .var _ name =>
+        -- Check if base is a builtin
+        match builtinTypes name with
+        | some (argTys, resultTy) =>
+          -- Check if arity matches
+          if allArgs.length == argTys.length then
+            -- Saturated builtin call: type check each argument
+            for (argExpr, expectedTy) in allArgs.zip argTys do
+              let actualTy ← genConstraints env argExpr
+              addConstraint (.unify argExpr.pos actualTy expectedTy)
+            return resultTy
+          else
+            -- Partial application or wrong arity - normal function application
+            let fnTy ← genConstraints env fn
+            let argTy ← genConstraints env arg
+            let resultTy ← freshTyVar
+            addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
+            addConstraint (.bottomProp [fnTy, argTy] resultTy)
+            return resultTy
+        | none =>
+          -- Not a builtin - normal function application
           let fnTy ← genConstraints env fn
           let argTy ← genConstraints env arg
           let resultTy ← freshTyVar
           addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
           addConstraint (.bottomProp [fnTy, argTy] resultTy)
           return resultTy
-      | none =>
-        -- Not a builtin - normal function application
+      | _ =>
+        -- Not a variable base - normal function application
         let fnTy ← genConstraints env fn
         let argTy ← genConstraints env arg
         let resultTy ← freshTyVar
         addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
         addConstraint (.bottomProp [fnTy, argTy] resultTy)
         return resultTy
-    | _ =>
-      -- Not a variable base - normal function application
-      let fnTy ← genConstraints env fn
-      let argTy ← genConstraints env arg
-      let resultTy ← freshTyVar
-      addConstraint (.unify pos fnTy (.arrow pos argTy resultTy))
-      addConstraint (.bottomProp [fnTy, argTy] resultTy)
-      return resultTy
   | .let_ pos x tyOpt e1 e2 => do
     let t1 ← genConstraints env e1
     -- Determine the scheme for the binding:
@@ -638,18 +669,18 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     addConstraint (.unify pos bodyTy labelTy)
     popLabelBinding
     return labelTy
-  | .goto pos value labelName => do
-    -- goto(value, name): Jumps to the label, never returns.
-    -- Returns bottom type since the expression never produces a value.
+  | .goto pos value continuation => do
+    -- goto(value, continuation): Jumps to the continuation, never returns.
     let valueTy ← genConstraints env value
-    let s ← get
-    match s.labelEnv.lookup labelName with
-    | some labelTy =>
-        -- Value type must match label's expected type
-        addConstraint (.unify pos valueTy labelTy)
-        -- goto returns bottom type (never returns)
-        return .bottom pos
-    | none => throw $ .unboundVariable pos labelName
+    let contTy ← genConstraints env continuation
+    
+    -- Expected type of value is the type k expects
+    let t_val ← freshTyVar
+    addConstraint (.unify pos contTy (.tilde pos t_val))
+    addConstraint (.unify pos valueTy t_val)
+    
+    -- goto returns bottom type (never returns)
+    return .bottom pos
   | .con pos conName args => do
     -- Constructor application: Con(e1, ..., en)
     -- Infer types of arguments
@@ -698,6 +729,7 @@ partial def isBottomTainted (bottomVars : List Ident) : Ty → Bool
     match rowTail with
     | some r => isBottomTainted bottomVars r
     | none => false
+  | .tilde _ t => isBottomTainted bottomVars t
 
 /-- Extract type variable name if the type is a variable -/
 def Ty.varName? : Ty → Option Ident
@@ -818,6 +850,7 @@ partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
       (cases.map fun (c, tys) => (c, tys.map (finalizeTy bottomVars)))
       (rowTail.map (finalizeTy bottomVars))
   | .bottom p => .bottom p
+  | .tilde p t => .tilde p (finalizeTy bottomVars t)
 
 /-- Run inference: generates constraints, solves them, returns final type -/
 def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) := do

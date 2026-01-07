@@ -1,0 +1,1 @@
+(Let "f" (Lam "x" (Lam "~k" (Goto (Var "x") (Var "k")))) (Label "exit" (App (App (Var "f") (Lit 10)) ~(Var "exit"))))

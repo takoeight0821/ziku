@@ -1,0 +1,71 @@
+let rec skipWhitespace = \s =>
+  if strLen s == 0 then s
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if code == runeToInt ' ' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt '\t' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt '\n' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == 13 then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt ',' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else s
+in
+
+let isSpecialChar = \c =>
+  let code = runeToInt c in
+  if code == runeToInt '(' then true
+  else if code == runeToInt ')' then true
+  else if code == runeToInt '[' then true
+  else if code == runeToInt ']' then true
+  else if code == runeToInt '{' then true
+  else if code == runeToInt '}' then true
+  else false
+in
+
+let isWhitespaceCode = \code =>
+  if code == runeToInt ' ' then true
+  else if code == runeToInt '\t' then true
+  else if code == runeToInt '\n' then true
+  else if code == 13 then true
+  else if code == runeToInt ',' then true
+  else false
+in
+
+let rec readSymbol = \s i =>
+  if i >= strLen s then Cons(MStr(s), MStr(""))
+  else
+    let c = strAt s i in
+    let code = runeToInt c in
+    if isWhitespaceCode code then Cons(MStr(strSub s 0 i), MStr(strSub s i (strLen s - i)))
+    else if isSpecialChar c then Cons(MStr(strSub s 0 i), MStr(strSub s i (strLen s - i)))
+    else readSymbol s (i + 1)
+in
+
+let readToken = \s =>
+  let s2 = skipWhitespace s in
+  if strLen s2 == 0 then Cons(MStr(""), MStr(""))
+  else
+    let c = strAt s2 0 in
+    if isSpecialChar c
+    then Cons(MStr(runeToStr c), MStr(strSub s2 1 (strLen s2 - 1)))
+    else readSymbol s2 0
+in
+
+match readToken "(+ 1)" {
+| Cons(h, t) =>
+  match h {
+  | MStr(tok) => tok
+  | MNil => "error"
+  | MNum(n) => "error"
+  | MSym(s) => "error"
+  | MTrue => "error"
+  | MFalse => "error"
+  | Cons(a, b) => "error"
+  }
+| MNil => "error"
+| MNum(n) => "error"
+| MSym(s) => "error"
+| MStr(s) => "error"
+| MTrue => "error"
+| MFalse => "error"
+}

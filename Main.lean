@@ -2,7 +2,71 @@ import Ziku
 
 open Ziku
 
-partial def repl (env : Env) : IO Unit := do
+inductive Mode
+  | repl
+  | parse
+  | infer
+  | translate
+  | scheme
+  | eval
+
+def parseArgs (args : List String) : Mode :=
+  match args with
+  | ["--parse"] => .parse
+  | ["--infer"] => .infer
+  | ["--translate"] => .translate
+  | ["--scheme"] => .scheme
+  | ["--eval"] => .eval
+  | [] => .repl
+  | _ => .repl
+
+def runOnInput (mode : Mode) (input : String) : IO Unit := do
+  match parse input with
+  | .error msg =>
+    IO.eprintln s!"Parse error: {msg}"
+    IO.Process.exit 1
+  | .ok expr =>
+    match mode with
+    | .parse =>
+      IO.println s!"{repr expr}"
+    | .infer =>
+      match runInfer expr with
+      | .error err =>
+        IO.eprintln s!"Type error: {err}"
+        IO.Process.exit 1
+      | .ok (ty, _) =>
+        IO.println s!"{ty}"
+    | .translate =>
+      match Translate.translateToStatement expr with
+      | .error err =>
+        IO.eprintln s!"Translate error: {err}"
+        IO.Process.exit 1
+      | .ok stmt =>
+        IO.println s!"{stmt}"
+    | .scheme =>
+      match Translate.translateToStatement expr with
+      | .error err =>
+        IO.eprintln s!"Translate error: {err}"
+        IO.Process.exit 1
+      | .ok stmt =>
+        let scheme := Backend.Scheme.compile stmt
+        IO.println scheme
+    | .eval | .repl =>
+      match Translate.translateToStatement expr with
+      | .error err =>
+        IO.eprintln s!"Translate error: {err}"
+        IO.Process.exit 1
+      | .ok stmt =>
+        match IR.eval stmt with
+        | .value p _ => IO.println s!"{p}"
+        | .stuck s _ =>
+          IO.eprintln s!"Stuck: {s}"
+          IO.Process.exit 1
+        | .error msg =>
+          IO.eprintln s!"Eval error: {msg}"
+          IO.Process.exit 1
+
+partial def repl : IO Unit := do
   IO.print "> "
   let stdout ← IO.getStdout
   stdout.flush
@@ -21,18 +85,28 @@ partial def repl (env : Env) : IO Unit := do
 
   match parse input with
   | .error msg =>
-    IO.println s!"Error: {msg}"
-    repl env
+    IO.println s!"Parse error: {msg}"
+    repl
   | .ok expr =>
-    match eval env expr with
-    | none =>
-      IO.println "Evaluation error"
-      repl env
-    | some result =>
-      IO.println s!"{result}"
-      repl env
+    match Translate.translateToStatement expr with
+    | .error err =>
+      IO.println s!"Translate error: {err}"
+      repl
+    | .ok stmt =>
+      match IR.eval stmt with
+      | .value p _ => IO.println s!"{p}"
+      | .stuck s _ => IO.println s!"Stuck: {s}"
+      | .error msg => IO.println s!"Eval error: {msg}"
+      repl
 
-def main : IO Unit := do
-  IO.println "Ziku REPL"
-  IO.println "Type :quit or :q to exit"
-  repl []
+def main (args : List String) : IO Unit := do
+  let mode := parseArgs args
+  match mode with
+  | .repl =>
+    IO.println "Ziku REPL"
+    IO.println "Type :quit or :q to exit"
+    repl
+  | _ =>
+    let stdin ← IO.getStdin
+    let input ← stdin.readToEnd
+    runOnInput mode input.trim

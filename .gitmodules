@@ -1,0 +1,3 @@
+[submodule "vendor/mal"]
+	path = vendor/mal
+	url = https://github.com/kanaka/mal

@@ -1,1 +1,1 @@
-(Goto (Lit 42) "result")
+(Goto (Lit 42) (Var "result"))

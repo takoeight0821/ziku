@@ -1,0 +1,69 @@
+-- Step 3: Environments
+
+let rec eval_ast = \ev env ast =>
+  match ast {
+  | MSym(s) => Pair(envGet env s, env)
+  | Cons(h, t) =>
+    match ev ev env h {
+    | Pair(hEvaled, env2) =>
+      match eval_ast ev env2 t {
+      | Pair(tEvaled, env3) => Pair(Cons(hEvaled, tEvaled), env3)
+      }
+    }
+  | _ => Pair(ast, env)
+  }
+in
+
+let rec eval = \ev env ast =>
+  match ast {
+  | Cons(MSym(op), args) =>
+    if strEq op "def!" then
+      match args {
+      | Cons(MSym(name), Cons(value, MNil)) =>
+        match ev ev env value {
+        | Pair(val, _) => Pair(val, envSet env name val)
+        }
+      | _ => Pair(MErr("def! arity"), env)
+      }
+    else if strEq op "let*" then
+      match args {
+      | Cons(bindings, Cons(body, MNil)) =>
+        let rec bind = \ev b e =>
+          match b {
+          | MNil => e
+          | Cons(MSym(name), Cons(value, rest)) =>
+            match ev ev e value {
+            | Pair(val, _) => bind ev rest (envSet e name val)
+            }
+          | _ => e
+          }
+        in
+        let newEnv = bind ev bindings env in
+        match ev ev newEnv body {
+        | Pair(val, _) => Pair(val, env)
+        }
+      | _ => Pair(MErr("let* arity"), env)
+      }
+    else
+      match eval_ast ev env args {
+      | Pair(evaledArgs, env2) => Pair(applyNative op evaledArgs, env2)
+      }
+  | MSym(s) => Pair(envGet env s, env)
+  | _ => Pair(ast, env)
+  }
+in
+
+let rec repl_loop = \env =>
+  let line = readLine(()) in
+  if strLen line == 0 then ()
+  else
+    let ast = read_str line in
+    match eval eval env ast {
+    | Pair(val, newEnv) =>
+      let out = pr_str val in
+      let ignored = println(out) in
+      repl_loop newEnv
+    }
+in
+
+repl_loop emptyEnv

@@ -1,0 +1,6 @@
+(def! a 10)
+(def! b 20)
+(+ a b)
+(let* (c 30 d 40) (+ c d))
+(def! e (let* (z 5) z))
+e

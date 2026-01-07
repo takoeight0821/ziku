@@ -1,0 +1,35 @@
+-- Step 2: Evaluation
+
+let rec eval_ast = \ev env ast =>
+  match ast {
+  | MSym(s) => envGet env s
+  | Cons(h, t) => Cons(ev ev env h, eval_ast ev env t)
+  | _ => ast
+  }
+in
+
+let rec eval = \ev env ast =>
+  match ast {
+  | Cons(MSym(op), args) =>
+    let evaledArgs = eval_ast ev env args in
+    applyNative op evaledArgs
+  | Cons(h, t) =>
+    -- List with non-symbol head (or not a known native)
+    let evaledArgs = eval_ast ev env (Cons(h, t)) in
+    evaledArgs
+  | _ =>
+    eval_ast ev env ast
+  }
+in
+
+let rec repl = \unused =>
+  let line = readLine(()) in
+  if strLen line == 0 then ()
+  else
+    let ast = read_str line in
+    let val = eval eval emptyEnv ast in
+    let out = pr_str val in
+    let ignored = println(out) in
+    repl(())
+in
+repl(())

@@ -1,0 +1,16 @@
+-- Step 1: Read and Print
+
+let rec repl = \unused =>
+  let line = readLine(()) in
+  if strLen line == 0 then ()
+  else
+    -- READ: parse string to AST
+    let ast = read_str line in
+    -- EVAL: identity
+    let val = ast in
+    -- PRINT: convert AST to string
+    let out = pr_str val in
+    let ignored = println(out) in
+    repl(())
+in
+repl(())

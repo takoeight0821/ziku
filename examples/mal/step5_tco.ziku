@@ -1,0 +1,196 @@
+-- Step 5: Tail Call Optimization
+
+-- ============================================ 
+-- Helpers
+-- ============================================ 
+
+let rec debugStr = \val =>
+  match val {
+  | MClosure(p, b, e) => "Closure"
+  | MNative(n) => "Native: " ++ n
+  | MErr(msg) => "ErrorVal: " ++ msg
+  | Pair(v, _) => debugStr v
+  | Cons(h, t) => "(" ++ debugStr h ++ " " ++ debugStr t ++ ")"
+  | _ => pr_str val
+  }
+in
+
+let rec evalBindings = \ev bindings env =>
+  match bindings {
+  | MNil => Pair(MNil, env)
+  | Cons(MSym(name), Cons(value, rest)) =>
+    let res = label k { ev ev env value ~k } in
+    match res {
+    | Pair(val, env2) =>
+      let newEnv = envSet env2 name val in
+      evalBindings ev rest newEnv
+    }
+  | _ => Pair(MNil, env)
+  }
+in
+
+let rec evalList = \ev args env =>
+  match args {
+  | MNil => Pair(MNil, env)
+  | Cons(h, t) =>
+    let res = label k { ev ev env h ~k } in
+    match res {
+    | Pair(val, env2) =>
+      match evalList ev t env2 {
+      | Pair(vals, env3) => Pair(Cons(val, vals), env3)
+      }
+    }
+  | _ => Pair(MNil, env)
+  }
+in
+
+-- ============================================ 
+-- Apply
+-- ============================================ 
+
+let apply = \ev func args env ~k =>
+  match func {
+  | MNative(name) => goto(Pair(applyNative name args, env), k)
+  | MClosure(params, body, closedEnv) =>
+    let newEnvFrame = Cons(MNil, closedEnv) in
+    let appliedEnv = bindParams params args newEnvFrame in
+    ev ev appliedEnv body ~k
+  | _ => goto(Pair(MErr("not a function: " ++ debugStr func), env), k)
+  }
+in
+
+-- ============================================ 
+-- Eval (CPS)
+-- ============================================ 
+
+let rec eval = \ev env ast ~k =>
+  match ast {
+  -- Atoms
+  | MNum(n) => goto(Pair(MNum(n), env), k)
+  | MStr(s) => goto(Pair(MStr(s), env), k)
+  | MNil => goto(Pair(MNil, env), k)
+  | MTrue => goto(Pair(MTrue, env), k)
+  | MFalse => goto(Pair(MFalse, env), k)
+  | MErr(msg) => goto(Pair(MErr(msg), env), k)
+  | MNative(n) => goto(Pair(MNative(n), env), k)
+  | MClosure(p,b,e) => goto(Pair(MClosure(p,b,e), env), k)
+
+  -- Symbol lookup
+  | MSym(s) => goto(Pair(envGet env s, env), k)
+
+  -- Lists
+  | Cons(head, args) =>
+    match head {
+    | MSym("def!") =>
+      match args {
+      | Cons(MSym(name), Cons(value, MNil)) =>
+        let res = label vk { ev ev env value ~vk } in
+        match res {
+        | Pair(val, env2) =>
+          let newEnv = envSet env2 name val in
+          goto(Pair(val, newEnv), k)
+        }
+      | _ => goto(Pair(MErr("def! requires symbol and value"), env), k)
+      }
+    | MSym("let*") =>
+      match args {
+      | Cons(bindings, Cons(body, MNil)) =>
+        let newEnvFrame = Cons(MNil, env) in
+        match evalBindings ev bindings newEnvFrame {
+        | Pair(_, localEnv) =>
+           -- Tail call body
+           ev ev localEnv body ~k
+        }
+      | _ => goto(Pair(MErr("let* requires bindings and body"), env), k)
+      }
+    | MSym("do") =>
+      match evalList ev args env {
+      | Pair(evaledList, env2) =>
+        let rec last = \l =>
+          match l {
+          | Cons(h, MNil) => h
+          | Cons(h, t) => last t
+          | _ => MNil
+          }
+        in
+        goto(Pair(last evaledList, env2), k)
+      }
+    | MSym("if") =>
+      match args {
+      | Cons(test_, Cons(then_, Cons(else_, MNil))) =>
+        let res = label ck { ev ev env test_ ~ck } in
+        match res {
+        | Pair(testVal, env2) =>
+          match testVal {
+          | MNil => ev ev env2 else_ ~k
+          | MFalse => ev ev env2 else_ ~k
+          | _ => ev ev env2 then_ ~k
+          }
+        }
+      | Cons(test_, Cons(then_, MNil)) =>
+        let res = label ck { ev ev env test_ ~ck } in
+        match res {
+        | Pair(testVal, env2) =>
+          match testVal {
+          | MNil => goto(Pair(MNil, env2), k)
+          | MFalse => goto(Pair(MNil, env2), k)
+          | _ => ev ev env2 then_ ~k
+          }
+        }
+      | _ => goto(Pair(MErr("if requires test"), env), k)
+      }
+    | MSym("fn*") =>
+      match args {
+      | Cons(params, Cons(body, MNil)) =>
+        goto(Pair(MClosure(params, body, env), env), k)
+      | _ => goto(Pair(MErr("fn* requires params and body"), env), k)
+      }
+    
+    -- Application
+    | _ =>
+      let res = label ok { ev ev env head ~ok } in
+      match res {
+      | Pair(func, env2) =>
+        match evalList ev args env2 {
+        | Pair(evaledArgs, env3) =>
+          apply ev func evaledArgs env3 ~k
+        }
+      }
+    }
+  | _ => goto(Pair(MErr("cannot eval"), env), k)
+  }
+in
+
+-- ============================================ 
+-- REPL
+-- ============================================ 
+
+let replEnv = 
+  let e0 = emptyEnv in
+  let e1 = envSet e0 "+" (MNative("+")) in
+  let e2 = envSet e1 "-" (MNative("-")) in
+  let e3 = envSet e2 "*" (MNative("*")) in
+  let e4 = envSet e3 "/" (MNative("/")) in
+  let e5 = envSet e4 "list" (MNative("list")) in
+  let e6 = envSet e5 "empty?" (MNative("empty?")) in
+  let e7 = envSet e6 "first" (MNative("first")) in
+  let e8 = envSet e7 "rest" (MNative("rest")) in
+  let e9 = envSet e8 "=" (MNative("=")) in
+  e9
+in
+
+let rec repl_loop = \env =>
+  let line = readLine(()) in
+  if strLen line == 0 then ()
+  else
+    let ast = read_str line in
+    let res = label k { eval eval env ast ~k } in
+    match res {
+    | Pair(val, newEnv) =>
+      let out = pr_str val in
+      let ignored = println(out) in
+      repl_loop newEnv
+    }
+in
+
+repl_loop replEnv

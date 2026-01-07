@@ -1,0 +1,74 @@
+-- MAL Step 5: TCO - Simple CPS Eval Test
+-- Test: (if true 1 2) -> 1
+
+-- ============================================ 
+-- String helpers
+-- ============================================ 
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else if runeToInt(strAt s1 i) == runeToInt(strAt s2 i) then strEqFrom s1 s2 (i + 1)
+  else false
+in
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0 else false
+in
+
+-- ============================================ 
+-- Environment
+-- ============================================ 
+let emptyEnv = Cons(MNil, MNil) in
+let rec envGet = \env sym => MNil in -- Simplified for this test
+
+-- ============================================ 
+-- Evaluator Helpers
+-- ============================================ 
+let isTruthy = \val =>
+  match val {
+  | MNil => false
+  | MFalse => false
+  | _ => true
+  }
+in
+
+-- ============================================ 
+-- Main EVAL with Explicit CPS
+-- ============================================ 
+let rec eval = \ev env ast ~k =>
+  match ast {
+  | MSym(s) => goto(envGet env s, k)
+  | Cons(head, args) =>
+    match head {
+    | MSym(s) =>
+      if strEq s "if" then
+        match args {
+        | Cons(cond, Cons(thenBranch, rest)) =>
+          let condVal = label ck { ev ev env cond ~ck } in
+          if isTruthy condVal then ev ev env thenBranch ~k
+          else
+            match rest {
+            | Cons(altBranch, _) => ev ev env altBranch ~k
+            | _ => goto(MNil, k)
+            }
+        | _ => goto(MErr("if error"), k)
+        }
+      else goto(MErr("unknown op"), k)
+    | _ => goto(MErr("cannot apply"), k)
+    }
+  -- Literals
+  | MNum(n) => goto(MNum(n), k)
+  | MNil => goto(MNil, k)
+  | MTrue => goto(MTrue, k)
+  | MFalse => goto(MFalse, k)
+  | _ => goto(ast, k)
+  }
+in
+
+-- Test: (if true 1 2)
+let ast = Cons(MSym("if"), Cons(MTrue, Cons(MNum(1), Cons(MNum(2), MNil)))) in
+
+let result = label exit { eval eval emptyEnv ast ~exit } in
+
+match result {
+| MNum(n) => intToStr n
+| _ => "Error"
+}

@@ -1,0 +1,100 @@
+-- MAL Step 5: TCO - Implement `if`
+-- Test: (if true 1 2) -> 1, (if nil 1 2) -> 2, (if false 1 2) -> 2
+
+-- String equality helper
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else if runeToInt(strAt s1 i) == runeToInt(strAt s2 i) then strEqFrom s1 s2 (i + 1)
+  else false
+in
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0 else false
+in
+
+-- Environment
+let emptyEnv = Cons(MNil, MNil) in
+
+-- Env lookup
+let rec lookupBindings = \bindings sym =>
+  match bindings {
+  | MNil => MNil
+  | Cons(Cons(MStr(name), val), rest) =>
+    if strEq name sym then Cons(MTrue, val)
+    else lookupBindings rest sym
+  | _ => MNil
+  }
+in
+let rec envGet = \env sym =>
+  match env {
+  | Cons(bindings, outer) =>
+    match lookupBindings bindings sym {
+    | Cons(MTrue, val) => val
+    | _ => match outer { | Cons(_, _) => envGet outer sym | _ => MErr("not found") }
+    }
+  | _ => MErr("invalid env")
+  }
+in
+
+-- Eval if helper
+let isTruthy = \val =>
+  match val {
+  | MNil => false
+  | MFalse => false
+  | _ => true
+  }
+in
+
+-- EVAL with explicit CPS (~k continuation)
+let rec eval = \ev env ast ~k =>
+  match ast {
+  | MNum(n) => goto(MNum(n), k)
+  | MNil => goto(MNil, k)
+  | MTrue => goto(MTrue, k)
+  | MFalse => goto(MFalse, k)
+  | MSym(s) => goto(envGet env s, k)
+  | Cons(head, args) =>
+    match head {
+    | MSym(s) =>
+      if strEq s "if" then
+        match args {
+        | Cons(cond, Cons(thenBranch, rest)) =>
+          let condVal = label ck { ev ev env cond ~ck } in
+          if isTruthy condVal then ev ev env thenBranch ~k
+          else
+            match rest {
+            | Cons(altBranch, _) => ev ev env altBranch ~k
+            | _ => goto(MNil, k)
+            }
+        | _ => goto(MErr("if needs at least cond and then"), k)
+        }
+      else goto(MErr("unknown op"), k)
+    | _ => goto(MErr("cannot apply"), k)
+    }
+  | _ => goto(MErr("cannot eval"), k)
+  }
+in
+
+-- Printer
+let prStr = \val =>
+  match val {
+  | MNum(n) => intToStr n
+  | MNil => "nil"
+  | MTrue => "true"
+  | MFalse => "false"
+  | MErr(msg) => "Error: " ++ msg
+  | _ => "?"
+  }
+in
+
+-- Test: (if true 1 2)
+let ast1 = Cons(MSym("if"), Cons(MTrue, Cons(MNum(1), Cons(MNum(2), MNil)))) in
+-- Test: (if nil 1 2)
+let ast2 = Cons(MSym("if"), Cons(MNil, Cons(MNum(1), Cons(MNum(2), MNil)))) in
+-- Test: (if false 1 2)
+let ast3 = Cons(MSym("if"), Cons(MFalse, Cons(MNum(1), Cons(MNum(2), MNil)))) in
+
+let res1 = label exit1 { eval eval emptyEnv ast1 ~exit1 } in
+let res2 = label exit2 { eval eval emptyEnv ast2 ~exit2 } in
+let res3 = label exit3 { eval eval emptyEnv ast3 ~exit3 } in
+
+(prStr res1) ++ " " ++ (prStr res2) ++ " " ++ (prStr res3)

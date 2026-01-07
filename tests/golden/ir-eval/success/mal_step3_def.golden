@@ -1,0 +1,1 @@
+(Cons "42" (Cons "50" (Cons "52" MNil)))

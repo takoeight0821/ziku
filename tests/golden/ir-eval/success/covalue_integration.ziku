@@ -1,0 +1,6 @@
+-- Test nested calls and passing covalues through multiple functions
+let f = \x ~k => goto(x + 1, k) in
+let g = \y ~j => f(y * 2, ~j) in
+label result {
+  g(5, ~result)
+}

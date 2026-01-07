@@ -1,0 +1,17 @@
+-- Mutual recursion with env argument
+let rec evalList = \ev args env =>
+  match args {
+  | MNil => MNil
+  | Cons(h, t) => Cons(ev ev env h, evalList ev t env)
+  | _ => MNil
+  }
+in
+
+let rec eval = \ev env ast =>
+  match ast {
+  | MNum(n) => MNum(n)
+  | _ => ast
+  }
+in
+
+evalList eval (Cons(MNum(1), Cons(MNum(2), MNil))) MNil

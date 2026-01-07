@@ -32,10 +32,13 @@ def ParseState.eof (s : ParseState) : Bool :=
   | some .eof => true
   | _ => false
 
+-- Default position for end-of-file (no tokens remaining)
+def eofPos : SourcePos := { line := 0, col := 0 }
+
 def ParseState.currentPos (s : ParseState) : SourcePos :=
   match s.peek? with
   | some tok => tok.pos
-  | none => { line := 0, col := 0 }
+  | none => eofPos
 
 abbrev Parser α := ParseState → Except String (α × ParseState)
 
@@ -265,6 +268,11 @@ mutual
             | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
+    | some .tilde =>
+      let s := s.advance
+      match parseAtomType s with
+      | .ok (ty, s') => .ok (.tilde pos ty, s')
+      | .error msg => .error msg
     | some tok => .error s!"expected type but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
     | none => .error "expected type but found EOF"
 
@@ -308,6 +316,45 @@ mutual
         | .error msg => .error msg
       | .error _ => .ok ([], s)  -- No more types, return empty
     | none => .ok ([], s)
+
+  -- Parse a parameter: ident or ~ident
+  partial def parseParam : Parser (Ident × Bool) := fun s =>
+    match s.peekToken? with
+    | some .tilde =>
+      let s := s.advance
+      match expectIdent s with
+      | .ok (id, s') => .ok ((id, true), s')
+      | .error msg => .error msg
+    | _ =>
+      match expectIdent s with
+      | .ok (id, s') => .ok ((id, false), s')
+      | .error msg => .error msg
+
+  -- Parse an argument: expr or ~expr
+  partial def parseArg : Parser (Expr × Bool) := fun s =>
+    match s.peekToken? with
+    | some .tilde =>
+      let s := s.advance
+      match parseAtomExpr s with
+      | .ok (e, s') => .ok ((e, true), s')
+      | .error msg => .error msg
+    | _ =>
+      match parseExpr s with
+      | .ok (e, s') => .ok ((e, false), s')
+      | .error msg => .error msg
+
+  -- Parse an argument (for parseExprStop): expr or ~expr
+  partial def parseArgStop : Parser (Expr × Bool) := fun s =>
+    match s.peekToken? with
+    | some .tilde =>
+      let s := s.advance
+      match parseAtomExprStop s with
+      | .ok (e, s') => .ok ((e, true), s')
+      | .error msg => .error msg
+    | _ =>
+      match parseExprStop s with
+      | .ok (e, s') => .ok ((e, false), s')
+      | .error msg => .error msg
 
   -- Parse pattern
   partial def parsePattern : Parser Pat := parsePatternAtom
@@ -582,12 +629,12 @@ mutual
     -- Parenthesized application: f(x) or f(x, y)
     | some .lparen, _ =>
       let s := s.advance
-      match sepBy parseExpr (expect .comma) s with
+      match sepBy parseArg (expect .comma) s with
       | .ok (args, s') =>
         match expect .rparen s' with
         | .ok (_, s'') =>
           -- Apply arguments as curried: f(x, y) becomes (f x) y
-          let result := args.foldl (Expr.app pos) base
+          let result := args.foldl (fun acc (arg, isCov) => Expr.app pos acc arg isCov) base
           parsePostfixRest result s''
         | .error msg => .error msg
       | .error msg => .error msg
@@ -608,14 +655,19 @@ mutual
         else
           -- Bare # can be an argument
           match parseAtomExpr s with
-          | .ok (arg, s') => parsePostfixRest (Expr.app pos base arg) s'
+          | .ok (arg, s') => parsePostfixRest (Expr.app pos base arg false) s'
           | .error _ => .ok (base, s)
       | none => .ok (base, s)
+    | some .tilde =>
+      let s := s.advance
+      match parseAtomExpr s with
+      | .ok (arg, s') => parsePostfixRest (Expr.app pos base arg true) s'
+      | .error msg => .error msg
     | _ =>
       -- Try space-separated application with atom only (no field access)
       match parseAtomExpr s with
       | .ok (arg, s') =>
-        parsePostfixRest (Expr.app pos base arg) s'
+        parsePostfixRest (Expr.app pos base arg false) s'
       | .error _ => .ok (base, s)
 
   -- Keep parseFieldExpr for backward compatibility (used by other parts of parser)
@@ -717,14 +769,14 @@ mutual
   partial def parseLambda : Parser Expr := fun s =>
     let pos := s.currentPos
     let s := s.advance  -- skip \
-    match many1 expectIdent s with
+    match many1 parseParam s with
     | .ok (params, s') =>
       match expect .fatArrow s' with
       | .ok (_, s'') =>
         match parseExpr s'' with
         | .ok (body, s''') =>
           -- Desugar multi-param lambda to nested single-param lambdas
-          let result := params.foldr (fun param acc => Expr.lam pos param acc) body
+          let result := params.foldr (fun (param, isCov) acc => Expr.lam pos param isCov acc) body
           .ok (result, s''')
         | .error msg => .error msg
       | .error msg => .error msg
@@ -817,11 +869,11 @@ mutual
     -- Parenthesized application: f(x) or f(x, y)
     | some .lparen, _ =>
       let s := s.advance
-      match sepBy parseExpr (expect .comma) s with
+      match sepBy parseArg (expect .comma) s with
       | .ok (args, s') =>
         match expect .rparen s' with
         | .ok (_, s'') =>
-          let result := args.foldl (Expr.app pos) base
+          let result := args.foldl (fun acc (arg, isCov) => Expr.app pos acc arg isCov) base
           parseMatchScrutineeRest result s''
         | .error msg => .error msg
       | .error msg => .error msg
@@ -831,10 +883,15 @@ mutual
     | _, _ =>
       match s.peekToken? with
       | some .lbrace => .ok (base, s)
+      | some .tilde =>
+        let s := s.advance
+        match parseAtomExpr s with
+        | .ok (arg, s') => parseMatchScrutineeRest (Expr.app pos base arg true) s'
+        | .error msg => .error msg
       | _ =>
         match parseAtomExpr s with
         | .ok (arg, s') =>
-          parseMatchScrutineeRest (Expr.app pos base arg) s'
+          parseMatchScrutineeRest (Expr.app pos base arg false) s'
         | .error _ => .ok (base, s)
 
   -- Parse match cases: | is prefix (can start any case), , is suffix (separates cases)
@@ -947,7 +1004,7 @@ mutual
       | .error msg => .error msg
     | .error msg => .error msg
 
-  -- Parse goto: goto(expr, name)
+  -- Parse goto: goto(expr, expr)
   partial def parseGoto : Parser Expr := fun s =>
     let pos := s.currentPos
     let s := s.advance  -- skip 'goto'
@@ -957,10 +1014,10 @@ mutual
       | .ok (value, s'') =>
         match expect .comma s'' with
         | .ok (_, s''') =>
-          match expectIdent s''' with
-          | .ok (name, s'''') =>
+          match parseExpr s''' with
+          | .ok (continuation, s'''') =>
             match expect .rparen s'''' with
-            | .ok (_, s''''') => .ok (Expr.goto pos value name, s''''')
+            | .ok (_, s''''') => .ok (Expr.goto pos value continuation, s''''')
             | .error msg => .error msg
           | .error msg => .error msg
         | .error msg => .error msg
@@ -1535,11 +1592,11 @@ mutual
     -- Parenthesized application: f(x) or f(x, y)
     | some .lparen, _ =>
       let s := s.advance
-      match sepBy parseExprStop (expect .comma) s with
+      match sepBy parseArgStop (expect .comma) s with
       | .ok (args, s') =>
         match expect .rparen s' with
         | .ok (_, s'') =>
-          let result := args.foldl (Expr.app pos) base
+          let result := args.foldl (fun acc (arg, isCov) => Expr.app pos acc arg isCov) base
           parsePostfixRestStop result s''
         | .error msg => .error msg
       | .error msg => .error msg
@@ -1558,13 +1615,18 @@ mutual
           .ok (base, s)
         else
           match parseAtomExprStop s with
-          | .ok (arg, s') => parsePostfixRestStop (Expr.app pos base arg) s'
+          | .ok (arg, s') => parsePostfixRestStop (Expr.app pos base arg false) s'
           | .error _ => .ok (base, s)
       | none => .ok (base, s)
+    | some .tilde =>
+      let s := s.advance
+      match parseAtomExprStop s with
+      | .ok (arg, s') => parsePostfixRestStop (Expr.app pos base arg true) s'
+      | .error msg => .error msg
     | _ =>
       match parseAtomExprStop s with
       | .ok (arg, s') =>
-        parsePostfixRestStop (Expr.app pos base arg) s'
+        parsePostfixRestStop (Expr.app pos base arg false) s'
       | .error _ => .ok (base, s)
 
   -- Keep parseFieldExprStop for backward compatibility

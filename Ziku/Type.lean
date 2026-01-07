@@ -35,6 +35,7 @@ partial def Ty.applySubst (subst : Subst) : Ty → Ty
       (cases.map (fun (c, tys) => (c, tys.map (·.applySubst subst))))
       (rowTail.map (·.applySubst subst))
   | .bottom p => .bottom p  -- Bottom type is not affected by substitution
+  | .tilde p t => .tilde p (t.applySubst subst)
 
 -- Free type variables
 partial def Ty.freeVars : Ty → List Ident
@@ -56,6 +57,7 @@ partial def Ty.freeVars : Ty → List Ident
       | some r => r.freeVars
     caseVars ++ tailVars
   | .bottom _ => []  -- Bottom type has no free variables
+  | .tilde _ t => t.freeVars
 
 -- Free type variables in a scheme
 def Scheme.freeVars (s : Scheme) : List Ident :=

@@ -1,0 +1,128 @@
+-- MAL Step 4: Minimal function application test
+-- Tests only: (fn* [a] a) applied to 42
+
+-- String helpers
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else
+    let c1 = runeToInt (strAt s1 i) in
+    let c2 = runeToInt (strAt s2 i) in
+    if c1 == c2 then strEqFrom s1 s2 (i + 1)
+    else false
+in
+
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0
+  else false
+in
+
+-- Simplified parser for ((fn* [a] a) 42)
+let parseAtom = \tok =>
+  if strEq tok "nil" then MNil
+  else if strEq tok "true" then MTrue
+  else if strEq tok "false" then MFalse
+  else MSym(tok)
+in
+
+-- Printer
+let rec prStr = \val =>
+  match val {
+  | MNum(n) => intToStr n
+  | MSym(s) => s
+  | MNil => "nil"
+  | MTrue => "true"
+  | MFalse => "false"
+  | MErr(msg) => "Error: " ++ msg
+  | MClosure(p, b, e) => "#<function>"
+  | _ => "unknown"
+  }
+in
+
+-- Environment
+let emptyEnv = Cons(MNil, MNil)
+in
+
+let rec lookupBindings = \bindings sym =>
+  match bindings {
+  | MNil => MNil
+  | Cons(binding, rest) =>
+    match binding {
+    | Cons(MStr(name), val) =>
+      if strEq name sym then Cons(MTrue, val)
+      else lookupBindings rest sym
+    | _ => lookupBindings rest sym
+    }
+  | _ => MNil
+  }
+in
+
+let rec envGet = \env sym =>
+  match env {
+  | Cons(bindings, outer) =>
+    match lookupBindings bindings sym {
+    | Cons(MTrue, val) => val
+    | _ =>
+      match outer {
+      | Cons(_, _) => envGet outer sym
+      | _ => MErr(sym ++ " not found")
+      }
+    }
+  | _ => MErr("invalid env")
+  }
+in
+
+let envSet = \env sym val =>
+  match env {
+  | Cons(bindings, outer) =>
+    Cons(Cons(Cons(MStr(sym), val), bindings), outer)
+  | _ => Cons(Cons(Cons(MStr(sym), val), MNil), MNil)
+  }
+in
+
+let rec bindParams = \params args env =>
+  match params {
+  | MNil => env
+  | Cons(MSym(name), restParams) =>
+    match args {
+    | Cons(val, restArgs) =>
+      bindParams restParams restArgs (envSet env name val)
+    | _ => env
+    }
+  | _ => env
+  }
+in
+
+-- Evaluator
+let apply = \ev op args =>
+  match op {
+  | MClosure(params, body, cEnv) =>
+    let newEnv = bindParams params args cEnv in
+    ev ev newEnv body
+  | _ => MErr("cannot apply")
+  }
+in
+
+let rec eval = \ev env ast =>
+  match ast {
+  | MNum(n) => MNum(n)
+  | MNil => MNil
+  | MTrue => MTrue
+  | MFalse => MFalse
+  | MErr(msg) => MErr(msg)
+  | MClosure(p, b, e) => MClosure(p, b, e)
+  | MSym(s) => envGet env s
+  | Cons(MSym("fn*"), Cons(params, Cons(body, MNil))) =>
+    MClosure(params, body, env)
+  | Cons(op, Cons(arg, MNil)) =>
+    let opVal = ev ev env op in
+    let argVal = ev ev env arg in
+    apply ev opVal (Cons(argVal, MNil))
+  | _ => MErr("cannot eval")
+  }
+in
+
+-- Test: ((fn* [a] a) 42)
+-- Build AST directly: Cons(Cons(MSym("fn*"), Cons(Cons(MSym("a"), MNil), Cons(MSym("a"), MNil))), Cons(MNum(42), MNil))
+let fnAst = Cons(MSym("fn*"), Cons(Cons(MSym("a"), MNil), Cons(MSym("a"), MNil))) in
+let appAst = Cons(fnAst, Cons(MNum(42), MNil)) in
+prStr (eval eval emptyEnv appAst)

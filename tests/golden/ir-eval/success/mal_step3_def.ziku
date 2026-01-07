@@ -1,0 +1,344 @@
+-- MAL Step 3: Persistence and def!
+-- Implements: def!, let*, arithmetic evaluation
+-- Returns Pair(value, new_env) from eval
+
+-- ============================================ 
+-- String helpers
+-- ============================================ 
+
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else
+    let c1 = runeToInt (strAt s1 i) in
+    let c2 = runeToInt (strAt s2 i) in
+    if c1 == c2 then strEqFrom s1 s2 (i + 1)
+    else false
+in
+
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0
+  else false
+in
+
+-- ============================================ 
+-- Tokenizer
+-- ============================================ 
+
+let rec skipWhitespace = \s =>
+  if strLen s == 0 then s
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if code == runeToInt ' ' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt '\t' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt '\n' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == 13 then skipWhitespace (strSub s 1 (strLen s - 1))
+    else if code == runeToInt ',' then skipWhitespace (strSub s 1 (strLen s - 1))
+    else s
+in
+
+let isSpecialCode = \code =>
+  if code == runeToInt '(' then true
+  else if code == runeToInt ')' then true
+  else if code == runeToInt '[' then true
+  else if code == runeToInt ']' then true
+  else if code == runeToInt '{' then true
+  else if code == runeToInt '}' then true
+  else false
+in
+
+let isWhitespaceCode = \code =>
+  if code == runeToInt ' ' then true
+  else if code == runeToInt '\t' then true
+  else if code == runeToInt '\n' then true
+  else if code == 13 then true
+  else if code == runeToInt ',' then true
+  else false
+in
+
+let rec readSymbol = \s i =>
+  if i >= strLen s then Cons(MStr(s), MStr(""))
+  else
+    let c = strAt s i in
+    let code = runeToInt c in
+    if isWhitespaceCode code then Cons(MStr(strSub s 0 i), MStr(strSub s i (strLen s - i)))
+    else if isSpecialCode code then Cons(MStr(strSub s 0 i), MStr(strSub s i (strLen s - i)))
+    else readSymbol s (i + 1)
+in
+
+let readToken = \s =>
+  let s2 = skipWhitespace s in
+  if strLen s2 == 0 then Cons(MStr(""), MStr(""))
+  else
+    let c = strAt s2 0 in
+    let code = runeToInt c in
+    if isSpecialCode code
+    then Cons(MStr(runeToStr c), MStr(strSub s2 1 (strLen s2 - 1)))
+    else readSymbol s2 0
+in
+
+let rec tokenize = \s =>
+  let s2 = skipWhitespace s in
+  if strLen s2 == 0 then MNil
+  else
+    match readToken s2 {
+    | Cons(MStr(tok), MStr(rest)) =>
+      if strLen tok == 0 then MNil
+      else Cons(MStr(tok), tokenize rest)
+    | _ => MNil
+    }
+in
+
+-- ============================================ 
+-- Parser
+-- ============================================ 
+
+let rec isAllDigits = \s i =>
+  if i >= strLen s then true
+  else
+    let c = strAt s i in
+    let code = runeToInt c in
+    if code >= runeToInt '0' then
+      if code <= runeToInt '9' then isAllDigits s (i + 1)
+      else false
+    else false
+in
+
+let isNumber = \s =>
+  if strLen s == 0 then false
+  else
+    let c = strAt s 0 in
+    let code = runeToInt c in
+    if code == runeToInt '-' then
+      if strLen s > 1 then isAllDigits s 1 else false
+    else isAllDigits s 0
+in
+
+let parseAtom = \tok =>
+  if strEq tok "nil" then MNil
+  else if strEq tok "true" then MTrue
+  else if strEq tok "false" then MFalse
+  else if isNumber tok then MNum(strToInt tok)
+  else MSym(tok)
+in
+
+let rec readVector = \rf tokens =>
+  match tokens {
+  | Cons(MStr(tok), rest) =>
+    if strEq tok "]" then Cons(MNil, rest)
+    else
+      match rf rf (Cons(MStr(tok), rest)) {
+      | Cons(first, rest2) =>
+        match readVector rf rest2 {
+        | Cons(restList, rest3) => Cons(Cons(first, restList), rest3)
+        | _ => Cons(MNil, MNil)
+        }
+      | _ => Cons(MNil, MNil)
+      }
+  | _ => Cons(MNil, MNil)
+  }
+in
+
+let rec readList = \rf tokens =>
+  match tokens {
+  | Cons(MStr(tok), rest) =>
+    if strEq tok ")" then Cons(MNil, rest)
+    else
+      match rf rf (Cons(MStr(tok), rest)) {
+      | Cons(first, rest2) =>
+        match readList rf rest2 {
+        | Cons(restList, rest3) => Cons(Cons(first, restList), rest3)
+        | _ => Cons(MNil, MNil)
+        }
+      | _ => Cons(MNil, MNil)
+      }
+  | _ => Cons(MNil, MNil)
+  }
+in
+
+let rec readForm = \rf tokens =>
+  match tokens {
+  | Cons(MStr(tok), rest) =>
+    if strEq tok "(" then readList rf rest
+    else if strEq tok "[" then readVector rf rest
+    else Cons(parseAtom tok, rest)
+  | _ => Cons(MNil, MNil)
+  }
+in
+
+let read = \s =>
+  let tokens = tokenize s in
+  match readForm readForm tokens {
+  | Cons(ast, _) => ast
+  | _ => MNil
+  }
+in
+
+-- ============================================ 
+-- Printer
+-- ============================================ 
+
+let rec prListContents = \pr h t =>
+  let hStr = pr h in
+  match t {
+  | MNil => hStr
+  | Cons(h2, t2) => hStr ++ " " ++ prListContents pr h2 t2
+  | _ => hStr ++ " . " ++ pr t
+  }
+in
+
+let rec prStr = \val =>
+  match val {
+  | MNum(n) => intToStr n
+  | MSym(s) => s
+  | MStr(s) => "\"" ++ s ++ "\""
+  | MNil => "nil"
+  | MTrue => "true"
+  | MFalse => "false"
+  | MErr(msg) => "Error: " ++ msg
+  | Cons(h, t) => "(" ++ prListContents prStr h t ++ ")"
+  | Pair(v, _) => prStr v
+  }
+in
+
+-- ============================================ 
+-- Environment
+-- ============================================ 
+
+let emptyEnv = Cons(MNil, MNil)
+in
+
+let rec lookupBindings = \bindings sym =>
+  match bindings {
+  | MNil => MNil
+  | Cons(binding, rest) =>
+    match binding {
+    | Cons(MStr(name), val) =>
+      if strEq name sym then Cons(MTrue, val)
+      else lookupBindings rest sym
+    | _ => lookupBindings rest sym
+    }
+  | _ => MNil
+  }
+in
+
+let rec envGet = \env sym =>
+  match env {
+  | Cons(bindings, outer) =>
+    match lookupBindings bindings sym {
+    | Cons(MTrue, val) => val
+    | _ =>
+      match outer {
+      | Cons(_, _) => envGet outer sym
+      | _ => MErr("'" ++ sym ++ "' not found")
+      }
+    }
+  | _ => MErr("invalid env")
+  }
+in
+
+let envSet = \env sym val =>
+  match env {
+  | Cons(bindings, outer) =>
+    Cons(Cons(Cons(MStr(sym), val), bindings), outer)
+  | _ => Cons(Cons(Cons(MStr(sym), val), MNil), MNil)
+  }
+in
+
+-- ============================================ 
+-- Evaluator
+-- ============================================ 
+
+-- evalList now threads the environment!
+let rec evalList = \ev args env =>
+  match args {
+  | MNil => Pair(MNil, env)
+  | Cons(h, t) =>
+    match ev ev env h {
+    | Pair(hEvaled, env2) =>
+      match evalList ev t env2 {
+      | Pair(tEvaled, env3) => Pair(Cons(hEvaled, tEvaled), env3)
+      }
+    }
+  | _ => Pair(MNil, env)
+  }
+in
+
+let applyOp = \op args =>
+  match args {
+  | Cons(MNum(a), Cons(MNum(b), MNil)) =>
+    if strEq op "+" then MNum(a + b)
+    else if strEq op "-" then MNum(a - b)
+    else if strEq op "*" then MNum(a * b)
+    else if strEq op "/" then MNum(a / b)
+    else MErr("unknown op: " ++ op)
+  | _ => MErr("arity error for " ++ op)
+  }
+in
+
+let rec evalBindings = \ev bindings env =>
+  match bindings {
+  | MNil => env
+  | Cons(MSym(name), Cons(value, rest)) =>
+    match ev ev env value {
+    | Pair(val, _) => evalBindings ev rest (envSet env name val)
+    }
+  | _ => env
+  }
+in
+
+let rec eval = \ev env ast =>
+  match ast {
+  | MNum(n) => Pair(MNum(n), env)
+  | MStr(s) => Pair(MStr(s), env)
+  | MNil => Pair(MNil, env)
+  | MTrue => Pair(MTrue, env)
+  | MFalse => Pair(MFalse, env)
+  | MErr(msg) => Pair(MErr(msg), env)
+
+  | MSym(s) => Pair(envGet env s, env)
+
+  | Cons(head, args) =>
+    match head {
+    | MSym("def!") =>
+      match args {
+      | Cons(MSym(name), Cons(value, MNil)) =>
+        match ev ev env value {
+        | Pair(val, _) => Pair(val, envSet env name val)
+        }
+      | _ => Pair(MErr("def! requires symbol and value"), env)
+      }
+    | MSym("let*") =>
+      match args {
+      | Cons(bindings, Cons(body, MNil)) =>
+        let localEnv = evalBindings ev bindings env in
+        match ev ev localEnv body {
+        | Pair(val, _) => Pair(val, env)
+        }
+      | _ => Pair(MErr("let* requires bindings and body"), env)
+      }
+    | MSym(op) =>
+      match evalList ev args env {
+      | Pair(evaledArgs, env2) => Pair(applyOp op evaledArgs, env2)
+      }
+    | _ => Pair(MErr("cannot apply non-symbol"), env)
+    }
+
+  | _ => Pair(MErr("cannot eval"), env)
+  }
+in
+
+-- ============================================ 
+-- Test
+-- ============================================ 
+
+match eval eval emptyEnv (read "(def! a 42)") {
+| Pair(val1, env1) =>
+  match eval eval env1 (read "(+ a 8)") {
+  | Pair(val2, env2) =>
+    match eval eval env2 (read "(let* [b 10] (+ a b))") {
+    | Pair(val3, env3) =>
+      Cons(prStr val1, Cons(prStr val2, Cons(prStr val3, MNil)))
+    }
+  }
+}

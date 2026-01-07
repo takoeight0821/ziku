@@ -58,12 +58,15 @@ structure Clause where
   body : Expr
   deriving Repr, BEq
 
+-- Default position for Inhabited instances (not from user code)
+def defaultPos : SourcePos := { line := 0, col := 0 }
+
 -- Make Clause inhabited for head!
 instance : Inhabited Clause where
   default := {
     patterns := [],
     copattern := [],
-    body := .lit { line := 0, col := 0 } .unit
+    body := .lit defaultPos .unit
   }
 
 -- Get the kind of the first accessor in a copattern, if any
@@ -105,7 +108,7 @@ def buildMatchExpr (pos : SourcePos) (argName : Ident) (clauses : List Clause)
 
 -- Inhabited instance for Except ElaborateError Expr
 instance : Inhabited (Except ElaborateError Expr) where
-  default := throw (.customError { line := 0, col := 0 } "uninhabited")
+  default := throw (.customError defaultPos "uninhabited")
 
 mutual
 
@@ -137,7 +140,7 @@ partial def elaborateWithPatternGuards (pos : SourcePos) (clauses : List Clause)
   let innerExpr ← elaborate pos (newClauses.map fun c => (c.patterns, c.copattern, c.body))
 
   -- Wrap in lambda for the argument
-  pure (.lam pos argName innerExpr)
+  pure (.lam pos argName false innerExpr)
 
 -- Elaborate pattern guards into a match expression
 partial def elaboratePatternMatch (pos : SourcePos) (clauses : List Clause) : Except ElaborateError Expr :=
@@ -234,7 +237,7 @@ partial def elaborate (pos : SourcePos) (rawClauses : List (List Pat × Copatter
           let bodyExpr ← elaborate pos (lamClauses.map (fun c => (c.patterns, c.copattern, c.body)))
 
           -- Create lambda
-          pure (.lam pos paramName bodyExpr)
+          pure (.lam pos paramName false bodyExpr)
 
         | _ => throw (.customError pos "expected call accessor")
 
@@ -257,13 +260,13 @@ partial def elaborateAll : Expr → Except ElaborateError Expr
   | .unaryOp pos op e => do
     let e' ← elaborateAll e
     pure (.unaryOp pos op e')
-  | .lam pos param body => do
+  | .lam pos param isCov body => do
     let body' ← elaborateAll body
-    pure (.lam pos param body')
-  | .app pos fn arg => do
+    pure (.lam pos param isCov body')
+  | .app pos fn arg isCov => do
     let fn' ← elaborateAll fn
     let arg' ← elaborateAll arg
-    pure (.app pos fn' arg')
+    pure (.app pos fn' arg' isCov)
   | .let_ pos x ty e1 e2 => do
     let e1' ← elaborateAll e1
     let e2' ← elaborateAll e2
@@ -298,10 +301,20 @@ partial def elaborateAll : Expr → Except ElaborateError Expr
     let e1' ← elaborateAll e1
     let e2' ← elaborateAll e2
     pure (.cut pos e1' e2')
-  | .mu pos x e => do
-    let e' ← elaborateAll e
-    pure (.mu pos x e')
+  | .mu pos x body => do
+    let body' ← elaborateAll body
+    pure (.mu pos x body')
   | .hash pos => pure (.hash pos)  -- Hash self-reference (passed through)
+  | .label pos name body => do
+    let body' ← elaborateAll body
+    pure (.label pos name body')
+  | .goto pos value continuation => do
+    let value' ← elaborateAll value
+    let continuation' ← elaborateAll continuation
+    pure (.goto pos value' continuation')
+  | .con pos name args => do
+    let args' ← args.mapM elaborateAll
+    pure (.con pos name args')
   | e => pure e  -- Literals and variables
 
 end Ziku

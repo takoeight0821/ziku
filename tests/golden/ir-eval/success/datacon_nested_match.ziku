@@ -1,0 +1,19 @@
+-- Nested pattern match on dataCon from function result
+-- This is the exact pattern from mal that gets stuck
+
+let readToken = \s =>
+  Cons(MStr(runeToStr (strAt s 0)), MStr(strSub s 1 (strLen s - 1)))
+in
+let rec tokenize = \s =>
+  if strLen s == 0 then MNil
+  else
+    match readToken s {
+    | Cons(MStr(tok), MStr(rest)) =>
+      Cons(MStr(tok), tokenize rest)
+    | _ => MNil
+    }
+in
+match tokenize "ab" {
+| Cons(h, _) => h
+| _ => MStr("fail")
+}

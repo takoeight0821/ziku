@@ -1,0 +1,4 @@
+let f = \x ~k => goto(x, k) in
+label exit {
+  f(10, ~exit)
+}

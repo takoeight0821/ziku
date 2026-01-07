@@ -1,0 +1,233 @@
+-- MAL Step 5: TCO - Integration Test
+-- Combined test: count-evens with accumulator
+-- Uses: let*, do, if, fn*, and recursion
+
+-- ============================================ 
+-- String helpers
+-- ============================================ 
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else if runeToInt(strAt s1 i) == runeToInt(strAt s2 i) then strEqFrom s1 s2 (i + 1)
+  else false
+in
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0 else false
+in
+
+-- ============================================ 
+-- Environment
+-- ============================================ 
+let emptyEnv = Cons(MNil, MNil) in
+let rec lookupBindings = \bindings sym =>
+  match bindings {
+  | MNil => MNil
+  | Cons(Cons(MStr(name), val), rest) =>
+    if strEq name sym then Cons(MTrue, val)
+    else lookupBindings rest sym
+  | _ => MNil
+  }
+in
+let rec envGet = \env sym =>
+  match env {
+  | Cons(bindings, outer) =>
+    match lookupBindings bindings sym {
+    | Cons(MTrue, val) => val
+    | _ => match outer { | Cons(_, _) => envGet outer sym | _ => MErr("'" ++ sym ++ "' not found") }
+    }
+  | _ => MErr("invalid env")
+  }
+in
+let envSet = \env sym val =>
+  match env {
+  | Cons(bindings, outer) => Cons(Cons(Cons(MStr(sym), val), bindings), outer)
+  | _ => Cons(Cons(Cons(MStr(sym), val), MNil), MNil)
+  }
+in
+let rec bindParams = \params args env =>
+  match params {
+  | MNil => env
+  | Cons(MSym(name), restParams) =>
+    match args {
+    | Cons(val, restArgs) => bindParams restParams restArgs (envSet env name val)
+    | _ => env
+    }
+  | _ => env
+  }
+in
+
+-- ============================================
+-- Evaluator Helpers
+-- ============================================
+let isTruthy = \val =>
+  match val {
+  | MNil => false
+  | MFalse => false
+  | _ => true
+  }
+in
+
+let applyNative = \op args =>
+  if strEq op "+" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a + b) | _ => MErr("+ err") }
+  else if strEq op "-" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a - b) | _ => MErr("- err") }
+  else if strEq op "/" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a / b) | _ => MErr("/ err") }
+  else if strEq op "*" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a * b) | _ => MErr("* err") }
+  else if strEq op "mod" then
+    match args {
+      | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a - (a / b) * b)
+      | _ => MErr("mod err")
+    }
+  else if strEq op "=" then
+    match args {
+    | Cons(MNum(a), Cons(MNum(b), MNil)) => if a == b then MTrue else MFalse
+    | _ => MErr("= err")
+    }
+  else if strEq op "list" then args
+  else if strEq op "empty?" then
+    match args {
+    | Cons(MNil, MNil) => MTrue
+    | Cons(Cons(_, _), MNil) => MFalse
+    | _ => MTrue
+    }
+  else if strEq op "first" then
+    match args { | Cons(Cons(h, _), MNil) => h | _ => MNil }
+  else if strEq op "rest" then
+    match args { | Cons(Cons(_, t), MNil) => t | _ => MNil }
+  else MErr("unknown native: " ++ op)
+in
+
+-- ============================================
+-- Main EVAL with Explicit CPS (First Class Covalues)
+-- ============================================
+
+-- Helper to eval a list of args using CPS eval
+let rec evalList = \ev env args =>
+  match args {
+  | MNil => MNil
+  | Cons(h, t) =>
+    let hVal = label k { ev ev env h ~k } in
+    Cons(hVal, evalList ev env t)
+  | _ => MNil
+  }
+in
+
+-- Eval takes a continuation ~k and must call goto(result, k) or tail call
+let rec eval = \ev env ast ~k =>
+  match ast {
+  | MSym(s) => goto(envGet env s, k)
+  | Cons(head, args) =>
+    match head {
+    | MSym(s) =>
+      if strEq s "if" then
+        match args {
+        | Cons(cond, Cons(thenBranch, rest)) =>
+          let condVal = label ck { ev ev env cond ~ck } in
+          if isTruthy condVal then ev ev env thenBranch ~k
+          else
+            match rest {
+            | Cons(elseBranch, _) => ev ev env elseBranch ~k
+            | _ => goto(MNil, k)
+            }
+        | _ => goto(MErr("if needs at least cond and then"), k)
+        }
+      else if strEq s "do" then
+        match args {
+        | MNil => goto(MNil, k)
+        | Cons(h, MNil) => ev ev env h ~k
+        | Cons(h, t) =>
+          let ignored = label dk { ev ev env h ~dk } in
+          ev ev env (Cons(MSym("do"), t)) ~k
+        | _ => goto(MErr("invalid do"), k)
+        }
+      else if strEq s "let*" then
+        match args {
+        | Cons(MNil, Cons(body, MNil)) => ev ev env body ~k
+        | Cons(Cons(MSym(name), Cons(value, restBindings)), Cons(body, MNil)) =>
+          let val = label vk { ev ev env value ~vk } in
+          let newEnv = envSet env name val in
+          ev ev newEnv (Cons(MSym("let*"), Cons(restBindings, Cons(body, MNil)))) ~k
+        | _ => goto(MErr("invalid let*"), k)
+        }
+      else if strEq s "fn*" then
+        match args {
+        | Cons(params, Cons(body, MNil)) => goto(MClosure(params, body, env), k)
+        | _ => goto(MErr("fn* needs params and body"), k)
+        }
+      else
+        let opVal = label ok { ev ev env head ~ok } in
+        match opVal {
+        | MNative(name) => goto(applyNative name (evalList ev env args), k)
+        | MClosure(params, body, cEnv) =>
+          let evaledArgs = evalList ev env args in
+          let newEnv = bindParams params evaledArgs cEnv in
+          -- Tail call: pass k directly
+          ev ev newEnv body ~k
+        | _ => goto(MErr("cannot apply"), k)
+        }
+    | _ =>
+      let opVal = label ok { ev ev env head ~ok } in
+      match opVal {
+      | MNative(name) => goto(applyNative name (evalList ev env args), k)
+      | MClosure(params, body, cEnv) =>
+        let evaledArgs = evalList ev env args in
+        let newEnv = bindParams params evaledArgs cEnv in
+        ev ev newEnv body ~k
+      | _ => goto(MErr("cannot apply"), k)
+      }
+    }
+  | MNum(n) => goto(MNum(n), k)
+  | MNil => goto(MNil, k)
+  | MTrue => goto(MTrue, k)
+  | MFalse => goto(MFalse, k)
+  | _ => goto(ast, k)
+  }
+in
+
+-- ============================================ 
+-- Test Setup
+-- ============================================ 
+let initialEnv =
+  let e1 = envSet emptyEnv "+" (MNative("+")) in
+  let e2 = envSet e1 "-" (MNative("-")) in
+  let e3 = envSet e2 "mod" (MNative("mod")) in
+  let e4 = envSet e3 "=" (MNative("=")) in
+  let e5 = envSet e4 "list" (MNative("list")) in
+  let e6 = envSet e5 "empty?" (MNative("empty?")) in
+  let e7 = envSet e6 "first" (MNative("first")) in
+  let e8 = envSet e7 "rest" (MNative("rest")) in
+  let e9 = envSet e8 "*" (MNative("*")) in
+  envSet e9 "/" (MNative("/"))
+in
+
+-- Using Y combinator style (pass self) for recursion in pure functional setting
+-- (let* [count-evens (fn* [self l acc]
+--                     (if (empty? l)
+--                         acc
+--                         (let* [h (first l)]
+--                           (if (= (mod h 2) 0)
+--                               (self self (rest l) (+ acc 1))
+--                               (self self (rest l) acc)))))]
+--   (count-evens count-evens (list 1 2 3 4 5 6) 0)) -> 3
+let countEvensFnAst =
+  Cons(MSym("fn*"), Cons(Cons(MSym("self"), Cons(MSym("l"), Cons(MSym("acc"), MNil))),
+    Cons(Cons(MSym("if"), Cons(Cons(MSym("empty?"), Cons(MSym("l"), MNil)),
+      Cons(MSym("acc"),
+      Cons(Cons(MSym("let*"), Cons(Cons(MSym("h"), Cons(Cons(MSym("first"), Cons(MSym("l"), MNil)), MNil)),
+        Cons(Cons(MSym("if"), Cons(Cons(MSym("="), Cons(Cons(MSym("mod"), Cons(MSym("h"), Cons(MNum(2), MNil))), Cons(MNum(0), MNil))),
+          Cons(Cons(MSym("self"), Cons(MSym("self"), Cons(Cons(MSym("rest"), Cons(MSym("l"), MNil)), Cons(Cons(MSym("+"), Cons(MSym("acc"), Cons(MNum(1), MNil))), MNil)))),
+          Cons(Cons(MSym("self"), Cons(MSym("self"), Cons(Cons(MSym("rest"), Cons(MSym("l"), MNil)), Cons(MSym("acc"), MNil)))), MNil)))), MNil))), MNil)))), MNil))) in
+
+let testAst =
+  Cons(MSym("let*"), Cons(Cons(MSym("count-evens"), Cons(countEvensFnAst, MNil)),
+    Cons(Cons(MSym("count-evens"), Cons(MSym("count-evens"), Cons(Cons(MSym("list"), Cons(MNum(1), Cons(MNum(2), Cons(MNum(3), Cons(MNum(4), Cons(MNum(5), Cons(MNum(6), MNil))))))),
+      Cons(MNum(0), MNil)))), MNil))) in
+
+let result = label exit { eval eval initialEnv testAst ~exit } in
+match result {
+| MNum(n) => intToStr n
+| MErr(m) => "Error: " ++ m
+| _ => "Other"
+}

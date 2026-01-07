@@ -1,0 +1,38 @@
+#!/bin/bash
+# Wrapper to run Ziku-based MAL implementation
+# Usage: ./run <step_file.ziku> [args...]
+
+set -e
+
+# Get the directory of this script
+# SCRIPT_DIR is examples/mal
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# PROJECT_DIR is the root
+PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <step_file.ziku> [args...]"
+    exit 1
+fi
+
+STEP_FILE="$1"
+shift
+
+# Create a temporary file for the combined source
+COMBINED_SRC=$(mktemp /tmp/mal_combined_ziku_XXXXXX)
+
+# Concatenate core and step
+# We need to ensure core.ziku exists
+if [ ! -f "$SCRIPT_DIR/core.ziku" ]; then
+    echo "Error: core.ziku not found in $SCRIPT_DIR"
+    exit 1
+fi
+
+cat "$SCRIPT_DIR/core.ziku" "$STEP_FILE" > "$COMBINED_SRC"
+
+# Run using run-scheme.sh
+# We assume run-scheme.sh handles compilation and execution
+"$PROJECT_DIR/scripts/run-scheme.sh" "$COMBINED_SRC" "$@"
+
+# Cleanup (optional, keep for debugging if failed? No, set -e handles exit)
+rm "$COMBINED_SRC"
