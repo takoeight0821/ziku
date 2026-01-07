@@ -5,7 +5,7 @@ This plan outlines the implementation of a GitHub-integrated development system 
 ## Phase 1: GitHub Integration & Templates [ ]
 Setup the foundational GitHub artifacts (templates) and ensure the environment can interact with the GitHub API.
 
-- [ ] Task: Create GitHub Issue templates (Feature, Bug, Task) in `.github/ISSUE_TEMPLATE/` [ ]
+- [x] Task: Create GitHub Issue templates (Feature, Bug, Task) in `.github/ISSUE_TEMPLATE/` [c03473f]
 - [ ] Task: Create GitHub Pull Request template in `.github/PULL_REQUEST_TEMPLATE.md` [ ]
 - [ ] Task: Verify GitHub CLI (`gh`) authentication and basic connectivity in the dev environment [ ]
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: GitHub Integration & Templates' (Protocol in workflow.md) [ ]
