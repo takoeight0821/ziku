@@ -2,7 +2,7 @@
 
 This plan outlines the implementation of a GitHub-integrated development system to replace the current file-based `conductor` workflow.
 
-## Phase 1: GitHub Integration & Templates [ ]
+## Phase 1: GitHub Integration & Templates [checkpoint: 1af9e09]
 Setup the foundational GitHub artifacts (templates) and ensure the environment can interact with the GitHub API.
 
 - [x] Task: Create GitHub Issue templates (Feature, Bug, Task) in `.github/ISSUE_TEMPLATE/` [c03473f]
