@@ -20,6 +20,11 @@ if [ ! -f ".github/ISSUE_TEMPLATE/task.md" ]; then
     ERRORS=$((ERRORS+1))
 fi
 
+if [ ! -f ".github/PULL_REQUEST_TEMPLATE.md" ]; then
+    echo "❌ Missing PULL_REQUEST_TEMPLATE.md"
+    ERRORS=$((ERRORS+1))
+fi
+
 if [ $ERRORS -eq 0 ]; then
     echo "✅ All templates found."
     exit 0
