@@ -1,21 +1,18 @@
 ---
 name: Task
-about: A specific unit of work for the CDD workflow
+about: Create a new task for the CDD workflow
 title: ''
 labels: task
 assignees: ''
 ---
 
-## Description
-A concise description of the task.
-
 ## Context
-Why is this needed? Reference related issues or plans.
+<!-- Describe the background and motivation for this task. -->
 
-## Acceptance Criteria
-- [ ] Criterion 1
-- [ ] Criterion 2
+## Requirements
+<!-- List the specific requirements and acceptance criteria. -->
+1. 
 
-## Implementation Plan
-1. [ ] Step 1
-2. [ ] Step 2
+## Plan
+<!-- A step-by-step plan to implement the task. MUST be a TODO list. -->
+- [ ]
