@@ -9,6 +9,19 @@ This document defines the development workflow for the Ziku project, replacing t
 3. **Automated Context**: AI agents use specialized tools to "read" the project state from GitHub.
 4. **Visibility and Collaboration**: Progress is visible to everyone via the GitHub interface, not hidden in local files.
 
+## Setup and Prerequisites
+
+The new CDD workflow is designed to be lightweight and independent of the previous `conductor` framework.
+
+**Requirements:**
+- GitHub CLI (`gh`) installed and authenticated.
+- Local repository setup.
+
+**Independence:**
+- This workflow **does not require** the `conductor/` directory. You can delete `conductor/` entirely once all legacy tracks are completed or migrated.
+- All task state is stored in GitHub Issues.
+- All code changes happen in standard git branches.
+
 ## The Workflow Lifecycle
 
 ### 1. Task Initialization
