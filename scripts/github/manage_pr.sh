@@ -14,9 +14,12 @@ ACTION="$1"
 if [ "$ACTION" == "create" ]; then
   TITLE="$2"
   BODY="$3"
-  # Auto-fill base/head? Default behavior of gh pr create is usually fine (pushes current branch)
-  # but in a script we might need to ensure push.
-  # Let's assume the user/agent has pushed the branch.
+  
+  # Ensure the branch is pushed to origin to avoid interactive prompts
+  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  echo "Pushing $CURRENT_BRANCH to origin..."
+  git push -u origin "$CURRENT_BRANCH"
+
   gh pr create --title "$TITLE" --body "$BODY"
 elif [ "$ACTION" == "update" ]; then
   if [ "$#" -lt 4 ]; then
