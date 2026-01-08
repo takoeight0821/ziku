@@ -36,9 +36,9 @@ Formalize the new workflow and transition away from `conductor`.
 - [x] Task: Create a deprecation notice in the `conductor/` directory [70dab67]
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Methodology Documentation & Deprecation' (Protocol in workflow.md) [b0c3ff1]
 
-## Phase 5: Final System Integration Test [ ]
+## Phase 5: Final System Integration Test [checkpoint: a58f87a]
 Verify the entire end-to-end flow using the new tools.
 
 - [x] Task: Perform a "dogfooding" run: use `task init` to create a small dummy task and complete it using the new agent tools [0e9f266]
 - [x] Task: Verify that the GitHub Issue was updated correctly and the PR was managed as expected [0e9f266]
-- [ ] Task: Conductor - User Manual Verification 'Phase 5: Final System Integration Test' (Protocol in workflow.md) [ ]
+- [x] Task: Conductor - User Manual Verification 'Phase 5: Final System Integration Test' (Protocol in workflow.md) [a58f87a]
