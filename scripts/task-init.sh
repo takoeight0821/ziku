@@ -1,25 +1,65 @@
 #!/bin/bash
 set -e
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 <task-description>"
+SKIP_CONFIRM=false
+DESCRIPTION=""
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -y|--yes)
+      SKIP_CONFIRM=true
+      shift
+      ;;
+    *)
+      if [ -z "$DESCRIPTION" ]; then
+        DESCRIPTION="$1"
+      else
+        echo "Unknown argument: $1"
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$DESCRIPTION" ]; then
+    echo "Usage: $0 [-y|--yes] <task-description> [body-file]"
     exit 1
 fi
 
-DESCRIPTION="$1"
+BODY_FILE="$2"
+
 # Slugify: lowercase, replace non-alphanumeric with hyphens, remove multiple hyphens, trim hyphens
 SLUG=$(echo "$DESCRIPTION" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
 
-echo "Creating GitHub issue for: $DESCRIPTION"
-
-# Read template and strip frontmatter (the part between --- and ---)
-TEMPLATE_PATH=".github/ISSUE_TEMPLATE/task.md"
-if [ -f "$TEMPLATE_PATH" ]; then
-    BODY=$(sed '1,/^---$/d' "$TEMPLATE_PATH")
+# Determine body content
+if [ -n "$BODY_FILE" ] && [ -f "$BODY_FILE" ]; then
+    BODY=$(cat "$BODY_FILE")
 else
-    BODY="Task description for: $DESCRIPTION"
+    # Read template and strip frontmatter (the part between --- and ---)
+    TEMPLATE_PATH=".github/ISSUE_TEMPLATE/task.md"
+    if [ -f "$TEMPLATE_PATH" ]; then
+        BODY=$(sed '1,/^---$/d' "$TEMPLATE_PATH")
+    else
+        BODY="Task description for: $DESCRIPTION"
+    fi
 fi
 
+if [ "$SKIP_CONFIRM" = false ]; then
+    echo "----------------------------------------"
+    echo "PROPOSED GITHUB ISSUE:"
+    echo "Title: $DESCRIPTION"
+    echo "Body:"
+    echo "$BODY"
+    echo "----------------------------------------"
+    read -p "Do you want to create this issue? (y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Aborting."
+        exit 0
+    fi
+fi
+
+echo "Creating GitHub issue for: $DESCRIPTION"
 ISSUE_URL=$(gh issue create --title "$DESCRIPTION" --body "$BODY")
 
 if [ -z "$ISSUE_URL" ]; then

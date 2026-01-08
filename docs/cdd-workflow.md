@@ -1,78 +1,50 @@
 # GitHub-First Context-Driven Development (CDD)
 
-This document defines the development workflow for the Ziku project, replacing the previous `conductor` framework. This methodology prioritizes GitHub Issues and Pull Requests as the primary sources of truth for context, planning, and task tracking.
+This document defines the development workflow for the Ziku project. This methodology prioritizes GitHub Issues and Pull Requests as the primary sources of truth for context, planning, and task tracking.
 
-## Guiding Principles
+## The 10-Step Workflow
 
-1. **GitHub is the Source of Truth**: All context, requirements, and plans live in GitHub Issues.
-2. **Branch-Based Development**: Every task has its own branch linked to an issue.
-3. **Automated Context**: AI agents use specialized tools to "read" the project state from GitHub.
-4. **Visibility and Collaboration**: Progress is visible to everyone via the GitHub interface, not hidden in local files.
+All developers (including AI agents) must strictly follow these steps:
+
+1.  **Task Initialization**: User gives the initial instruction with `task init`.
+2.  **Clarification**: The agent dialogues with the user to clarify the task scope and details.
+3.  **Requirements Definition**: The agent writes down the requirements as a GitHub issue draft and seeks user review.
+4.  **Issue Creation**: Once approved, the agent creates the GitHub Issue.
+5.  **Branch Creation**: The agent creates a local branch linked to the issue.
+6.  **Planning**: The agent writes down a detailed implementation plan and seeks user review.
+7.  **Empty Commit**: The agent creates an empty commit (`git commit --allow-empty -m "chore: initial commit for PR"`) and pushes it.
+8.  **PR Creation**: The agent creates a Pull Request, using the approved plan as the PR body. The plan MUST be formatted as a Markdown TODO list (e.g., `- [ ] Task`).
+9.  **Execution**: The agent executes the task, performing commits and pushes, and updating the PR body as progress is made.
+10. **Final Review & Merge**: Once the requirements are met, the agent seeks final review. The user merges the PR to complete the task.
 
 ## Setup and Prerequisites
-
-The new CDD workflow is designed to be lightweight and independent of the previous `conductor` framework.
 
 **Requirements:**
 - GitHub CLI (`gh`) installed and authenticated.
 - Local repository setup.
 
-**Independence:**
-- This workflow **does not require** the `conductor/` directory. You can delete `conductor/` entirely once all legacy tracks are completed or migrated.
-- All task state is stored in GitHub Issues.
-- All code changes happen in standard git branches.
+## CLI Tools and Scripts
 
-## The Workflow Lifecycle
-
-### 1. Task Initialization
-To start a new task (feature, bug fix, or technical task), use the `task init` CLI tool:
+### `task init`
+To start a new task, use the `scripts/task-init.sh` script:
 
 ```bash
-./scripts/task-init.sh "Description of the task"
+./scripts/task-init.sh "Description of the task" [body_file]
 ```
 
-This command will:
-- Create a new GitHub Issue using the `task.md` template.
-- Create a local branch named `task/<issue-number>-<slug>`.
-- Link the branch to the issue on GitHub.
-- Automatically check out the new branch.
+- If `body_file` is provided, its content will be used as the issue body.
+- If not provided, it defaults to the `task.md` issue template.
 
-### 2. Implementation and Iteration
-During implementation, the AI agent (or human developer) follows the standard development cycle:
-- **Red**: Write failing tests.
-- **Green**: Implement code to pass tests.
-- **Refactor**: Improve code quality.
+### GitHub Helpers
+AI agents use these tools to manage context:
+- `scripts/github/dump_context.sh`: Aggregates issue details and PR status.
+- `scripts/github/read_issue.sh <number>`: Reads specific issue content.
+- `scripts/github/update_issue.sh <number> <action> <content>`: Updates issues.
+- `scripts/github/manage_pr.sh <action> ...`: Manages PR lifecycle.
 
-AI agents should use the following tools to manage context:
-- `scripts/github/dump_context.sh`: Aggregates issue details and PR status into a single block for the LLM.
-- `scripts/github/read_issue.sh <number>`: Reads the full content of a specific issue.
-- `scripts/github/update_issue.sh <number> <action> <content>`: Updates the issue (comments or body).
+## Guiding Principles
 
-### 3. Pull Request and Review
-Once a task or sub-task is ready for review:
-
-1. **Create/Update PR**:
-   ```bash
-   ./scripts/github/manage_pr.sh create "Title" "Body"
-   ```
-2. **Verify Checklist**: Ensure all items in the `.github/PULL_REQUEST_TEMPLATE.md` are addressed.
-3. **Review**: Human review occurs on the GitHub PR interface.
-
-### 4. Completion
-A task is considered done when:
-- The PR is approved and merged.
-- All tests pass in CI.
-- The corresponding GitHub Issue is closed.
-
-## Agent Tool Reference
-
-| Tool | Purpose |
-| :--- | :--- |
-| `scripts/task-init.sh` | Start a new task and setup environment. |
-| `scripts/github/dump_context.sh` | Get full task context (issue + comments + PR). |
-| `scripts/github/read_issue.sh` | Fetch issue details. |
-| `scripts/github/update_issue.sh` | Progress tracking (marking task lists, commenting). |
-| `scripts/github/manage_pr.sh` | Lifecycle management of Pull Requests. |
-
-## Deprecation of Conductor
-The `conductor/` directory and its associated `plan.md` files are now deprecated. New development should strictly follow the CDD workflow. Existing tracks in `conductor/` should be finished using the old workflow or migrated if they are long-running.
+1.  **GitHub is the Source of Truth**: All context, requirements, and plans live in GitHub Issues/PRs.
+2.  **Branch-Based Development**: Every task has its own branch linked to an issue.
+3.  **Visibility and Collaboration**: Progress is visible to everyone via the GitHub interface.
+4.  **No Reverts**: Do not revert changes unless explicitly asked or if they cause errors.
