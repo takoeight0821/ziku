@@ -44,7 +44,3 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [ ] Track: CLI Enhancements - Help and Script Execution
 *Link: [./conductor/tracks/cli_enhancements_20260107/](./conductor/tracks/cli_enhancements_20260107/)*
----
-
-## [ ] Track: GitHub-First Context-Driven Development (CDD) System
-*Link: [./conductor/tracks/cdd_system_20260107/](./conductor/tracks/cdd_system_20260107/)*

@@ -7,6 +7,7 @@
 
 ## Development & CI
 - **GitHub Actions:** Automates the build and test pipeline (via `lean_action_ci.yml`).
+- **GitHub-First CDD:** A context-driven development workflow integrated with the GitHub CLI (`gh`) for task and PR management.
 - **Golden Testing:** A custom test framework that ensures stability by comparing output against known-good "golden" files.
 - **Mise:** Used for managing development environment dependencies.
 - **Docker:** Provides a reproducible, non-root sandbox environment for development and testing.

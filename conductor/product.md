@@ -10,7 +10,7 @@ To create a functional programming language implemented in Lean 4 that explicitl
 - **Data & Codata Symmetry:** Explicit support for pattern matching (data) and copattern matching (codata).
 - **Sequent Calculus IR:** A λμμ̃-calculus based intermediate representation that makes symmetry explicit.
 - **Type System:** Hindley-Milner type inference based on row-polymorphism.
-- **AI-Driven Development:** Proactive use of AI agents for feature implementation, refactoring, and codebase evolution.
+- **AI-Driven Development:** Proactive use of AI agents within a "GitHub-First" Context-Driven Development (CDD) workflow, utilizing GitHub Issues and Pull Requests as the primary source of truth.
 - **Control Flow:** First-class control structures using `label`, `goto`, and first-class covalues (continuations).
 
 ## Target Audience
