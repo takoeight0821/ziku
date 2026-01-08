@@ -58,6 +58,7 @@ label done {
 - [Tutorial](docs/tutorial.md) - Learn Ziku step by step
 - [Reference](docs/reference.md) - Complete language reference
 - [Internals](INTERNALS.md) - Implementation details
+- [Development Workflow](docs/cdd-workflow.md) - Our GitHub-First development process
 
 ## Background
 
