@@ -22,7 +22,7 @@ Implement the primary entry point for the new workflow.
 Develop the tools that allow the AI agent to use GitHub as its source of truth.
 
 - [x] Task: Implement `read_github_issue` tool for the agent [6edee5e]
-- [ ] Task: Implement `update_github_issue` tool (for progress tracking/task checking) [ ]
+- [x] Task: Implement `update_github_issue` tool (for progress tracking/task checking) [370fe51]
 - [ ] Task: Implement `manage_github_pr` tool (creation and summary updates) [ ]
 - [ ] Task: Implement `dump_github_context` tool (LLM-optimized context aggregation) [ ]
 - [ ] Task: Write unit tests for all new GitHub interaction tools using mocks [ ]
