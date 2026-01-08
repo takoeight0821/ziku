@@ -28,13 +28,13 @@ Develop the tools that allow the AI agent to use GitHub as its source of truth.
 - [x] Task: Write unit tests for all new GitHub interaction tools using mocks [c8a71c5]
 - [x] Task: Conductor - User Manual Verification 'Phase 3: AI Agent Tools Implementation' (Protocol in workflow.md) [7bf6be0]
 
-## Phase 4: Methodology Documentation & Deprecation [ ]
+## Phase 4: Methodology Documentation & Deprecation [checkpoint: b0c3ff1]
 Formalize the new workflow and transition away from `conductor`.
 
-- [ ] Task: Write `docs/cdd-workflow.md` defining the new system [ ]
-- [ ] Task: Update project `README.md` to point to the new workflow [ ]
-- [ ] Task: Create a deprecation notice in the `conductor/` directory [ ]
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Methodology Documentation & Deprecation' (Protocol in workflow.md) [ ]
+- [x] Task: Write `docs/cdd-workflow.md` defining the new system [763acf6]
+- [x] Task: Update project `README.md` to point to the new workflow [dfc4056]
+- [x] Task: Create a deprecation notice in the `conductor/` directory [70dab67]
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Methodology Documentation & Deprecation' (Protocol in workflow.md) [b0c3ff1]
 
 ## Phase 5: Final System Integration Test [ ]
 Verify the entire end-to-end flow using the new tools.
