@@ -12,10 +12,15 @@ SLUG=$(echo "$DESCRIPTION" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' 
 
 echo "Creating GitHub issue for: $DESCRIPTION"
 
-# Create issue using the task template
-# Note: We use --template task.md if it exists, otherwise it falls back to default or prompts
-# Since we just created it, it should work.
-ISSUE_URL=$(gh issue create --title "$DESCRIPTION" --template task.md)
+# Read template and strip frontmatter (the part between --- and ---)
+TEMPLATE_PATH=".github/ISSUE_TEMPLATE/task.md"
+if [ -f "$TEMPLATE_PATH" ]; then
+    BODY=$(sed '1,/^---$/d' "$TEMPLATE_PATH")
+else
+    BODY="Task description for: $DESCRIPTION"
+fi
+
+ISSUE_URL=$(gh issue create --title "$DESCRIPTION" --body "$BODY")
 
 if [ -z "$ISSUE_URL" ]; then
     echo "❌ Failed to create issue."
