@@ -60,6 +60,45 @@ label done {
 - [Internals](INTERNALS.md) - Implementation details
 - [Development Workflow](docs/cdd-workflow.md) - Our GitHub-First development process
 
+## For Developers
+
+### Dependency Management
+
+このプロジェクトは、依存関係の自動更新にRenovateを使用しています。
+
+**Renovateのセットアップ（メンテナー向け）:**
+
+1. **GitHub Appを作成**
+   ```bash
+   ./scripts/create-github-app.sh
+   ```
+   - GitHub CLI (`gh`) が必要です
+   - App IDとプライベートキー（`.pem`ファイル）が生成されます
+
+2. **Appをリポジトリにインストール**
+   - スクリプトが表示するURLにアクセス
+   - "Only select repositories" → `takoeight0821/ziku` を選択
+
+3. **GitHub Actionsにシークレットを追加**
+
+   Repository Settings → Secrets and variables → Actions:
+   - `RENOVATE_APP_ID`: スクリプト出力のApp ID
+   - `RENOVATE_APP_PRIVATE_KEY`: `.pem`ファイルの内容
+
+4. **動作確認**
+
+   Actions → Renovate → "Run workflow" で手動実行
+
+**自動更新される依存関係:**
+- GitHub Actions（週次、月曜 9:00 UTC）
+- Docker base images
+- Git submodules
+- Lean toolchain
+- Lake dependencies
+- elanバージョン
+
+詳細は[CLAUDE.md](CLAUDE.md)を参照してください。
+
 ## Background
 
 Ziku is inspired by ["Grokking the Sequent Calculus" (ICFP 2024)](https://dl.acm.org/doi/10.1145/3674639), implementing a λμμ̃-calculus based intermediate representation that makes the duality between data and codata explicit.
