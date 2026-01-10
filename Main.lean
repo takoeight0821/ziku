@@ -12,11 +12,11 @@ inductive Mode
 
 def parseArgs (args : List String) : Mode :=
   match args with
-  | ["--parse"] => .parse
-  | ["--infer"] => .infer
-  | ["--translate"] => .translate
-  | ["--scheme"] => .scheme
-  | ["--eval"] => .eval
+  | "--parse" :: _ => .parse
+  | "--infer" :: _ => .infer
+  | "--translate" :: _ => .translate
+  | "--scheme" :: _ => .scheme
+  | "--eval" :: _ => .eval
   | [] => .repl
   | _ => .repl
 
@@ -57,7 +57,7 @@ def runOnInput (mode : Mode) (input : String) : IO Unit := do
         IO.eprintln s!"Translate error: {err}"
         IO.Process.exit 1
       | .ok stmt =>
-        match IR.eval stmt with
+        match ← IR.eval stmt with
         | .value p _ => IO.println s!"{p}"
         | .stuck s _ =>
           IO.eprintln s!"Stuck: {s}"
@@ -93,7 +93,7 @@ partial def repl : IO Unit := do
       IO.println s!"Translate error: {err}"
       repl
     | .ok stmt =>
-      match IR.eval stmt with
+      match ← IR.eval stmt with
       | .value p _ => IO.println s!"{p}"
       | .stuck s _ => IO.println s!"Stuck: {s}"
       | .error msg => IO.println s!"Eval error: {msg}"
@@ -107,6 +107,9 @@ def main (args : List String) : IO Unit := do
     IO.println "Type :quit or :q to exit"
     repl
   | _ =>
-    let stdin ← IO.getStdin
-    let input ← stdin.readToEnd
+
+    let input ← match args with
+      | [_, file] => IO.FS.readFile file
+      | [_] => (← IO.getStdin).readToEnd
+      | _ => return -- Should be handled by repl mode, but here we are in other modes
     runOnInput mode input.trim

@@ -1,4 +1,9 @@
 {
+    "git.ignoredRepositories": [
+        "vendor/mal",
+        "vendor/ChezScheme"
+    ],
+    "git.detectSubmodules": false,
     "chat.tools.terminal.autoApprove": {
         "lake test": true,
         "lake build": true,
