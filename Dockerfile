@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 ubuntu:22.04
+FROM --platform=linux/amd64 ubuntu:24.04
 
 # Install system dependencies including Chez Scheme
 RUN apt-get update && apt-get install -y \
