@@ -32,6 +32,8 @@ jobs:
           configurationFile: .github/renovate.json
           token: ${{ steps.generate-token.outputs.token }}
         env:
+          # Specify which repository to scan
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
           # Enable repository caching for better performance
           RENOVATE_REPOSITORY_CACHE: "enabled"
           # Set log level (use 'debug' for initial troubleshooting)
