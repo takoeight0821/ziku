@@ -18,6 +18,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Install Chez Scheme
+        run: sudo apt-get update && sudo apt-get install -y chezscheme
+
       - name: Setup Lean
         uses: leanprover/lean-action@v1
         with:
@@ -42,9 +45,6 @@ jobs:
             echo "has_updates=false" >> $GITHUB_OUTPUT
             echo "No updates available."
           fi
-
-      - name: Install Chez Scheme
-        run: sudo apt-get update && sudo apt-get install -y chezscheme
 
       - name: Build and test with updated dependencies
         if: steps.update.outputs.has_updates == 'true'
