@@ -1,0 +1,40 @@
+name: Renovate
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9:00 UTC (matches update-dependencies.yml)
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          owner: takoeight0821
+          repositories: ziku
+
+      - name: Self-hosted Renovate
+        uses: renovatebot/github-action@v44.2.2
+        with:
+          configurationFile: .github/renovate.json
+          token: ${{ steps.generate-token.outputs.token }}
+        env:
+          # Enable repository caching for better performance
+          RENOVATE_REPOSITORY_CACHE: "enabled"
+          # Set log level (use 'debug' for initial troubleshooting)
+          LOG_LEVEL: "info"
+          # Enable commit signing with GitHub App
+          RENOVATE_PLATFORM_COMMIT: "true"

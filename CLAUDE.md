@@ -45,6 +45,85 @@ lake test               # Run golden tests (parser, eval, infer, ir-eval)
 lake exe ziku           # Run REPL
 ```
 
+## Dependency Management
+
+### Automated Updates
+
+Ziku uses a hybrid approach combining Renovate and custom GitHub Actions workflows for comprehensive dependency management:
+
+**Renovate** (weekly, Mondays 9:00 UTC):
+- GitHub Actions (with SHA digest pinning for supply chain security)
+- Docker base images (`ubuntu:24.04`)
+- Git submodules
+
+**GitHub Actions Workflow** (weekly, Mondays 9:00 UTC):
+- Lean toolchain (`lean-toolchain` file)
+- Lake dependencies (`lake-manifest.json` with build/test validation)
+- Elan installer version (Dockerfile ARG)
+
+### How Renovate Runs
+
+Renovate runs via self-hosted GitHub Actions workflow (`.github/workflows/renovate.yml`):
+- **Schedule**: Weekly on Mondays at 9:00 UTC
+- **Authentication**: GitHub App with repository secrets (`RENOVATE_APP_ID`, `RENOVATE_APP_PRIVATE_KEY`)
+- **Configuration**: `.github/renovate.json`
+- **Features**: Digest pinning for GitHub Actions, grouped updates, commit signing
+
+**To manually trigger**: Go to Actions tab → Renovate workflow → Run workflow
+
+**GitHub App Setup**: See [README.md - Dependency Management](README.md#dependency-management) for detailed setup instructions (manual GitHub App creation via web UI)
+
+### Dependency Strategy
+
+**Elan installer**: Pinned to specific git tag (e.g., `v4.1.2`) via Dockerfile ARG directive
+- Updated automatically via GitHub Actions (weekly checks)
+- Location: `Dockerfile` ARG ELAN_VERSION
+
+**APT packages**: Not version-pinned (security-first approach)
+- Rationale: Ubuntu 24.04 LTS provides security updates + API stability until 2029
+- Trade-off: Reproducibility vs security updates
+- Override: Use `docker build --build-arg` for pinned builds if needed
+
+**Lean toolchain**: Pinned via `lean-toolchain` file (e.g., `leanprover/lean4:v4.26.0`)
+- Updated automatically via GitHub Actions (weekly checks)
+
+**Lake dependencies**: Managed by `lake-manifest.json`
+- Updated automatically with build/test validation before PR creation
+
+### Manual Updates
+
+To update dependencies manually:
+
+```bash
+# Update Lean toolchain
+# 1. Edit lean-toolchain file with desired version
+# 2. Run: docker build --no-cache -t ziku .
+
+# Update elan version
+# 1. Edit ARG ELAN_VERSION in Dockerfile
+# 2. Run: docker build --no-cache -t ziku .
+
+# Update Lake dependencies
+lake update && lake build && lake test
+```
+
+### Rollback Procedures
+
+**If elan update breaks builds:**
+1. Revert Dockerfile: `git checkout HEAD~1 Dockerfile`
+2. Pin to last working version
+3. Open issue on leanprover/elan repository
+
+**If Renovate creates problematic PRs:**
+1. Close PR with comment explaining issue
+2. Add to `ignoreDeps` in `.github/renovate.json`
+3. Pin version manually if needed
+
+**If Lean toolchain update fails tests:**
+1. Close auto-generated PR
+2. Investigate test failures
+3. Wait for next Lean release or report upstream
+
 ## Architecture
 
 ```
