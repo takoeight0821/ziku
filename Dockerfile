@@ -1,22 +1,13 @@
 FROM --platform=linux/amd64 ubuntu:22.04
 
-# Install system dependencies
+# Install system dependencies including Chez Scheme
 RUN apt-get update && apt-get install -y \
     curl \
     git \
     build-essential \
     python3 \
-    uuid-dev \
-    libncurses-dev \
+    chezscheme \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Chez Scheme from source
-RUN git clone --depth 1 --branch v10.1.0 https://github.com/cisco/ChezScheme.git /tmp/ChezScheme && \
-    cd /tmp/ChezScheme && \
-    ./configure --threads --disable-x11 && \
-    make && \
-    make install && \
-    rm -rf /tmp/ChezScheme
 
 # Install elan (Lean 4 version manager)
 ENV ELAN_HOME=/usr/local/elan \
