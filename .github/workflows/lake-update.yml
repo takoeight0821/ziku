@@ -43,6 +43,9 @@ jobs:
             echo "No updates available."
           fi
 
+      - name: Install Chez Scheme
+        run: sudo apt-get update && sudo apt-get install -y chezscheme
+
       - name: Build and test with updated dependencies
         if: steps.update.outputs.has_updates == 'true'
         run: |
