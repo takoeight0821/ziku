@@ -2,3 +2,6 @@
 .claude/settings.local.json
 .DS_Store
 .gemini-clipboard
+
+# GitHub App private keys
+*.pem

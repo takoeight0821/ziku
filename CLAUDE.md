@@ -61,6 +61,18 @@ Ziku uses a hybrid approach combining Renovate and custom GitHub Actions workflo
 - Lake dependencies (`lake-manifest.json` with build/test validation)
 - Elan installer version (Dockerfile ARG)
 
+### How Renovate Runs
+
+Renovate runs via self-hosted GitHub Actions workflow (`.github/workflows/renovate.yml`):
+- **Schedule**: Weekly on Mondays at 9:00 UTC
+- **Authentication**: GitHub App with repository secrets (`RENOVATE_APP_ID`, `RENOVATE_APP_PRIVATE_KEY`)
+- **Configuration**: `.github/renovate.json`
+- **Features**: Digest pinning for GitHub Actions, grouped updates, commit signing
+
+**To manually trigger**: Go to Actions tab → Renovate workflow → Run workflow
+
+**Creating the GitHub App**: Run `./scripts/create-github-app.sh` (requires GitHub CLI)
+
 ### Dependency Strategy
 
 **Elan installer**: Pinned to specific git tag (e.g., `v4.1.2`) via Dockerfile ARG directive
