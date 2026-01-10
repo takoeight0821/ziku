@@ -26,5 +26,13 @@ RUN elan toolchain install $(cat lean-toolchain) && \
 # Set working directory
 WORKDIR /app
 
+# Copy project files
+COPY lakefile.lean lake-manifest.json lean-toolchain ./
+COPY Ziku/ Ziku/
+COPY tests/ tests/
+
+# Build project
+RUN lake build
+
 # Default command
 CMD ["bash"]
