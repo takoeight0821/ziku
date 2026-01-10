@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.Builtins
 import Ziku.Type
 import Ziku.Elaborate
 
@@ -84,9 +85,6 @@ structure GenState where
 /-- Monad for constraint generation -/
 abbrev GenM := StateT GenState (Except TypeError)
 
--- Position for compiler-synthesized types (not from user code)
-def synthesizedPos : SourcePos := { line := 0, col := 0 }
-
 -- Nonempty instance for GenM Ty (needed for partial def)
 instance : Nonempty (GenM Ty) := ⟨pure (.con synthesizedPos "Unit")⟩
 
@@ -134,41 +132,6 @@ def binOpTypes : BinOp → Ty × Ty
 def unaryOpTypes : UnaryOp → Ty × Ty
   | .neg => (tyInt, tyInt)
   | .not => (tyBool, tyBool)
-
--- Check if a name is a builtin function and return its type signature
--- Returns (argTypes, resultType) for the builtin
-def builtinTypes : String → Option (List Ty × Ty)
-  | "strLen"    => some ([tyString], tyInt)
-  | "strAt"     => some ([tyString, tyInt], tyRune)
-  | "strSub"    => some ([tyString, tyInt, tyInt], tyString)
-  | "strToInt"  => some ([tyString], tyInt)
-  | "intToStr"  => some ([tyInt], tyString)
-  | "runeToStr" => some ([tyRune], tyString)
-  | "intToRune" => some ([tyInt], tyRune)
-  | "runeToInt" => some ([tyRune], tyInt)
-  | "readLine"  => some ([tyUnit], tyString)
-  | "println"   => some ([tyString], tyUnit)
-  | _           => none
-
--- Get builtin enum from name
-def nameToBuiltin : String → Option Builtin
-  | "strLen"    => some .strLen
-  | "strAt"     => some .strAt
-  | "strSub"    => some .strSub
-  | "strToInt"  => some .strToInt
-  | "intToStr"  => some .intToStr
-  | "runeToStr" => some .runeToStr
-  | "intToRune" => some .intToRune
-  | "runeToInt" => some .runeToInt
-  | _           => none
-
--- Collect all curried arguments from a chain of applications
--- e.g., ((f x) y) z  =>  (f, [x, y, z])
-def collectAppArgs : Expr → (Expr × List Expr)
-  | .app _ fn arg _ =>
-    let (base, args) := collectAppArgs fn
-    (base, args ++ [arg])
-  | e => (e, [])
 
 -- Occurs check: does a type variable occur in a type?
 partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
@@ -654,10 +617,6 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
       let ty ← genConstraints env value
       fieldTypes := fieldTypes ++ [(name, ty)]
     return .record pos fieldTypes none  -- Closed record (no row tail)
-  | .cut pos _ _ =>
-    throw $ .notImplemented pos "sequent cut"
-  | .mu pos _ _ =>
-    throw $ .notImplemented pos "mu abstraction"
   | .hash pos =>
     throw $ .notImplemented pos "hash self-reference (should be substituted during elaboration)"
   | .label pos name body => do

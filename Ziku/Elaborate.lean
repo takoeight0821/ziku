@@ -58,15 +58,12 @@ structure Clause where
   body : Expr
   deriving Repr, BEq
 
--- Default position for Inhabited instances (not from user code)
-def defaultPos : SourcePos := { line := 0, col := 0 }
-
 -- Make Clause inhabited for head!
 instance : Inhabited Clause where
   default := {
     patterns := [],
     copattern := [],
-    body := .lit defaultPos .unit
+    body := .lit synthesizedPos .unit
   }
 
 -- Get the kind of the first accessor in a copattern, if any
@@ -108,7 +105,7 @@ def buildMatchExpr (pos : SourcePos) (argName : Ident) (clauses : List Clause)
 
 -- Inhabited instance for Except ElaborateError Expr
 instance : Inhabited (Except ElaborateError Expr) where
-  default := throw (.customError defaultPos "uninhabited")
+  default := throw (.customError synthesizedPos "uninhabited")
 
 mutual
 
@@ -297,13 +294,6 @@ partial def elaborateAll : Expr → Except ElaborateError Expr
     let t' ← elaborateAll t
     let f' ← elaborateAll f
     pure (.if_ pos c' t' f')
-  | .cut pos e1 e2 => do
-    let e1' ← elaborateAll e1
-    let e2' ← elaborateAll e2
-    pure (.cut pos e1' e2')
-  | .mu pos x body => do
-    let body' ← elaborateAll body
-    pure (.mu pos x body')
   | .hash pos => pure (.hash pos)  -- Hash self-reference (passed through)
   | .label pos name body => do
     let body' ← elaborateAll body

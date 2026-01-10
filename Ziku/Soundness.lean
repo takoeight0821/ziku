@@ -1,7 +1,6 @@
 import Ziku.Syntax
 import Ziku.Type
 import Ziku.Infer
-import Ziku.Eval
 
 namespace Ziku
 
