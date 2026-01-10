@@ -14,15 +14,9 @@ Ziku is a programming language implementation in Lean 4 featuring:
 
 ## Build Commands
 
-### Native (requires Lean 4 and Chez Scheme installed)
+**IMPORTANT: Use Docker for all builds and tests to ensure consistent environments across development and CI.**
 
-```bash
-lake build              # Build everything
-lake test               # Run golden tests (parser, eval, infer, ir-eval)
-lake exe ziku           # Run REPL
-```
-
-### Docker (no local dependencies required)
+### Docker (Recommended - no local dependencies required)
 
 ```bash
 # Build Docker image (one-time setup, ~2 minutes)
@@ -39,6 +33,16 @@ docker run --rm ziku lake build
 
 # Run Chez Scheme
 docker run --rm -it ziku scheme
+```
+
+### Native (only if Docker is unavailable)
+
+Requires Lean 4 and Chez Scheme installed locally.
+
+```bash
+lake build              # Build everything
+lake test               # Run golden tests (parser, eval, infer, ir-eval)
+lake exe ziku           # Run REPL
 ```
 
 ## Architecture
