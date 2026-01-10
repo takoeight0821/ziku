@@ -1,28 +1,13 @@
-FROM ubuntu:22.04
+FROM --platform=linux/amd64 ubuntu:22.04
 
-# Install system dependencies
+# Install system dependencies including Chez Scheme
 RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    && add-apt-repository universe \
-    && apt-get update && apt-get install -y \
     curl \
     git \
     build-essential \
     python3 \
-    libncurses5-dev \
-    libx11-dev \
-    uuid-dev \
+    chezscheme \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Chez Scheme from source
-WORKDIR /tmp
-COPY vendor/ChezScheme /tmp/ChezScheme
-RUN cd ChezScheme && \
-    ./configure && \
-    make && \
-    make install && \
-    cd .. && \
-    rm -rf ChezScheme
 
 # Install elan (Lean 4 version manager)
 ENV ELAN_HOME=/usr/local/elan \
@@ -37,6 +22,16 @@ RUN elan toolchain install $(cat lean-toolchain) && \
 
 # Set working directory
 WORKDIR /app
+
+# Copy project files
+COPY lakefile.lean lake-manifest.json lean-toolchain ./
+COPY Main.lean Ziku.lean ZikuTest.lean ./
+COPY Ziku/ Ziku/
+COPY Backend/ Backend/
+COPY tests/ tests/
+
+# Build project
+RUN lake build
 
 # Default command
 CMD ["bash"]
