@@ -211,7 +211,7 @@ def evalBinOp (pos : SourcePos) (op : BinOp) (p1 p2 : Producer) : Except EvalErr
   | _, _ => .error (.binOpTypeMismatch pos op p1 p2)
 
 -- Helper: evaluate built-in function
-partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (env : Env) : Except EvalError Producer :=
+partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (env : Env) : IO (Except EvalError Producer) :=
   let rec resolve (p : Producer) (env : Env) : Except EvalError Producer :=
     match p with
     | .lit _ _ => .ok p
@@ -223,12 +223,12 @@ partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (
 
   match b, args with
   | .strLen, [p] =>
-    match resolve p env with
+    return match resolve p env with
     | .ok (Producer.lit _ (Lit.string s)) => .ok (Producer.lit pos (Lit.int s.length))
     | .ok _ => .error (.builtinArgTypeMismatch pos b args)
     | .error e => .error e
   | .strAt, [p1, p2] =>
-    match resolve p1 env, resolve p2 env with
+    return match resolve p1 env, resolve p2 env with
     | .ok (Producer.lit _ (Lit.string s)), .ok (Producer.lit _ (Lit.int i)) =>
       if i < 0 then .error (.stringIndexOutOfBounds pos s i) else
         match s.toList[i.toNat]? with
@@ -238,7 +238,7 @@ partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (
     | _, .error e => .error e
     | _, _ => .error (.builtinArgTypeMismatch pos b args)
   | .strSub, [p1, p2, p3] =>
-    match resolve p1 env, resolve p2 env, resolve p3 env with
+    return match resolve p1 env, resolve p2 env, resolve p3 env with
     | .ok (Producer.lit _ (Lit.string s)), .ok (Producer.lit _ (Lit.int start)), .ok (Producer.lit _ (Lit.int len)) =>
       if start < 0 || len < 0 || start.toNat > s.length
       then .error (.stringIndexOutOfBounds pos s start)
@@ -248,7 +248,7 @@ partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (
     | _, _, .error e => .error e
     | _, _, _ => .error (.builtinArgTypeMismatch pos b args)
   | .strToInt, [p] =>
-    match resolve p env with
+    return match resolve p env with
     | .ok (Producer.lit _ (Lit.string s)) =>
       match s.toInt? with
       | some n => .ok (Producer.lit pos (Lit.int n))
@@ -256,17 +256,17 @@ partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (
     | .ok _ => .error (.builtinArgTypeMismatch pos b args)
     | .error e => .error e
   | .intToStr, [p] =>
-    match resolve p env with
+    return match resolve p env with
     | .ok (Producer.lit _ (Lit.int n)) => .ok (Producer.lit pos (Lit.string (toString n)))
     | .ok _ => .error (.builtinArgTypeMismatch pos b args)
     | .error e => .error e
   | .runeToStr, [p] =>
-    match resolve p env with
+    return match resolve p env with
     | .ok (Producer.lit _ (Lit.char c)) => .ok (Producer.lit pos (Lit.string (String.singleton c)))
     | .ok _ => .error (.builtinArgTypeMismatch pos b args)
     | .error e => .error e
   | .intToRune, [p] =>
-    match resolve p env with
+    return match resolve p env with
     | .ok (Producer.lit _ (Lit.int n)) =>
       if n < 0 || n > 0x10FFFF
       then .error (.invalidUnicodeCodePoint pos n)
@@ -274,13 +274,26 @@ partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (
     | .ok _ => .error (.builtinArgTypeMismatch pos b args)
     | .error e => .error e
   | .runeToInt, [p] =>
-    match resolve p env with
+    return match resolve p env with
     | .ok (Producer.lit _ (Lit.char c)) => .ok (Producer.lit pos (Lit.int c.toNat))
     | .ok _ => .error (.builtinArgTypeMismatch pos b args)
     | .error e => .error e
-  | .readLine, [_] => .error (.callNotSupported pos) -- IO not supported in interpreter
-  | .println, [_] => .error (.callNotSupported pos) -- IO not supported in interpreter
-  | _, _ => .error (.builtinWrongArity pos b args.length (match b with
+  | .readLine, [p] => -- Prompt argument
+     match resolve p env with
+     | .ok (Producer.lit _ (Lit.string prompt)) => do
+        IO.print prompt
+        let input ← IO.getStdin >>= (·.getLine)
+        return .ok (Producer.lit pos (Lit.string input.trimRight))
+     | .ok _ => return .error (.builtinArgTypeMismatch pos b args)
+     | .error e => return .error e
+  | .println, [p] =>
+    match resolve p env with
+    | .ok (Producer.lit _ (Lit.string s)) => do
+      IO.println s
+      return .ok (Producer.lit pos .unit)
+    | .ok _ => return .error (.builtinArgTypeMismatch pos b args)
+    | .error e => return .error e
+  | _, _ => return .error (.builtinWrongArity pos b args.length (match b with
     | .strLen | .strToInt | .intToStr | .runeToStr | .intToRune | .runeToInt | .println | .readLine => 1
     | .strAt => 2
     | .strSub => 3))
@@ -291,33 +304,33 @@ inductive State where
   deriving Repr
 
 -- Returns .ok none for halt, .ok (some state') for next step, .error e for errors
-partial def stateStep : State → Except EvalError (Option State)
-  | .stmt (.cut _ p c) env => .ok (some (.cut p env c env))
+partial def stateStep : State → IO (Except EvalError (Option State))
+  | .stmt (.cut _ p c) env => return .ok (some (.cut p env c env))
   | .stmt (.binOp pos op p1 p2 c) env =>
     if !p1.isValue then
-      .ok (some (.cut p1 env (.muTilde p1.pos "_binop_l" (.binOp pos op (.var p1.pos "_binop_l") p2 c)) env))
+      return .ok (some (.cut p1 env (.muTilde p1.pos "_binop_l" (.binOp pos op (.var p1.pos "_binop_l") p2 c)) env))
     else if !p2.isValue then
-      .ok (some (.cut p2 env (.muTilde p2.pos "_binop_r" (.binOp pos op p1 (.var p2.pos "_binop_r") c)) env))
+      return .ok (some (.cut p2 env (.muTilde p2.pos "_binop_r" (.binOp pos op p1 (.var p2.pos "_binop_r") c)) env))
     else
-      match evalBinOp pos op p1 p2 with
+      return match evalBinOp pos op p1 p2 with
       | .ok result => .ok (some (.cut result .empty c env))
       | .error e => .error e
   | .stmt (.ifz pos cond s1 s2) env =>
     if !cond.isValue then
-      .ok (some (.cut cond env (.muTilde cond.pos "_ifz_cond" (.ifz pos (.var cond.pos "_ifz_cond") s1 s2)) env))
+      return .ok (some (.cut cond env (.muTilde cond.pos "_ifz_cond" (.ifz pos (.var cond.pos "_ifz_cond") s1 s2)) env))
     else
-      match cond with
+      return match cond with
       | .lit _ (.bool true) => .ok (some (.stmt s1 env))
       | .lit _ (.bool false) => .ok (some (.stmt s2 env))
       | .lit _ (.int n) => if n == 0 then .ok (some (.stmt s1 env)) else .ok (some (.stmt s2 env))
       | _ => .error (.patternMatchFailed pos cond (.muTilde cond.pos "_ifz" (.ifz pos cond s1 s2)))
-  | .stmt (.builtin pos b ps c) env =>
-    match evalBuiltin pos b ps env with
-    | .ok result => .ok (some (.cut result .empty c env))
-    | .error e => .error e
-  | .stmt (.call pos _ _ _) _ => .error (.callNotSupported pos)
+  | .stmt (.builtin pos b ps c) env => do
+    match ← evalBuiltin pos b ps env with
+    | .ok result => return .ok (some (.cut result .empty c env))
+    | .error e => return .error e
+  | .stmt (.call pos _ _ _) _ => return .error (.callNotSupported pos)
   | .cut p env_p c env_c =>
-    match p, c with
+    return match p, c with
     -- Producer-side reductions (highest priority)
     | .mu _ α s, _ =>
       if c.isSimpleConsumer then .ok (some (.stmt (s.substCovar α c) env_p))
@@ -409,11 +422,11 @@ partial def stateStep : State → Except EvalError (Option State)
           | _ => .error (.caseNotFound cpos litConName branchNames)
     | _, _ => .error (.patternMatchFailed p.pos p c)
 
-partial def evalWithFuel (fuel : Nat) (state : State) : EvalResult :=
+partial def evalWithFuel (fuel : Nat) (state : State) : IO EvalResult :=
   if fuel == 0 then
-    match state with | .stmt s env => .stuck s env | .cut p env_p c _ => .stuck (.cut p.pos p c) env_p
-  else
-    match stateStep state with
+    match state with | .stmt s env => return .stuck s env | .cut p env_p c _ => return .stuck (.cut p.pos p c) env_p
+  else do
+    match ← stateStep state with
     | .ok (some state') => evalWithFuel (fuel - 1) state'
     | .ok none =>
       -- Normal termination (halt)
@@ -423,14 +436,14 @@ partial def evalWithFuel (fuel : Nat) (state : State) : EvalResult :=
         | .var vpos x =>
           match env_p.lookup x with
           | some (.closure p' env') => evalWithFuel fuel (.cut p' env' (.covar p.pos "halt") .empty)
-          | _ => .error (.unboundVariable vpos x)
-        | _ => if p.isValue then .value p env_p else .stuck (.cut p.pos p (.covar p.pos "halt")) env_p
-      | .stmt s env => .stuck s env
-      | .cut p env_p c _ => .stuck (.cut p.pos p c) env_p
-    | .error e => .error e
+          | _ => return .error (.unboundVariable vpos x)
+        | _ => if p.isValue then return .value p env_p else return .stuck (.cut p.pos p (.covar p.pos "halt")) env_p
+      | .stmt s env => return .stuck s env
+      | .cut p env_p c _ => return .stuck (.cut p.pos p c) env_p
+    | .error e => return .error e
 
 def defaultFuel : Nat := 100000
-def eval (s : Statement) : EvalResult := evalWithFuel defaultFuel (.stmt s .empty)
+def eval (s : Statement) : IO EvalResult := evalWithFuel defaultFuel (.stmt s .empty)
 
 def truncate (s : String) (maxLen : Nat := 80) : String :=
   if s.length <= maxLen then s else if maxLen < 3 then "..." else s.take (maxLen - 3) ++ "..."
