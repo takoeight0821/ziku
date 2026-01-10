@@ -1,0 +1,13 @@
+description = "Refactor code to improve readability and maintainability without changing behavior"
+prompt = """
+Read the skill file at `.agent/skills/refactor/SKILL.md` and follow its instructions to help refactor code.
+
+The skill file contains:
+- Refactoring workflow
+- Code restructuring operations (extract, rename, move, inline)
+- Pattern-based refactoring techniques
+- Code smells and solutions
+- Safety guidelines
+
+Additional reference files are available in `.agent/skills/refactor/references/` for language-specific patterns.
+"""

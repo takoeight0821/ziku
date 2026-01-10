@@ -1,0 +1,10 @@
+description = "Search for Lean 4 and Mathlib theorems, lemmas, and definitions by type signature or name"
+prompt = """
+Read the skill file at `.agent/skills/loogle/SKILL.md` and follow its instructions to search for Lean 4/Mathlib declarations.
+
+The skill file contains:
+- Loogle API usage instructions
+- Query syntax reference (by constant, name, type signature, etc.)
+- Response handling guidelines
+- Example queries
+"""

@@ -1,0 +1,10 @@
+description = "Create and manage GitHub issues via gh CLI with proper formatting"
+prompt = """
+Read the skill file at `.agent/skills/issue/SKILL.md` and follow its instructions to help the user create or manage GitHub issues.
+
+The skill file contains:
+- Issue creation workflow using gh CLI
+- Issue format guidelines
+- Examples for creating issues with labels and assignees
+- Commands for listing, viewing, and closing issues
+"""

@@ -1,0 +1,15 @@
+description = "Follow Test-Driven Development (TDD) workflow with red-green-refactor cycle"
+prompt = """
+Read the skill file at `.agent/skills/tdd/SKILL.md` and follow its instructions for Test-Driven Development.
+
+The skill file contains:
+- TDD core principles (test-first, red-green-refactor cycle)
+- Ziku test infrastructure (golden tests for parser/infer/ir-eval)
+- Red-Green-Refactor workflow with detailed steps
+- Examples for different scenarios (new feature, bug fix)
+
+Additional resources available in `.agent/skills/tdd/`:
+- `examples/` - Example TDD sessions
+- `references/` - Reference materials on TDD practices
+- `scripts/` - Helper scripts for TDD workflow
+"""

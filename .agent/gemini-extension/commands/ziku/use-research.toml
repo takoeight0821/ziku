@@ -1,0 +1,18 @@
+description = "Find and apply relevant research from docs/research/ to guide implementation"
+prompt = """
+Read the skill file at `.agent/skills/use-research/SKILL.md` and follow its instructions to find and apply research.
+
+The skill file contains:
+- Phase 1: Discovery - Find relevant research documents
+- Phase 2: Analysis - Deep-read and extract patterns
+- Phase 3: Application - Apply research to current task
+- Example usage for common scenarios
+
+Research documents are located in `docs/research/` and cover:
+- Type inference (HM, Algorithm W/J/M)
+- Sequent calculus (λμμ̃-calculus, IR design)
+- Testing strategies (golden tests)
+- Related implementations
+
+Use this when implementing features or fixing bugs where existing research provides guidance.
+"""

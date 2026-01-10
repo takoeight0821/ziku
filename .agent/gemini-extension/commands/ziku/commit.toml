@@ -1,0 +1,10 @@
+description = "Create conventional commits with proper message format and best practices"
+prompt = """
+Read the skill file at `.agent/skills/commit/SKILL.md` and follow its instructions to help the user create a commit.
+
+The skill file contains:
+- Conventional commit guidelines
+- Commit message structure
+- Commit type reference (feat, fix, refactor, etc.)
+- Best practices for writing commit messages
+"""
