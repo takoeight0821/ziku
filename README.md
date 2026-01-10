@@ -69,25 +69,43 @@ label done {
 **Renovateのセットアップ（メンテナー向け）:**
 
 1. **GitHub Appを作成**
-   ```bash
-   ./scripts/create-github-app.sh
-   ```
-   - GitHub CLI (`gh`) が必要です
-   - App IDとプライベートキー（`.pem`ファイル）が生成されます
+
+   GitHub Settings → Developer settings → GitHub Apps → **New GitHub App**
+
+   必要な設定：
+   - **GitHub App name**: `renovate-ziku`（または任意の名前）
+   - **Homepage URL**: `https://github.com/takoeight0821/ziku`
+   - **Webhook**: "Active" のチェックを**外す**
+
+   **Repository permissions**（以下を全て設定）:
+   - Checks: Read and write
+   - Contents: Read and write
+   - Commit statuses: Read and write
+   - Issues: Read and write
+   - Pull requests: Read and write
+   - Workflows: Read and write
+   - Metadata: Read only（自動設定）
+
+   作成後：
+   - **App ID**をメモ（後で使用）
+   - **Generate a private key**をクリックして `.pem` ファイルをダウンロード
 
 2. **Appをリポジトリにインストール**
-   - スクリプトが表示するURLにアクセス
-   - "Only select repositories" → `takoeight0821/ziku` を選択
+
+   作成したGitHub Appのページから：
+   - **Install App** → **Only select repositories** → `takoeight0821/ziku` を選択
+   - インストール後のURLから **Installation ID** を取得
+     - 例: `https://github.com/settings/installations/12345678` の `12345678` 部分
 
 3. **GitHub Actionsにシークレットを追加**
 
-   Repository Settings → Secrets and variables → Actions:
-   - `RENOVATE_APP_ID`: スクリプト出力のApp ID
-   - `RENOVATE_APP_PRIVATE_KEY`: `.pem`ファイルの内容
+   Repository Settings → Secrets and variables → Actions → **New repository secret**:
+   - `RENOVATE_APP_ID`: 手順1でメモしたApp ID
+   - `RENOVATE_APP_PRIVATE_KEY`: ダウンロードした `.pem` ファイルの内容全体
 
 4. **動作確認**
 
-   Actions → Renovate → "Run workflow" で手動実行
+   Actions → Renovate → **Run workflow** で手動実行
 
 **自動更新される依存関係:**
 - GitHub Actions（週次、月曜 9:00 UTC）

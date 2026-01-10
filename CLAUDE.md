@@ -71,7 +71,7 @@ Renovate runs via self-hosted GitHub Actions workflow (`.github/workflows/renova
 
 **To manually trigger**: Go to Actions tab → Renovate workflow → Run workflow
 
-**Creating the GitHub App**: Run `./scripts/create-github-app.sh` (requires GitHub CLI)
+**GitHub App Setup**: See [README.md - Dependency Management](README.md#dependency-management) for detailed setup instructions (manual GitHub App creation via web UI)
 
 ### Dependency Strategy
 
