@@ -42,8 +42,6 @@ inductive Token where
   | kInfix  : Token     -- infix
   | kInfixr : Token     -- infixr
   | kInfixl : Token     -- infixl
-  | kCut    : Token     -- cut
-  | kMu     : Token     -- μ or mu
   | kLabel  : Token     -- label
   | kGoto   : Token     -- goto
   -- Punctuation
@@ -117,8 +115,6 @@ def Token.toString : Token → String
   | .kInfix => "infix"
   | .kInfixr => "infixr"
   | .kInfixl => "infixl"
-  | .kCut => "cut"
-  | .kMu => "μ"
   | .kLabel => "label"
   | .kGoto => "goto"
   | .lparen => "("
@@ -210,7 +206,6 @@ def keywords : List (String × Token) :=
   , ("forall", .kForall), ("module", .kModule), ("where", .kWhere)
   , ("import", .kImport), ("as", .kAs)
   , ("infix", .kInfix), ("infixr", .kInfixr), ("infixl", .kInfixl)
-  , ("cut", .kCut), ("mu", .kMu)
   , ("label", .kLabel), ("goto", .kGoto)
   ]
 
@@ -433,7 +428,6 @@ partial def lexToken (s : LexState) : Except String (PosToken × LexState) := do
         else
           .ok ({ token := .underscore, pos }, s.advance)
       | none => .ok ({ token := .underscore, pos }, s.advance)
-    | some 'μ', _ => .ok ({ token := .kMu, pos }, s.advance)
     -- String literal
     | some '"', _ => lexString s >>= fun (t, s') => .ok ({ token := t, pos }, s')
     -- Character literal

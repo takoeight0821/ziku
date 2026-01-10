@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.Builtins
 import Ziku.IR.Syntax
 import Ziku.IR.Eval
 import Ziku.IR.Focusing
@@ -69,41 +70,6 @@ def freshCovar : TranslateM Ident := do
 def isLabelInScope (name : Ident) : TranslateM Bool := do
   let s ← get
   return s.labelScope.contains name
-
--- Get builtin enum from name
-def nameToBuiltin : String → Option Builtin
-  | "strLen"    => some .strLen
-  | "strAt"     => some .strAt
-  | "strSub"    => some .strSub
-  | "strToInt"  => some .strToInt
-  | "intToStr"  => some .intToStr
-  | "runeToStr" => some .runeToStr
-  | "intToRune" => some .intToRune
-  | "runeToInt" => some .runeToInt
-  | "readLine"  => some .readLine
-  | "println"   => some .println
-  | _           => none
-
--- Get arity of builtin function
-def builtinArity : Builtin → Nat
-  | .strLen    => 1
-  | .strAt     => 2
-  | .strSub    => 3
-  | .strToInt  => 1
-  | .intToStr  => 1
-  | .runeToStr => 1
-  | .intToRune => 1
-  | .runeToInt => 1
-  | .readLine  => 1
-  | .println   => 1
-
--- Collect all curried arguments from a chain of applications
--- e.g., ((f x) y) z  =>  (f, [x, y, z])
-def collectAppArgs : Expr → (Expr × List Expr)
-  | .app _ fn arg _ =>
-    let (base, args) := collectAppArgs fn
-    (base, args ++ [arg])
-  | e => (e, [])
 
 -- Add label to scope
 def withLabel (name : Ident) (m : TranslateM α) : TranslateM α := do
@@ -266,14 +232,14 @@ mutual
       else
         -- Normal application
         -- Check if this is a saturated builtin call
-        let (baseExpr, allArgs) := collectAppArgs e
+        let (baseExpr, allArgs) := Ziku.collectAppArgs e
         match baseExpr with
         | .var _ name =>
           -- Check if base is a builtin
-          match nameToBuiltin name with
+          match Ziku.nameToBuiltin name with
           | some builtin =>
             -- Check if arity matches
-            if allArgs.length == builtinArity builtin then
+            if allArgs.length == Ziku.builtinArity builtin then
               -- Saturated builtin call: translate to Statement.builtin
               let α ← freshCovar
               let argsP ← allArgs.mapM (fun a => match a with 
@@ -343,17 +309,6 @@ mutual
         let p ← translateExpr e
         pure (name, p))
       return .record pos fields'
-    | .cut pos producer consumer => do
-      -- Direct IR passthrough (for testing)
-      let prodP ← translateExpr producer
-      let consP ← translateExpr consumer
-      -- Wrap in mu to produce a Producer
-      let α ← freshCovar
-      return .mu pos α (.cut pos prodP (.muTilde pos "_" (.cut pos consP (.covar pos α))))
-    | .mu pos name body => do
-      -- Direct mu passthrough
-      let bodyP ← translateExpr body
-      return .mu pos name (.cut pos bodyP (.covar pos name))
     | .hash pos => do
       throw $ .notImplemented pos "hash self-reference"
     | .label pos name body => do

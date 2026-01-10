@@ -582,12 +582,9 @@ def compile (s : Statement) : String :=
 (ziku-main ziku-print-result)
 "
 
--- Position for top-level compilation wrapper (not from user code)
-def topLevelPos : SourcePos := { line := 0, col := 0 }
-
 -- Compile a producer (wrapped with halt continuation, with focusing applied)
 def compileProducer (p : Producer) : String :=
-  let stmt := Statement.cut topLevelPos p (Consumer.covar topLevelPos "halt")
+  let stmt := Statement.cut synthesizedPos p (Consumer.covar synthesizedPos "halt")
   let focused := Ziku.IR.Focusing.focus stmt
   compile focused
 

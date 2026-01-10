@@ -1,7 +1,7 @@
 -- This module serves as the root of the `Ziku` library.
 -- Import modules here that should be built as part of the library.
 import Ziku.Syntax
-import Ziku.Surface.Syntax
+import Ziku.Builtins
 import Ziku.IR.Syntax
 import Ziku.IR.Eval
 import Ziku.Translate

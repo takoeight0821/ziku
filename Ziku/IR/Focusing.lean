@@ -36,10 +36,6 @@ def freshVar : FocusM Ident := do
   set (n + 1)
   pure s!"_f{n}"
 
--- Synthesized position marker for compiler-generated code
--- Uses the original expression's position for better error reporting
-def synthesizedPos (original : SourcePos) : SourcePos := original
-
 -- Check if a producer needs focusing (is non-value)
 -- A producer needs focusing if it's a μ-abstraction or contains nested non-values
 partial def Producer.needsFocus : Producer → Bool

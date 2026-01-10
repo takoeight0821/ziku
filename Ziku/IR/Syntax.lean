@@ -19,7 +19,7 @@ Key constructs:
 - `⟨p | c⟩` (cut): Combines a producer and consumer of the same type
 -/
 
-open Ziku (SourcePos Ident BinOp UnaryOp Builtin Lit Ty Pat)
+open Ziku (SourcePos Ident BinOp UnaryOp Builtin Lit Ty Pat synthesizedPos)
 
 -- Forward declarations for mutual recursion
 mutual
@@ -63,14 +63,11 @@ inductive Statement where
 
 end
 
--- Default position for Inhabited instances (not from user code)
-def defaultPos : SourcePos := { line := 0, col := 0 }
-
 instance : Inhabited Producer where
-  default := .lit defaultPos .unit
+  default := .lit synthesizedPos .unit
 
 instance : Inhabited Consumer where
-  default := .covar defaultPos "default"
+  default := .covar synthesizedPos "default"
 
 -- Get source position from Producer
 def Producer.pos : Producer → SourcePos
