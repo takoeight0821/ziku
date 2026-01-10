@@ -9,20 +9,8 @@ RUN apt-get update && apt-get install -y \
     git \
     build-essential \
     python3 \
-    libncurses5-dev \
-    libx11-dev \
-    uuid-dev \
+    chezscheme \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Chez Scheme from source
-WORKDIR /tmp
-COPY vendor/ChezScheme /tmp/ChezScheme
-RUN cd ChezScheme && \
-    ./configure && \
-    make && \
-    make install && \
-    cd .. && \
-    rm -rf ChezScheme
 
 # Install elan (Lean 4 version manager)
 ENV ELAN_HOME=/usr/local/elan \
