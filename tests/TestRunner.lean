@@ -154,23 +154,23 @@ def runInferTest (input : String) : Except String TestOutput :=
     | .error e => .ok { output := toString e, isError := true }
   | .error e => .error e
 
-def runIREvalTest (input : String) : Except String TestOutput :=
+def runIREvalTest (input : String) : IO (Except String TestOutput) := do
   match Ziku.parseExprString input.trim with
   | .ok expr =>
     match Ziku.elaborateAll expr with
     | .ok elaborated =>
       match Ziku.Translate.translateToStatement elaborated with
       | .ok stmt =>
-        let result := Ziku.IR.eval stmt
+        let result ← Ziku.IR.eval stmt
         match result with
-        | .value p _ => .ok { output := Ziku.IR.truncate p.toString, isError := false }
+        | .value p _ => return .ok { output := Ziku.IR.truncate p.toString, isError := false }
         | .stuck s env =>
           let val := env.lookup "evalList"
-          .error s!"Stuck: {s}\nEnv keys: {env.keys}\nevalList: {repr val}"
-        | .error msg => .ok { output := s!"Error: {msg}", isError := true }
-      | .error e => .ok { output := s!"Translation error: {e}", isError := true }
-    | .error e => .ok { output := s!"Elaboration error: {e}", isError := true }
-  | .error e => .error e
+          return .error s!"Stuck: {s}\nEnv keys: {env.keys}\nevalList: {repr val}"
+        | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
+      | .error e => return .ok { output := s!"Translation error: {e}", isError := true }
+    | .error e => return .ok { output := s!"Elaboration error: {e}", isError := true }
+  | .error e => return .error e
 
 def runTranslateTest (input : String) : Except String TestOutput :=
   match Ziku.parseExprString input.trim with
@@ -229,28 +229,28 @@ def runSchemeTest (tc : TestCase) : IO TestResult := do
     else
       pure (TestResult.fail golden.trim actual)
 
-def runIREvalFull (input : String) : Except String TestOutput :=
+def runIREvalFull (input : String) : IO (Except String TestOutput) := do
   match Ziku.parseExprString input.trim with
   | .ok expr =>
     match Ziku.elaborateAll expr with
     | .ok elaborated =>
       match Ziku.Translate.translateToStatement elaborated with
       | .ok stmt =>
-        let result := Ziku.IR.eval stmt
+        let result ← Ziku.IR.eval stmt
         match result with
-        | .value p _ => .ok { output := p.toString, isError := false }
+        | .value p _ => return .ok { output := p.toString, isError := false }
         | .stuck s env =>
           let val := env.lookup "evalList"
-          .error s!"Stuck: {s}\nEnv keys: {env.keys}\nevalList: {repr val}"
-        | .error msg => .ok { output := s!"Error: {msg}", isError := true }
-      | .error e => .ok { output := s!"Translation error: {e}", isError := true }
-    | .error e => .ok { output := s!"Elaboration error: {e}", isError := true }
-  | .error e => .error e
+          return .error s!"Stuck: {s}\nEnv keys: {env.keys}\nevalList: {repr val}"
+        | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
+      | .error e => return .ok { output := s!"Translation error: {e}", isError := true }
+    | .error e => return .ok { output := s!"Elaboration error: {e}", isError := true }
+  | .error e => return .error e
 
 def runConsistencyTest (name : String) (inputPath : String) : IO TestResult := do
   let input ← IO.FS.readFile inputPath
 
-  let irResult := runIREvalFull input
+  let irResult ← runIREvalFull input
   match irResult with
   | .error e =>
     pure (TestResult.error s!"IR eval parse error: {e}")
@@ -281,12 +281,12 @@ def runTest (tc : TestCase) : IO TestResult := do
   let input ← IO.FS.readFile tc.inputPath
   let golden ← readFileOrEmpty tc.goldenPath
 
-  let result := match tc.testType with
-    | "infer" => runInferTest input
+  let result : Except String TestOutput ← match tc.testType with
+    | "infer" => pure (runInferTest input)
     | "ir-eval" => runIREvalTest input
-    | "translate" => runTranslateTest input
-    | "scheme-codegen" => runSchemeCodegenTest input
-    | _ => runParserTest input
+    | "translate" => pure (runTranslateTest input)
+    | "scheme-codegen" => pure (runSchemeCodegenTest input)
+    | _ => pure (runParserTest input)
 
   match result with
   | .error e =>
@@ -473,6 +473,101 @@ def runEmitSchemeCategory : IO (Nat × Nat) := do
 
   pure (passed, failed)
 
+def runIOTest (baseName : String) (inputPath : String) (goldenPath : String) (stdinInputPath : Option String) : IO TestResult := do
+  let golden ← readFileOrEmpty goldenPath
+  
+  let args := #["exe", "ziku", "--eval", inputPath]
+  
+  -- If there is an .input file, we use it as stdin. 
+  -- Currently we can't easily pipe stdin to lake exe without using a shell or fancier IO process API.
+  -- But IO.Process.spawn/output doesn't support setting stdin content directly as string or file.
+  -- However, we can use "sh -c 'echo ... | lake ...'" or simply assume `lake` is available in PATH?
+  -- Wait, `lake exe ziku` builds and runs.
+  -- Let's try to run the binary directly if possible, or use a shell wrapper.
+  -- Simpler: write a temporary script.
+  
+  let stdinContent ← match stdinInputPath with
+    | some p => IO.FS.readFile p
+    | none => pure ""
+
+  -- Workaround for feeding stdin: use sh
+  -- Be careful with escaping.
+  -- Ideally we would use IO.Process.spawn with Stdio.piped and write to stdin.
+  -- But IO.Process.output doesn't expose that.
+  -- We can use child.stdin.putStr ...
+  
+  let child ← IO.Process.spawn {
+    cmd := "lake"
+    args := args
+    stdin := .piped
+    stdout := .piped
+    stderr := .piped
+  }
+  
+  let (stdin, child) ← child.takeStdin
+  stdin.putStr stdinContent
+  stdin.flush
+  -- Close stdin to signal EOF (drop happens automatically when variable goes out of scope?)
+  -- In Lean, resources are managed by reference counting / GC or explicit close?
+  -- Explicitly relying on scope/GC for stdin closure might be tricky.
+  -- But IO.Handle doesn't have explicit close in API easily accessible?
+  -- Actually, `takeStdin` gives `IO.FS.Stream`.
+  -- Let's ignore explicit close for now (maybe flush is enough?) or verify if `ziku` waits for EOF. `readLine` waits for newline.
+
+  let stdout ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
+  let stderr ← IO.asTask child.stderr.readToEnd Task.Priority.dedicated
+
+  let exitCode ← child.wait
+  let actualStdOut ← IO.ofExcept stdout.get
+  let actualStdErr ← IO.ofExcept stderr.get
+  
+  let actual := actualStdOut.trim
+  
+  if exitCode != 0 then
+    pure (TestResult.error s!"Runtime error: {actualStdErr.trim}")
+  else if golden.isEmpty then
+    IO.FS.writeFile goldenPath actual
+    IO.println s!"  Created golden file: {goldenPath}"
+    pure TestResult.pass
+  else if actual == golden.trim then
+    pure TestResult.pass
+  else
+    pure (TestResult.fail golden.trim actual)
+
+def runIOTestCategory : IO (Nat × Nat) := do
+  let dir := System.FilePath.mk "tests/golden/io/success"
+  let tests ← discoverTests dir
+
+  let mut passed := 0
+  let mut failed := 0
+
+  IO.println s!"\n=== io tests ==="
+
+  for baseName in tests do
+    let inputPath := s!"{dir}/{baseName}.ziku"
+    let goldenPath := s!"{dir}/{baseName}.golden"
+    let inputFilePath := s!"{dir}/{baseName}.input"
+    let stdinInputPath := if (← System.FilePath.pathExists inputFilePath) then some inputFilePath else none
+
+    IO.print s!"  Testing {baseName}... "
+    (← IO.getStdout).flush
+    
+    let result ← runIOTest baseName inputPath goldenPath stdinInputPath
+    match result with
+    | .pass =>
+      IO.println s!"✓"
+      passed := passed + 1
+    | .fail expected actual =>
+      IO.println s!"✗"
+      IO.println s!"    Expected: {expected}"
+      IO.println s!"    Actual:   {actual}"
+      failed := failed + 1
+    | .error msg =>
+      IO.println s!"✗ {msg}"
+      failed := failed + 1
+
+  pure (passed, failed)
+
 -- ============================================================================
 -- Main: Run all test suites
 -- ============================================================================
@@ -491,11 +586,12 @@ def main : IO UInt32 := do
   let (emitSchemePassed, emitSchemeFailed) ← runEmitSchemeCategory
   let (schemeOnlyPassed, schemeOnlyFailed) ← runSchemeOnlyCategory
   let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
+  let (ioPassed, ioFailed) ← runIOTestCategory
 
   let totalPassed := truncatePassed + parserPassed + inferPassed + irEvalPassed +
-                     emitTranslatePassed + emitSchemePassed + schemeOnlyPassed + consistencyPassed
+                     emitTranslatePassed + emitSchemePassed + schemeOnlyPassed + consistencyPassed + ioPassed
   let totalFailed := truncateFailed + parserFailed + inferFailed + irEvalFailed +
-                     emitTranslateFailed + emitSchemeFailed + schemeOnlyFailed + consistencyFailed
+                     emitTranslateFailed + emitSchemeFailed + schemeOnlyFailed + consistencyFailed + ioFailed
 
   IO.println s!"\n=== Summary ==="
   IO.println s!"Truncate tests: {truncatePassed} passed, {truncateFailed} failed"

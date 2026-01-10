@@ -28,7 +28,7 @@ def runPhase (phase : String) (input : String) : IO Unit := do
         | .error e =>
           IO.println s!"Translation error: {e}"
         | .ok stmt =>
-          let result := Ziku.IR.eval stmt
+          let result ← Ziku.IR.eval stmt
           match result with
           | .value p _ => IO.println (Ziku.IR.truncate p.toString)
           | .stuck s _ => IO.println s!"Stuck: {s}"
