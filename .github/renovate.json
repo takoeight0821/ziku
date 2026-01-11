@@ -44,7 +44,7 @@
       ],
       "datasourceTemplate": "deb",
       "versioningTemplate": "deb",
-      "registryUrlTemplate": "https://archive.ubuntu.com/ubuntu?suite=noble&components=main,universe"
+      "registryUrlTemplate": "https://archive.ubuntu.com/ubuntu?suite=noble&components=main,universe&binaryArch=amd64"
     }
   ],
   "ignorePaths": ["**/vendor/**"]
