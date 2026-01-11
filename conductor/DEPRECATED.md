@@ -8,6 +8,6 @@ The `conductor` framework and this directory are now deprecated in favor of the 
 - **Automation**: Better integration with `gh` CLI and AI agent tools.
 
 ## What to do?
-- **New Tasks**: Please use `./scripts/task-init.sh "description"` to start new work.
+- **New Tasks**: Use `gh issue create` and `gh issue develop` to start new work.
 - **Existing Tracks**: Finish them here or migrate them to GitHub Issues.
 - **Documentation**: See [docs/cdd-workflow.md](../docs/cdd-workflow.md) for the new process.

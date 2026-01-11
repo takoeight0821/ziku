@@ -23,24 +23,34 @@ All developers (including AI agents) must strictly follow these steps:
 - GitHub CLI (`gh`) installed and authenticated.
 - Local repository setup.
 
-## CLI Tools and Scripts
+## CLI Tools
 
-### `task init`
-To start a new task, use the `scripts/task-init.sh` script:
+### Task Initialization
+To start a new task, use GitHub CLI directly:
 
 ```bash
-./scripts/task-init.sh "Description of the task" [body_file]
+# Create issue and linked branch
+gh issue create --title "Description of the task" --body "Task details"
+gh issue develop <issue-number> --name "task/<issue-number>-slug" --checkout
 ```
 
-- If `body_file` is provided, its content will be used as the issue body.
-- If not provided, it defaults to the `task.md` issue template.
+### GitHub CLI Commands
+AI agents use standard `gh` commands to manage context:
 
-### GitHub Helpers
-AI agents use these tools to manage context:
-- `scripts/github/dump_context.sh`: Aggregates issue details and PR status.
-- `scripts/github/read_issue.sh <number>`: Reads specific issue content.
-- `scripts/github/update_issue.sh <number> <action> <content>`: Updates issues.
-- `scripts/github/manage_pr.sh <action> ...`: Manages PR lifecycle.
+```bash
+# View issue details
+gh issue view <number>
+gh issue view <number> --comments
+
+# Update issues
+gh issue comment <number> --body "Comment text"
+gh issue edit <number> --body "New body"
+
+# Manage PRs
+gh pr create --title "Title" --body "Body"
+gh pr edit <number> --title "New title" --body "New body"
+gh pr list --head <branch-name>
+```
 
 ## Guiding Principles
 
