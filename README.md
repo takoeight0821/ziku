@@ -14,6 +14,20 @@ A functional programming language exploring the duality between data and codata.
 
 ## Quick Start
 
+### Docker (Recommended)
+
+No local dependencies required:
+
+```bash
+docker build -t ziku .                                        # Build image
+docker run --rm -it ziku nix develop --command lake exe ziku  # Run REPL
+docker run --rm ziku nix develop --command lake test          # Run tests
+```
+
+### Native
+
+Requires [Lean 4](https://lean-lang.org/) and [Chez Scheme](https://cisco.github.io/ChezScheme/):
+
 ```bash
 lake build         # Build
 lake exe ziku      # Run REPL
@@ -64,58 +78,57 @@ label done {
 
 ### Dependency Management
 
-このプロジェクトは、依存関係の自動更新にRenovateを使用しています。
+This project uses Renovate for automated dependency updates and Nix flakes for reproducible builds.
 
-**Renovateのセットアップ（メンテナー向け）:**
+**Renovate Setup (for maintainers):**
 
-1. **GitHub Appを作成**
+1. **Create a GitHub App**
 
    GitHub Settings → Developer settings → GitHub Apps → **New GitHub App**
 
-   必要な設定：
-   - **GitHub App name**: `renovate-ziku`（または任意の名前）
+   Required settings:
+   - **GitHub App name**: `renovate-ziku` (or any name)
    - **Homepage URL**: `https://github.com/takoeight0821/ziku`
-   - **Webhook**: "Active" のチェックを**外す**
+   - **Webhook**: Uncheck "Active"
 
-   **Repository permissions**（以下を全て設定）:
+   **Repository permissions** (set all of the following):
    - Checks: Read and write
    - Contents: Read and write
    - Commit statuses: Read and write
    - Issues: Read and write
    - Pull requests: Read and write
    - Workflows: Read and write
-   - Metadata: Read only（自動設定）
+   - Metadata: Read only (auto-set)
 
-   作成後：
-   - **App ID**をメモ（後で使用）
-   - **Generate a private key**をクリックして `.pem` ファイルをダウンロード
+   After creation:
+   - Note the **App ID** (needed later)
+   - Click **Generate a private key** to download the `.pem` file
 
-2. **Appをリポジトリにインストール**
+2. **Install the App to the repository**
 
-   作成したGitHub Appのページから：
-   - **Install App** → **Only select repositories** → `takoeight0821/ziku` を選択
-   - インストール後のURLから **Installation ID** を取得
-     - 例: `https://github.com/settings/installations/12345678` の `12345678` 部分
+   From the GitHub App page:
+   - **Install App** → **Only select repositories** → Select `takoeight0821/ziku`
+   - Get the **Installation ID** from the URL after installation
+     - Example: `12345678` from `https://github.com/settings/installations/12345678`
 
-3. **GitHub Actionsにシークレットを追加**
+3. **Add secrets to GitHub Actions**
 
    Repository Settings → Secrets and variables → Actions → **New repository secret**:
-   - `RENOVATE_APP_ID`: 手順1でメモしたApp ID
-   - `RENOVATE_APP_PRIVATE_KEY`: ダウンロードした `.pem` ファイルの内容全体
+   - `RENOVATE_APP_ID`: The App ID from step 1
+   - `RENOVATE_APP_PRIVATE_KEY`: The entire contents of the downloaded `.pem` file
 
-4. **動作確認**
+4. **Verify**
 
-   Actions → Renovate → **Run workflow** で手動実行
+   Actions → Renovate → **Run workflow** to trigger manually
 
-**自動更新される依存関係:**
-- GitHub Actions（週次、月曜 9:00 UTC）
-- Docker base images
+**Auto-updated dependencies:**
+- GitHub Actions (weekly, Mondays 9:00 UTC)
+- Nix flake inputs (nixpkgs, flake-utils)
 - Git submodules
 - Lean toolchain
 - Lake dependencies
-- elanバージョン
 
-詳細は[CLAUDE.md](CLAUDE.md)を参照してください。
+See [CLAUDE.md](CLAUDE.md) for detailed dependency management information.
 
 ## Background
 

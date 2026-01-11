@@ -6,12 +6,12 @@ Implementation details for developers and contributors.
 
 ```
 Ziku/
-├── Syntax.lean         # Shared types: SourcePos, Ident, Lit, BinOp, Pat, Ty
-├── Surface/
-│   └── Syntax.lean     # Surface AST with label/goto
+├── Syntax.lean         # AST types: SourcePos, Ident, Lit, BinOp, Pat, Ty, Expr
+├── Builtins.lean       # Built-in function definitions
 ├── IR/
 │   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
-│   └── Eval.lean       # IR evaluator with μ/μ̃-reduction
+│   ├── Eval.lean       # IR evaluator with μ/μ̃-reduction
+│   └── Focusing.lean   # Focusing transformation
 ├── Backend/
 │   └── Scheme.lean     # Scheme code generator (CPS translation)
 ├── Translate.lean      # Surface → IR translation
@@ -19,7 +19,9 @@ Ziku/
 ├── Parser.lean         # Recursive descent parser
 ├── Type.lean           # Type utilities: Subst, Scheme
 ├── Infer.lean          # HM type inference
-└── Proofs/             # Lean proofs (Arithmetic, Eval, Identities, Soundness)
+├── Elaborate.lean      # Codata elaboration
+├── Soundness.lean      # Type soundness proofs
+└── Proofs/             # Lean proofs (Arithmetic, Eval, Identities)
 ```
 
 ## Pipeline
@@ -145,15 +147,20 @@ This allows runtime checks to properly evaluate thunks when needed.
 Golden tests are in `tests/golden/`:
 
 - `parser/`: Parser output tests (.ziku → .golden)
-- `eval/`: Surface language evaluation tests
 - `infer/`: Type inference tests
 - `ir-eval/`: IR evaluation tests (via translation)
+- `io/`: I/O tests
+- `scheme/`: Scheme backend tests
+- `scheme-only/`: Scheme-only tests (no IR evaluation)
 
 ### Adding Tests
 
-1. Create `tests/golden/{category}/{name}.ziku`
-2. Add test name to `tests/GoldenTest.lean`
-3. Run `lake test` to auto-generate `.golden` file
+Tests are auto-discovered from `.ziku` files:
+
+1. Create `tests/golden/{category}/{success|error}/{name}.ziku`
+2. Run `lake test` to auto-generate `.golden` file
+
+No manual registration required.
 
 ## References
 
