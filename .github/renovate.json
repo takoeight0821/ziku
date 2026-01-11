@@ -26,6 +26,25 @@
       "matchManagers": ["git-submodules"],
       "groupName": "Git submodules",
       "automerge": false
+    },
+    {
+      "matchManagers": ["regex"],
+      "matchDatasources": ["deb"],
+      "groupName": "APT packages",
+      "automerge": false,
+      "description": "Group all apt package updates into single PR for easier review"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=deb depName=(?<depName>[^\\s]+)\\nARG [A-Z0-9_]+_VERSION=(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "deb",
+      "versioningTemplate": "deb",
+      "registryUrlTemplate": "https://archive.ubuntu.com/ubuntu?suite=noble&components=main,universe"
     }
   ],
   "ignorePaths": ["**/vendor/**"]
