@@ -34,4 +34,4 @@ jobs:
           provenance: false
 
       - name: Run tests inside Docker
-        run: docker run --rm ziku:test lake test
+        run: docker run --rm ziku:test nix develop --command lake test

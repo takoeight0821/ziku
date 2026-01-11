@@ -19,20 +19,20 @@ Ziku is a programming language implementation in Lean 4 featuring:
 ### Docker (Recommended - no local dependencies required)
 
 ```bash
-# Build Docker image (one-time setup, ~2 minutes)
+# Build Docker image (one-time setup, ~5 minutes)
 docker build -t ziku .
 
 # Run tests
-docker run --rm ziku lake test
+docker run --rm ziku nix develop --command lake test
 
 # Run REPL
-docker run --rm -it ziku lake exe ziku
+docker run --rm -it ziku nix develop --command lake exe ziku
 
 # Build project
-docker run --rm ziku lake build
+docker run --rm ziku nix develop --command lake build
 
 # Run Chez Scheme
-docker run --rm -it ziku scheme
+docker run --rm -it ziku nix develop --command scheme
 ```
 
 ### Native (only if Docker is unavailable)
@@ -47,19 +47,26 @@ lake exe ziku           # Run REPL
 
 ## Dependency Management
 
-### Automated Updates
+### Nix-based Dependencies
 
-Ziku uses a hybrid approach combining Renovate and custom GitHub Actions workflows for comprehensive dependency management:
+The project uses Nix flakes for reproducible dependency management. All dependencies are defined in `flake.nix` and pinned via `flake.lock`.
+
+**Dependencies managed by Nix:**
+- elan (Lean 4 version manager)
+- chez (Chez Scheme compiler)
+- git, curl, cacert (build tools)
+- python3 (build scripts)
+
+### Automated Updates
 
 **Renovate** (weekly, Mondays 9:00 UTC):
 - GitHub Actions (with SHA digest pinning for supply chain security)
-- Docker base images (`ubuntu:24.04`)
+- Nix flake inputs (nixpkgs, flake-utils)
 - Git submodules
 
 **GitHub Actions Workflow** (weekly, Mondays 9:00 UTC):
 - Lean toolchain (`lean-toolchain` file)
 - Lake dependencies (`lake-manifest.json` with build/test validation)
-- Elan installer version (Dockerfile ARG)
 
 ### How Renovate Runs
 
@@ -75,14 +82,10 @@ Renovate runs via self-hosted GitHub Actions workflow (`.github/workflows/renova
 
 ### Dependency Strategy
 
-**Elan installer**: Pinned to specific git tag (e.g., `v4.1.2`) via Dockerfile ARG directive
-- Updated automatically via GitHub Actions (weekly checks)
-- Location: `Dockerfile` ARG ELAN_VERSION
-
-**APT packages**: Not version-pinned (security-first approach)
-- Rationale: Ubuntu 24.04 LTS provides security updates + API stability until 2029
-- Trade-off: Reproducibility vs security updates
-- Override: Use `docker build --build-arg` for pinned builds if needed
+**Nix packages**: Pinned via `flake.lock` (fully reproducible)
+- All build tools (elan, chez, git, curl, etc.) from nixpkgs
+- Updated automatically via Renovate (nix manager)
+- Reproducible builds guaranteed by Nix
 
 **Lean toolchain**: Pinned via `lean-toolchain` file (e.g., `leanprover/lean4:v4.26.0`)
 - Updated automatically via GitHub Actions (weekly checks)
@@ -95,12 +98,13 @@ Renovate runs via self-hosted GitHub Actions workflow (`.github/workflows/renova
 To update dependencies manually:
 
 ```bash
+# Update Nix flake inputs (requires Docker)
+docker run --rm -v "$(pwd)":/workspace -w /workspace nixos/nix:latest \
+  sh -c "echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf && nix flake update"
+docker build --no-cache -t ziku .
+
 # Update Lean toolchain
 # 1. Edit lean-toolchain file with desired version
-# 2. Run: docker build --no-cache -t ziku .
-
-# Update elan version
-# 1. Edit ARG ELAN_VERSION in Dockerfile
 # 2. Run: docker build --no-cache -t ziku .
 
 # Update Lake dependencies
@@ -109,10 +113,9 @@ lake update && lake build && lake test
 
 ### Rollback Procedures
 
-**If elan update breaks builds:**
-1. Revert Dockerfile: `git checkout HEAD~1 Dockerfile`
-2. Pin to last working version
-3. Open issue on leanprover/elan repository
+**If Nix flake update breaks builds:**
+1. Revert flake.lock: `git checkout HEAD~1 flake.lock`
+2. Rebuild: `docker build --no-cache -t ziku .`
 
 **If Renovate creates problematic PRs:**
 1. Close PR with comment explaining issue
