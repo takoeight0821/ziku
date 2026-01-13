@@ -8,7 +8,7 @@
 
 ## Phase 2: Functions and Control Flow
 - [x] Task: Implement Big-Step Evaluation for Lambda and Application d43f3ac
-- [ ] Task: Implement Big-Step Evaluation for Label and Goto
+- [x] Task: Implement Big-Step Evaluation for Label and Goto 0d66dd7
 - [ ] Task: Implement Big-Step Evaluation for Built-in functions
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Functions and Control' (Protocol in workflow.md)
 
