@@ -12,11 +12,11 @@
 - [x] Task: Implement Big-Step Evaluation for Built-in functions 3bf18de
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Functions and Control' (Protocol in workflow.md) 815a440
 
-## Phase 3: Data and Codata
+## Phase 3: Data and Codata [checkpoint: cf258fb]
 - [x] Task: Implement Big-Step Evaluation for Records and Field Access c191886
 - [x] Task: Implement Big-Step Evaluation for Data Constructors and Pattern Matching 7a17fea
 - [x] Task: Implement Big-Step Evaluation for Codata and Copattern Matching 7d2534d
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Data and Codata' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Data and Codata' (Protocol in workflow.md) cf258fb
 
 ## Phase 4: Integration and Finalization
 - [ ] Task: Integrate Big-Step Evaluator into Main CLI and REPL
