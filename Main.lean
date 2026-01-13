@@ -3,7 +3,7 @@ import Ziku
 open Ziku
 
 inductive Mode
-  | repl
+  | repl (bigStep : Bool)
   | parse
   | infer
   | translate
@@ -17,10 +17,15 @@ def parseArgs (args : List String) : Mode :=
   | "--infer" :: _ => .infer
   | "--translate" :: _ => .translate
   | "--scheme" :: _ => .scheme
+  | "--eval" :: "--big-step" :: _ => .evalBigStep
+  | "--big-step" :: "--eval" :: _ => .evalBigStep
   | "--eval" :: _ => .eval
-  | "--big-step" :: _ => .evalBigStep
-  | [] => .repl
-  | _ => .repl
+  | "--big-step" :: _ => 
+    -- If there's a file argument after --big-step, it's eval. Otherwise repl.
+    if args.length > 1 && !args[1]!.startsWith "-" then .evalBigStep
+    else .repl true
+  | [] => .repl false
+  | _ => .repl false
 
 def runOnInput (mode : Mode) (input : String) : IO Unit := do
   match parse input with
@@ -53,7 +58,7 @@ def runOnInput (mode : Mode) (input : String) : IO Unit := do
       | .ok stmt =>
         let scheme := Backend.Scheme.compile stmt
         IO.println scheme
-    | .eval | .repl =>
+    | .eval | .repl false =>
       match Translate.translateToStatement expr with
       | .error err =>
         IO.eprintln s!"Translate error: {err}"
@@ -67,7 +72,7 @@ def runOnInput (mode : Mode) (input : String) : IO Unit := do
         | .error msg =>
           IO.eprintln s!"Eval error: {msg}"
           IO.Process.exit 1
-    | .evalBigStep =>
+    | .evalBigStep | .repl true =>
       match Translate.translateToStatement expr with
       | .error err =>
         IO.eprintln s!"Translate error: {err}"
@@ -79,7 +84,7 @@ def runOnInput (mode : Mode) (input : String) : IO Unit := do
           IO.eprintln s!"Eval error: {msg}"
           IO.Process.exit 1
 
-partial def repl : IO Unit := do
+partial def repl (useBigStep : Bool) : IO Unit := do
   IO.print "> "
   let stdout ← IO.getStdout
   stdout.flush
@@ -99,30 +104,37 @@ partial def repl : IO Unit := do
   match parse input with
   | .error msg =>
     IO.println s!"Parse error: {msg}"
-    repl
+    repl useBigStep
   | .ok expr =>
     match Translate.translateToStatement expr with
     | .error err =>
       IO.println s!"Translate error: {err}"
-      repl
+      repl useBigStep
     | .ok stmt =>
-      match ← IR.eval stmt with
-      | .value p _ => IO.println s!"{p}"
-      | .stuck s _ => IO.println s!"Stuck: {s}"
-      | .error msg => IO.println s!"Eval error: {msg}"
-      repl
+      if useBigStep then
+        match ← IR.BigStepEval.eval stmt with
+        | .value v => IO.println s!"{v}"
+        | .error msg => IO.println s!"Eval error: {msg}"
+      else
+        match ← IR.eval stmt with
+        | .value p _ => IO.println s!"{p}"
+        | .stuck s _ => IO.println s!"Stuck: {s}"
+        | .error msg => IO.println s!"Eval error: {msg}"
+      repl useBigStep
 
 def main (args : List String) : IO Unit := do
   let mode := parseArgs args
   match mode with
-  | .repl =>
-    IO.println "Ziku REPL"
+  | .repl bigStep =>
+    IO.println s!"Ziku REPL ({if bigStep then "Big-Step" else "Small-Step"})"
     IO.println "Type :quit or :q to exit"
-    repl
+    repl bigStep
   | _ =>
-
     let input ← match args with
-      | [_, file] => IO.FS.readFile file
+      | "--eval" :: "--big-step" :: file :: _ => IO.FS.readFile file
+      | "--big-step" :: "--eval" :: file :: _ => IO.FS.readFile file
+      | "--eval" :: file :: _ => IO.FS.readFile file
+      | "--big-step" :: file :: _ => IO.FS.readFile file
       | [_] => (← IO.getStdin).readToEnd
-      | _ => return -- Should be handled by repl mode, but here we are in other modes
+      | _ => (← IO.getStdin).readToEnd
     runOnInput mode input.trim
