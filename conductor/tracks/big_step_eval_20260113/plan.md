@@ -15,7 +15,7 @@
 ## Phase 3: Data and Codata
 - [x] Task: Implement Big-Step Evaluation for Records and Field Access c191886
 - [x] Task: Implement Big-Step Evaluation for Data Constructors and Pattern Matching 7a17fea
-- [ ] Task: Implement Big-Step Evaluation for Codata and Copattern Matching
+- [x] Task: Implement Big-Step Evaluation for Codata and Copattern Matching 7d2534d
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Data and Codata' (Protocol in workflow.md)
 
 ## Phase 4: Integration and Finalization
