@@ -47,6 +47,7 @@ def testEvalLiteral : IO Bool := do
   | .ok (.lit (.int 123)) => assert "Literal eval success" true
   | .ok v => assert s!"Literal eval wrong value: {v}" false
   | .error e => assert s!"Literal eval failed: {e}" false
+  | .jump _ _ => assert "Literal eval returned jump" false
 
 def testEvalVar : IO Bool := do
   let env := Env.empty.insertVal "y" (.lit (.int 456))
@@ -55,6 +56,7 @@ def testEvalVar : IO Bool := do
   | .ok (.lit (.int 456)) => assert "Var eval success" true
   | .ok v => assert s!"Var eval wrong value: {v}" false
   | .error e => assert s!"Var eval failed: {e}" false
+  | .jump _ _ => assert "Var eval returned jump" false
 
 def testEvalUnboundVar : IO Bool := do
   let env := Env.empty
@@ -63,6 +65,7 @@ def testEvalUnboundVar : IO Bool := do
   | .error (.unboundVariable _ "z") => assert "Unbound var error success" true
   | .ok v => assert s!"Unbound var expected error, got value: {v}" false
   | .error e => assert s!"Unbound var expected unboundVariable error, got: {e}" false
+  | .jump _ _ => assert "Unbound var returned jump" false
 
 def testEvalBinOp : IO Bool := do
   let env := Env.empty
@@ -76,6 +79,7 @@ def testEvalBinOp : IO Bool := do
   | .ok (.lit (.int 30)) => assert "BinOp Add success" true
   | .ok v => assert s!"BinOp Add wrong value: {v}" false
   | .error e => assert s!"BinOp Add failed: {e}" false
+  | .jump _ _ => assert "BinOp Add returned jump" false
 
   -- Test Div by Zero
   let pZero := Producer.lit synthesizedPos (.int 0)
@@ -84,6 +88,7 @@ def testEvalBinOp : IO Bool := do
   | .error (.divisionByZero _) => assert "BinOp DivByZero success" true
   | .ok v => assert s!"BinOp DivByZero expected error, got value: {v}" false
   | .error e => assert s!"BinOp DivByZero expected divisionByZero, got: {e}" false
+  | .jump _ _ => assert "BinOp DivByZero returned jump" false
 
   -- Test Type Mismatch
   let pBool := Producer.lit synthesizedPos (.bool true)
@@ -92,6 +97,7 @@ def testEvalBinOp : IO Bool := do
   | .error (.binOpTypeMismatch _ _ _ _) => assert "BinOp TypeMismatch success" true
   | .ok v => assert s!"BinOp TypeMismatch expected error, got value: {v}" false
   | .error e => assert s!"BinOp TypeMismatch expected binOpTypeMismatch, got: {e}" false
+  | .jump _ _ => assert "BinOp TypeMismatch returned jump" false
 
   return r1 && r2 && r3
 
@@ -114,6 +120,41 @@ def testEvalLambda : IO Bool := do
   | .ok (.lit (.int 42)) => assert "Lambda application success" true
   | .ok v => assert s!"Lambda application wrong value: {v}" false
   | .error e => assert s!"Lambda application failed: {e}" false
+  | .jump _ _ => assert "Lambda application returned jump" false
+
+def testEvalLabelGoto : IO Bool := do
+  let env := Env.empty
+  let pos := synthesizedPos
+  let L := "L"
+  let beta := "beta"
+  let alpha := "alpha"
+  let underscore := "_"
+  
+  -- label L { let _ = goto(42; L) in 99 }
+  -- goto(42; L) => mu beta. <42 | L>
+  let gotoStmt := Statement.cut pos (.lit pos (.int 42)) (.covar pos L)
+  let gotoProd := Producer.mu pos beta gotoStmt
+  
+  -- let ... in 99 => mu alpha. < gotoProd | mu~_. <99 | alpha> >
+  let letBody := Statement.cut pos (.lit pos (.int 99)) (.covar pos alpha)
+  let letConsumer := Consumer.muTilde pos underscore letBody
+  let letProd := Producer.mu pos alpha (Statement.cut pos gotoProd letConsumer)
+  
+  -- label L { letProd } => mu L. <letProd | L>
+  let labelStmt := Statement.cut pos letProd (.covar pos L)
+  let labelProd := Producer.mu pos L labelStmt
+  
+  -- Eval the whole thing (using explicit halt for top level)
+  -- The mu L logic in Eval uses halt for the bound variable.
+  -- But here we are manually calling evalProducer on labelProd.
+  -- evalProducer (mu L...) will eval labelStmt with L=halt.
+  
+  match ← evalProducer labelProd env with
+  | .ok (.lit (.int 42)) => assert "Label/Goto success (short-circuit)" true
+  | .ok (.lit (.int 99)) => assert "Label/Goto failed: executed continuation (99) instead of jump" false
+  | .ok v => assert s!"Label/Goto wrong value: {v}" false
+  | .error e => assert s!"Label/Goto failed with error: {e}" false
+  | .jump _ _ => assert "Label/Goto returned uncaught jump" false
 
 def runTests : IO (Nat × Nat) := do
   IO.println "\n=== Big-Step Unit Tests ==="
@@ -124,7 +165,8 @@ def runTests : IO (Nat × Nat) := do
     testEvalVar,
     testEvalUnboundVar,
     testEvalBinOp,
-    testEvalLambda
+    testEvalLambda,
+    testEvalLabelGoto
   ]
   let mut passed := 0
   let mut failed := 0

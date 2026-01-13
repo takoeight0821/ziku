@@ -30,6 +30,7 @@ mutual
   inductive EnvValue where
     | val : Value → EnvValue
     | covarClosure : Consumer → Env → EnvValue
+    | continuation : EnvValue -- Marker for a jump target (continuation)
 
   /-- Evaluation environment. -/
   inductive Env where
@@ -52,6 +53,9 @@ namespace Env
 
   def insertCovar (env : Env) (α : Ident) (c : Consumer) (env' : Env) : Env :=
     env.insert α (.covarClosure c env')
+    
+  def insertContinuation (env : Env) (α : Ident) : Env :=
+    env.insert α .continuation
 end Env
 
 /-! ## Evaluation Errors -/
@@ -95,6 +99,13 @@ def EvalError.toString : EvalError → String
 instance : ToString EvalError := ⟨EvalError.toString⟩
 
 /-! ## Evaluation Result -/
+
+-- Internal result type that supports non-local jumps
+inductive Result where
+  | ok : Value → Result
+  | error : EvalError → Result
+  | jump : Ident → Value → Result
+  deriving Inhabited
 
 inductive EvalResult where
   | value : Value → EvalResult
@@ -202,17 +213,24 @@ def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Value) : IO (Except
 
 mutual
   /-- Evaluate a producer to a value. -/
-  partial def evalProducer (p : Producer) (env : Env) : IO (Except EvalError Value) := do
+  partial def evalProducer (p : Producer) (env : Env) : IO Result := do
     match p with
     | .var pos x =>
       match env.lookup x with
       | some (.val v) => return .ok v
       | some (.covarClosure _ _) => return .error (.unboundVariable pos x)
+      | some .continuation => return .error (.unboundVariable pos x) -- Shouldn't happen for var
       | none => return .error (.unboundVariable pos x)
     | .lit _ l => return .ok (.lit l)
     | .mu _ α s =>
-      -- μα.s with halt continuation: evaluate s with α bound to halt
-      evalStatement s (env.insertCovar α (.covar synthesizedPos "halt") .empty)
+      -- μα.s: evaluate s with α bound as continuation
+      -- If s returns jump to α, catch it and return value.
+      -- If s returns other jump, propagate it.
+      -- If s returns value, it fell through (e.g. to halt), return it.
+      let res ← evalStatement s (env.insertContinuation α)
+      match res with
+      | .jump β v => if α == β then return .ok v else return .jump β v
+      | _ => return res
     | .cocase _ _ =>
       -- Cocase is a value (closure)
       return .ok (.closure p env)
@@ -222,6 +240,7 @@ mutual
       for (name, prod) in fields do
         match ← evalProducer prod env with
         | .ok v => result := result ++ [(name, v)]
+        | .jump β v => return .jump β v
         | .error e => return .error e
       return .ok (.record result)
     | .fix pos x body => do
@@ -234,16 +253,18 @@ mutual
       for arg in args do
         match ← evalProducer arg env with
         | .ok v => result := result ++ [v]
+        | .jump β v => return .jump β v
         | .error e => return .error e
       return .ok (.dataCon con result)
 
   /-- Apply a consumer to a value. -/
-  partial def applyConsumer (v : Value) (c : Consumer) (env : Env) : IO (Except EvalError Value) := do
+  partial def applyConsumer (v : Value) (c : Consumer) (env : Env) : IO Result := do
     match c with
     | .covar pos α =>
       if α == "halt" then return .ok v
       else match env.lookup α with
         | some (.covarClosure c' env') => applyConsumer v c' env'
+        | some .continuation => return .jump α v
         | _ => return .error (.unboundCovariable pos α)
     | .muTilde _ x s =>
       -- Bind value to x and evaluate statement
@@ -297,6 +318,7 @@ mutual
         let recEnv := fixEnv.insert x (.val v)
         match ← evalProducer body recEnv with
         | .ok unfolded => applyConsumer unfolded c env
+        | .jump β v => return .jump β v
         | .error e => return .error e
       | .closure (.cocase _ branches) closureEnv =>
         -- Look up destructor branch
@@ -311,6 +333,7 @@ mutual
             for arg in args do
               match ← evalProducer arg env with
               | .ok argVal => argVals := argVals ++ [argVal]
+              | .jump β v => return .jump β v
               | .error e => return .error e
             -- Bind arguments and continuation
             let contCovar := vars.getLast!
@@ -331,18 +354,21 @@ mutual
       | _ => return .error (.patternMatchFailed pos "cannot destruct non-closure/non-record")
 
   /-- Evaluate a statement to a value. -/
-  partial def evalStatement (s : Statement) (env : Env) : IO (Except EvalError Value) := do
+  partial def evalStatement (s : Statement) (env : Env) : IO Result := do
     match s with
     | .cut _ p c => do
       match ← evalProducer p env with
       | .ok v => applyConsumer v c env
+      | .jump β v => return .jump β v
       | .error e => return .error e
     | .binOp pos op p1 p2 c => do
       match ← evalProducer p1 env with
       | .error e => return .error e
+      | .jump β v => return .jump β v
       | .ok v1 =>
         match ← evalProducer p2 env with
         | .error e => return .error e
+        | .jump β v => return .jump β v
         | .ok v2 =>
           match evalBinOp pos op v1 v2 with
           | .error e => return .error e
@@ -350,6 +376,7 @@ mutual
     | .ifz pos cond s1 s2 => do
       match ← evalProducer cond env with
       | .error e => return .error e
+      | .jump β v => return .jump β v
       | .ok v =>
         match v with
         | .lit (.bool true) => evalStatement s1 env
@@ -362,6 +389,7 @@ mutual
       for p in ps do
         match ← evalProducer p env with
         | .ok v => args := args ++ [v]
+        | .jump β v => return .jump β v
         | .error e => return .error e
       match ← evalBuiltin pos b args with
       | .ok result => applyConsumer result c env
@@ -374,6 +402,7 @@ end
 def eval (s : Statement) : IO EvalResult := do
   match ← evalStatement s .empty with
   | .ok v => return .value v
+  | .jump _ v => return .value v -- Top-level jump (e.g. to halt) treated as value
   | .error e => return .error e
 
 end Ziku.IR.BigStepEval
