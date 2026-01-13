@@ -1,4 +1,3 @@
-
 /- Master test runner that executes all test suites:
 - Truncate tests (unit tests for string truncation)
 - Golden tests (integration tests for parser, type inference, IR evaluation)
@@ -242,7 +241,8 @@ def runSchemeTest (tc : TestCase) : IO TestResult :=
 -- Evaluator Full Execution Helpers
 -- ============================================================================
 
-def runIREvalFull (input : String) : IO (Except String TestOutput) := do
+def runIREvalFull (input : String) : IO (Except String TestOutput) :=
+  do
 
   match Ziku.parseExprString input.trim with
 
@@ -277,8 +277,8 @@ def runIREvalFull (input : String) : IO (Except String TestOutput) := do
   | .error e => return .error e
 
 
-
-def runBigStepEvalFull (input : String) : IO (Except String TestOutput) := do
+def runBigStepEvalFull (input : String) : IO (Except String TestOutput) :=
+  do
 
   match Ziku.parseExprString input.trim with
 
@@ -370,15 +370,28 @@ def runBigStepConsistencyTest (name : String) (inputPath : String) : IO TestResu
 
 def runTest (tc : TestCase) : IO TestResult :=
   do
-    let input ← IO.FS.readFile tc.inputPath
-    let golden ← readFileOrEmpty tc.goldenPath
 
-    let result : Except String TestOutput ← match tc.testType with
-      | "infer" => pure (runInferTest input)
-      | "ir-eval" => runIREvalTest input
-      | "translate" => pure (runTranslateTest input)
-      | "scheme-codegen" => pure (runSchemeCodegenTest input)
-      | _ => pure (runParserTest input)
+  let input ← IO.FS.readFile tc.inputPath
+
+  let golden ← readFileOrEmpty tc.goldenPath
+
+
+
+  let result : Except String TestOutput ← match tc.testType with
+
+    | "infer" => pure (runInferTest input)
+
+    | "ir-eval" => runIREvalTest input
+
+    | "ir-eval-big-step" => runBigStepEvalFull input
+
+    | "translate" => pure (runTranslateTest input)
+
+    | "scheme-codegen" => pure (runSchemeCodegenTest input)
+
+    | _ => pure (runParserTest input)
+
+
 
     match result with
     | .error e =>
@@ -680,46 +693,91 @@ def runIOTestCategory : IO (Nat × Nat) :=
     pure (passed, failed)
 
 -- ============================================================================
+
 -- Main: Run all test suites
+
 -- ============================================================================
 
-def main : IO UInt32 :=
-  do
-    IO.println "Running all tests..."
 
-    -- Truncate tests (unit tests)
-    let (truncatePassed, truncateFailed) ← runTruncateTests
 
-    -- Big-Step unit tests
-    let (bigStepPassed, bigStepFailed) ← BigStepEvalTest.runTests
+def main : IO UInt32 := do
 
-    -- Golden tests (integration tests)
-    let (parserPassed, parserFailed) ← runCategory "parser" "parser"
-    let (inferPassed, inferFailed) ← runCategory "infer" "infer"
-    let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" "ir-eval"
-    let (emitTranslatePassed, emitTranslateFailed) ← runEmitTranslateCategory
-    let (emitSchemePassed, emitSchemeFailed) ← runEmitSchemeCategory
-    let (schemeOnlyPassed, schemeOnlyFailed) ← runSchemeOnlyCategory
-    let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
-    let (bigStepConsistencyPassed, bigStepConsistencyFailed) ← runBigStepConsistencyCategory
-    let (ioPassed, ioFailed) ← runIOTestCategory
+  IO.println "Running all tests..."
 
-    let totalPassed := truncatePassed + bigStepPassed + parserPassed + inferPassed + irEvalPassed +
-                       emitTranslatePassed + emitSchemePassed + schemeOnlyPassed + consistencyPassed +
-                       bigStepConsistencyPassed + ioPassed
-    let totalFailed := truncateFailed + bigStepFailed + parserFailed + inferFailed + irEvalFailed +
-                       emitTranslateFailed + emitSchemeFailed + schemeOnlyFailed + consistencyFailed +
-                       bigStepConsistencyFailed + ioFailed
 
-    IO.println s!"\n=== Summary ==="
-    IO.println s!"Truncate tests: {truncatePassed} passed, {truncateFailed} failed"
-    IO.println s!"Big-Step unit tests: {bigStepPassed} passed, {bigStepFailed} failed"
-    IO.println s!"Golden tests: {totalPassed - truncatePassed - bigStepPassed - bigStepConsistencyPassed} passed, {totalFailed - truncateFailed - bigStepFailed - bigStepConsistencyFailed} failed"
-    IO.println s!"Big-Step consistency: {bigStepConsistencyPassed} passed, {bigStepConsistencyFailed} failed"
-    IO.println s!"Total: {totalPassed} passed, {totalFailed} failed"
 
-    if totalFailed > 0 then
-      pure 1
-    else
-      IO.println "All tests passed!"
-      pure 0
+  -- Truncate tests (unit tests)
+
+  let (truncatePassed, truncateFailed) ← runTruncateTests
+
+
+
+  -- Big-Step unit tests
+
+  let (bigStepPassed, bigStepFailed) ← BigStepEvalTest.runTests
+
+
+
+  -- Golden tests (integration tests)
+
+  let (parserPassed, parserFailed) ← runCategory "parser" "parser"
+
+  let (inferPassed, inferFailed) ← runCategory "infer" "infer"
+
+  let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" "ir-eval"
+
+  let (irEvalBigStepPassed, irEvalBigStepFailed) ← runCategory "ir-eval" "ir-eval-big-step"
+
+  let (emitTranslatePassed, emitTranslateFailed) ← runEmitTranslateCategory
+
+  let (emitSchemePassed, emitSchemeFailed) ← runEmitSchemeCategory
+
+  let (schemeOnlyPassed, schemeOnlyFailed) ← runSchemeOnlyCategory
+
+  let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
+
+  let (bigStepConsistencyPassed, bigStepConsistencyFailed) ← runBigStepConsistencyCategory
+
+  let (ioPassed, ioFailed) ← runIOTestCategory
+
+
+
+  let totalPassed := truncatePassed + bigStepPassed + parserPassed + inferPassed + irEvalPassed +
+
+                     irEvalBigStepPassed + emitTranslatePassed + emitSchemePassed + schemeOnlyPassed +
+
+                     consistencyPassed + bigStepConsistencyPassed + ioPassed
+
+  let totalFailed := truncateFailed + bigStepFailed + parserFailed + inferFailed + irEvalFailed +
+
+                     irEvalBigStepFailed + emitTranslateFailed + emitSchemeFailed + schemeOnlyFailed +
+
+                     consistencyFailed + bigStepConsistencyFailed + ioFailed
+
+
+
+  IO.println s!"\n=== Summary ==="
+
+  IO.println s!"Truncate tests: {truncatePassed} passed, {truncateFailed} failed"
+
+  IO.println s!"Big-Step unit tests: {bigStepPassed} passed, {bigStepFailed} failed"
+
+  IO.println s!"Golden tests: {totalPassed - truncatePassed - bigStepPassed - bigStepConsistencyPassed - irEvalBigStepPassed} passed, {totalFailed - truncateFailed - bigStepFailed - bigStepConsistencyFailed - irEvalBigStepFailed} failed"
+
+  IO.println s!"Big-Step consistency: {bigStepConsistencyPassed} passed, {bigStepConsistencyFailed} failed"
+
+  IO.println s!"Big-Step golden tests: {irEvalBigStepPassed} passed, {irEvalBigStepFailed} failed"
+
+  IO.println s!"Total: {totalPassed} passed, {totalFailed} failed"
+
+
+
+  if totalFailed > 0 then
+
+    return 1
+
+  else
+
+    IO.println "All tests passed!"
+
+    return 0
