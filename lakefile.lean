@@ -4,6 +4,9 @@ open Lake DSL
 package ziku where
   version := v!"0.1.0"
 
+require batteries from git
+  "https://github.com/leanprover-community/batteries" @ "main"
+
 lean_lib Ziku
 
 @[default_target]

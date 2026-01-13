@@ -9,6 +9,7 @@ inductive Mode
   | translate
   | scheme
   | eval
+  | evalBigStep
 
 def parseArgs (args : List String) : Mode :=
   match args with
@@ -17,6 +18,7 @@ def parseArgs (args : List String) : Mode :=
   | "--translate" :: _ => .translate
   | "--scheme" :: _ => .scheme
   | "--eval" :: _ => .eval
+  | "--big-step" :: _ => .evalBigStep
   | [] => .repl
   | _ => .repl
 
@@ -62,6 +64,17 @@ def runOnInput (mode : Mode) (input : String) : IO Unit := do
         | .stuck s _ =>
           IO.eprintln s!"Stuck: {s}"
           IO.Process.exit 1
+        | .error msg =>
+          IO.eprintln s!"Eval error: {msg}"
+          IO.Process.exit 1
+    | .evalBigStep =>
+      match Translate.translateToStatement expr with
+      | .error err =>
+        IO.eprintln s!"Translate error: {err}"
+        IO.Process.exit 1
+      | .ok stmt =>
+        match ← IR.BigStepEval.eval stmt with
+        | .value v => IO.println s!"{v}"
         | .error msg =>
           IO.eprintln s!"Eval error: {msg}"
           IO.Process.exit 1
