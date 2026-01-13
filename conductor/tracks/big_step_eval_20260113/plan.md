@@ -3,7 +3,7 @@
 ## Phase 1: Foundation and Simple Expressions
 - [x] Task: Define Value and Environment types for Big-Step Evaluation 59a95a5
 - [x] Task: Implement Big-Step Evaluation for Literals and Variables 31032d2
-- [ ] Task: Implement Big-Step Evaluation for Basic Binary Operations
+- [x] Task: Implement Big-Step Evaluation for Basic Binary Operations 3ae5cc1
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Foundation' (Protocol in workflow.md)
 
 ## Phase 2: Functions and Control Flow
