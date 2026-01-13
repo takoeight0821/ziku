@@ -23,7 +23,7 @@ mutual
   inductive Value where
     | lit : Lit → Value
     | closure : Producer → Env → Value          -- cocase body with captured env
-    | record : List (String × Value) → Value
+    | record : List (String × Producer × Env) → Value -- lazy fields
     | dataCon : String → List Value → Value
 
   /-- Environment entries. -/
@@ -117,7 +117,7 @@ inductive EvalResult where
 partial def Value.toProducer : Value → Producer
   | .lit l => .lit synthesizedPos l
   | .dataCon con args => .dataCon synthesizedPos con (args.map Value.toProducer)
-  | .record fields => .record synthesizedPos (fields.map fun (n, v) => (n, v.toProducer))
+  | .record fields => .record synthesizedPos (fields.map fun (n, p, _) => (n, p))
   | .closure p _ => p
 
 instance : ToString Value where
@@ -234,15 +234,9 @@ mutual
     | .cocase _ _ =>
       -- Cocase is a value (closure)
       return .ok (.closure p env)
-    | .record _ fields => do
-      -- Evaluate all fields
-      let mut result : List (String × Value) := []
-      for (name, prod) in fields do
-        match ← evalProducer prod env with
-        | .ok v => result := result ++ [(name, v)]
-        | .jump β v => return .jump β v
-        | .error e => return .error e
-      return .ok (.record result)
+    | .record _ fields =>
+      -- Lazy record: just capture environment for each field
+      return .ok (.record (fields.map fun (n, p) => (n, p, env)))
     | .fix pos x body => do
       -- Create recursive binding: extend env with x bound to fix itself
       let recEnv := env.insert x (.val (.closure (.fix pos x body) env))
@@ -348,8 +342,12 @@ mutual
           return .error (.patternMatchFailed pos "record field access takes no arguments")
         else
           let fieldNames := fields.map (·.1)
-          match fields.find? (fun (f, _) => f == d) with
-          | some (_, fieldVal) => applyConsumer fieldVal cont env
+          match fields.find? (fun (f, _, _) => f == d) with
+          | some (_, fieldProd, fieldEnv) => do
+            match ← evalProducer fieldProd fieldEnv with
+            | .ok fieldVal => applyConsumer fieldVal cont env
+            | .jump β v => return .jump β v
+            | .error e => return .error e
           | none => return .error (.destructorNotFound pos d fieldNames)
       | _ => return .error (.patternMatchFailed pos "cannot destruct non-closure/non-record")
 
