@@ -216,6 +216,27 @@ def testEvalDataConMatch : IO Bool := do
   | .error e => assert s!"DataCon match failed: {e}" false
   | .jump _ _ => assert "DataCon match returned jump" false
 
+def testEvalCodata : IO Bool := do
+  let env := Env.empty
+  let pos := synthesizedPos
+  
+  -- obj = cocase { method(x; alpha) => <x + 1 | alpha> }
+  let x := "x"
+  let alpha := "alpha"
+  let body := Statement.binOp pos .add (.var pos x) (.lit pos (.int 1)) (.covar pos alpha)
+  let obj := Producer.cocase pos [("method", [x, alpha], body)]
+  
+  -- Call method: <obj | method(10; halt)>
+  let arg := Producer.lit pos (.int 10)
+  let halt := Consumer.covar pos "halt"
+  let stmtCall := Statement.cut pos obj (Consumer.destructor pos "method" [arg] halt)
+  
+  match ← evalStatement stmtCall env with
+  | .ok (.lit (.int 11)) => assert "Codata method call success" true
+  | .ok v => assert s!"Codata method call wrong value: {v}" false
+  | .error e => assert s!"Codata method call failed: {e}" false
+  | .jump _ _ => assert "Codata method call returned jump" false
+
 def runTests : IO (Nat × Nat) := do
   IO.println "\n=== Big-Step Unit Tests ==="
   let tests := [
@@ -229,7 +250,8 @@ def runTests : IO (Nat × Nat) := do
     testEvalLabelGoto,
     testEvalBuiltin,
     testEvalRecord,
-    testEvalDataConMatch
+    testEvalDataConMatch,
+    testEvalCodata
   ]
   let mut passed := 0
   let mut failed := 0
