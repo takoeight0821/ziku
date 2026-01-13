@@ -13,7 +13,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Functions and Control' (Protocol in workflow.md) 815a440
 
 ## Phase 3: Data and Codata
-- [ ] Task: Implement Big-Step Evaluation for Records and Field Access
+- [x] Task: Implement Big-Step Evaluation for Records and Field Access c191886
 - [ ] Task: Implement Big-Step Evaluation for Data Constructors and Pattern Matching
 - [ ] Task: Implement Big-Step Evaluation for Codata and Copattern Matching
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Data and Codata' (Protocol in workflow.md)
