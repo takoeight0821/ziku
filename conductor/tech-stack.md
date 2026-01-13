@@ -1,17 +1,19 @@
-# Technology Stack
+# Technology Stack: Ziku
 
-## Core Language & Tools
-- **Lean 4:** Primary implementation language, chosen for its expressive type system and formal verification capabilities.
-- **Lake:** The standard build system and package manager for Lean 4.
-- **Chez Scheme:** The target backend for the Ziku compiler, utilizing its efficient runtime and support for CPS-style code.
+## Primary Language
+- **Lean 4**: Used for the language implementation (Parser, Type Inference, IR, Evaluator) and formal proofs of correctness.
 
-## Development & CI
-- **GitHub Actions:** Automates the build and test pipeline (via `lean_action_ci.yml`).
-- **GitHub-First CDD:** A context-driven development workflow integrated with the GitHub CLI (`gh`) for task and PR management.
-- **Golden Testing:** A custom test framework that ensures stability by comparing output against known-good "golden" files.
-- **Mise:** Used for managing development environment dependencies.
-- **Docker:** Provides a reproducible, non-root sandbox environment for development and testing.
+## Backend and Compilation
+- **Chez Scheme**: The primary compilation target. Ziku's IR is translated to Scheme for high-performance execution.
 
-## Architecture & IR
-- **Sequent Calculus (λμμ̃):** The core intermediate representation, providing a theoretically grounded model for data/codata duality.
-- **CPS Translation:** Used to bridge the gap between the sequent calculus IR and the Scheme backend.
+## Infrastructure and Tooling
+- **Lake**: The build system and package manager for the Lean 4 codebase.
+- **Nix Flakes**: Ensures reproducible development environments by pinning all external dependencies (Chez Scheme, elan, etc.).
+- **Docker**: Provides a consistent environment for CI/CD and simplifies local setup.
+
+## Continuous Integration and Delivery
+- **GitHub Actions**: Automates building, testing, and linting.
+- **Renovate**: Handles automated dependency updates for Nix, GitHub Actions, and Lake.
+
+## Testing Framework
+- **Golden Tests**: A custom testing infrastructure for verifying parser output, type inference, and IR evaluation.
