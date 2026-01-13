@@ -172,6 +172,27 @@ def testEvalBuiltin : IO Bool := do
   | .error e => assert s!"Builtin strLen failed: {e}" false
   | .jump _ _ => assert "Builtin strLen returned jump" false
 
+def testEvalRecord : IO Bool := do
+  let env := Env.empty
+  let pos := synthesizedPos
+  
+  -- { x = 10, y = 20 }
+  let fields := [
+    ("x", Producer.lit pos (.int 10)),
+    ("y", Producer.lit pos (.int 20))
+  ]
+  let record := Producer.record pos fields
+  
+  -- Access field x: <record | x(; halt)>
+  let halt := Consumer.covar pos "halt"
+  let stmtAccess := Statement.cut pos record (Consumer.destructor pos "x" [] halt)
+  
+  match ← evalStatement stmtAccess env with
+  | .ok (.lit (.int 10)) => assert "Record field access success" true
+  | .ok v => assert s!"Record field access wrong value: {v}" false
+  | .error e => assert s!"Record field access failed: {e}" false
+  | .jump _ _ => assert "Record field access returned jump" false
+
 def runTests : IO (Nat × Nat) := do
   IO.println "\n=== Big-Step Unit Tests ==="
   let tests := [
@@ -183,7 +204,8 @@ def runTests : IO (Nat × Nat) := do
     testEvalBinOp,
     testEvalLambda,
     testEvalLabelGoto,
-    testEvalBuiltin
+    testEvalBuiltin,
+    testEvalRecord
   ]
   let mut passed := 0
   let mut failed := 0
