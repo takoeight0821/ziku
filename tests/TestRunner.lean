@@ -10,6 +10,7 @@ import Ziku.Elaborate
 import Ziku.Translate
 import Ziku.IR.Eval
 import Ziku.Backend.Scheme
+import tests.BigStepEvalTest
 
 -- ============================================================================
 -- Truncate Tests (from TruncateTest.lean)
@@ -578,6 +579,9 @@ def main : IO UInt32 := do
   -- Truncate tests (unit tests)
   let (truncatePassed, truncateFailed) ← runTruncateTests
 
+  -- Big-Step unit tests
+  let (bigStepPassed, bigStepFailed) ← BigStepEvalTest.runTests
+
   -- Golden tests (integration tests)
   let (parserPassed, parserFailed) ← runCategory "parser" "parser"
   let (inferPassed, inferFailed) ← runCategory "infer" "infer"
@@ -588,14 +592,15 @@ def main : IO UInt32 := do
   let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
   let (ioPassed, ioFailed) ← runIOTestCategory
 
-  let totalPassed := truncatePassed + parserPassed + inferPassed + irEvalPassed +
+  let totalPassed := truncatePassed + bigStepPassed + parserPassed + inferPassed + irEvalPassed +
                      emitTranslatePassed + emitSchemePassed + schemeOnlyPassed + consistencyPassed + ioPassed
-  let totalFailed := truncateFailed + parserFailed + inferFailed + irEvalFailed +
+  let totalFailed := truncateFailed + bigStepFailed + parserFailed + inferFailed + irEvalFailed +
                      emitTranslateFailed + emitSchemeFailed + schemeOnlyFailed + consistencyFailed + ioFailed
 
   IO.println s!"\n=== Summary ==="
   IO.println s!"Truncate tests: {truncatePassed} passed, {truncateFailed} failed"
-  IO.println s!"Golden tests: {totalPassed - truncatePassed} passed, {totalFailed - truncateFailed} failed"
+  IO.println s!"Big-Step unit tests: {bigStepPassed} passed, {bigStepFailed} failed"
+  IO.println s!"Golden tests: {totalPassed - truncatePassed - bigStepPassed} passed, {totalFailed - truncateFailed - bigStepFailed} failed"
   IO.println s!"Total: {totalPassed} passed, {totalFailed} failed"
 
   if totalFailed > 0 then

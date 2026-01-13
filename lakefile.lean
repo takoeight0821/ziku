@@ -9,6 +9,9 @@ require batteries from git
 
 lean_lib Ziku
 
+lean_lib Tests where
+  globs := #[.submodules `tests]
+
 @[default_target]
 lean_exe ziku where
   root := `Main
