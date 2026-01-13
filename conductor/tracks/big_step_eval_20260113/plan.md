@@ -7,7 +7,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation' (Protocol in workflow.md) 8a5e983
 
 ## Phase 2: Functions and Control Flow
-- [ ] Task: Implement Big-Step Evaluation for Lambda and Application
+- [x] Task: Implement Big-Step Evaluation for Lambda and Application d43f3ac
 - [ ] Task: Implement Big-Step Evaluation for Label and Goto
 - [ ] Task: Implement Big-Step Evaluation for Built-in functions
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Functions and Control' (Protocol in workflow.md)
