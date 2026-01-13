@@ -156,6 +156,22 @@ def testEvalLabelGoto : IO Bool := do
   | .error e => assert s!"Label/Goto failed with error: {e}" false
   | .jump _ _ => assert "Label/Goto returned uncaught jump" false
 
+def testEvalBuiltin : IO Bool := do
+  let env := Env.empty
+  let pos := synthesizedPos
+  
+  -- strLen("hello")
+  let s := "hello"
+  let arg := Producer.lit pos (.string s)
+  let halt := Consumer.covar pos "halt"
+  let builtinStmt := Statement.builtin pos .strLen [arg] halt
+  
+  match ← evalStatement builtinStmt env with
+  | .ok (.lit (.int 5)) => assert "Builtin strLen success" true
+  | .ok v => assert s!"Builtin strLen wrong value: {v}" false
+  | .error e => assert s!"Builtin strLen failed: {e}" false
+  | .jump _ _ => assert "Builtin strLen returned jump" false
+
 def runTests : IO (Nat × Nat) := do
   IO.println "\n=== Big-Step Unit Tests ==="
   let tests := [
@@ -166,7 +182,8 @@ def runTests : IO (Nat × Nat) := do
     testEvalUnboundVar,
     testEvalBinOp,
     testEvalLambda,
-    testEvalLabelGoto
+    testEvalLabelGoto,
+    testEvalBuiltin
   ]
   let mut passed := 0
   let mut failed := 0
