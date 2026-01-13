@@ -6,11 +6,11 @@
 - [x] Task: Implement Big-Step Evaluation for Basic Binary Operations 3ae5cc1
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation' (Protocol in workflow.md) 8a5e983
 
-## Phase 2: Functions and Control Flow
+## Phase 2: Functions and Control Flow [checkpoint: 815a440]
 - [x] Task: Implement Big-Step Evaluation for Lambda and Application d43f3ac
 - [x] Task: Implement Big-Step Evaluation for Label and Goto 0d66dd7
 - [x] Task: Implement Big-Step Evaluation for Built-in functions 3bf18de
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Functions and Control' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Functions and Control' (Protocol in workflow.md) 815a440
 
 ## Phase 3: Data and Codata
 - [ ] Task: Implement Big-Step Evaluation for Records and Field Access
