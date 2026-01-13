@@ -20,5 +20,6 @@
 
 ## Phase 4: Integration and Finalization
 - [ ] Task: Integrate Big-Step Evaluator into Main CLI and REPL
+- [ ] Task: Create consistency tests comparing Small-Step and Big-Step evaluation results
 - [ ] Task: Run all existing golden tests using the Big-Step Evaluator
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: Integration' (Protocol in workflow.md)
