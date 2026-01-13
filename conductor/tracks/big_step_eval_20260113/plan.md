@@ -1,10 +1,10 @@
 # Track Plan: Refactor IR Evaluator to a Big-Step Interpreter
 
-## Phase 1: Foundation and Simple Expressions
+## Phase 1: Foundation and Simple Expressions [checkpoint: 8a5e983]
 - [x] Task: Define Value and Environment types for Big-Step Evaluation 59a95a5
 - [x] Task: Implement Big-Step Evaluation for Literals and Variables 31032d2
 - [x] Task: Implement Big-Step Evaluation for Basic Binary Operations 3ae5cc1
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Foundation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation' (Protocol in workflow.md) 8a5e983
 
 ## Phase 2: Functions and Control Flow
 - [ ] Task: Implement Big-Step Evaluation for Lambda and Application
