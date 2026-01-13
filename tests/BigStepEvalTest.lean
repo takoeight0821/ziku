@@ -95,6 +95,26 @@ def testEvalBinOp : IO Bool := do
 
   return r1 && r2 && r3
 
+def testEvalLambda : IO Bool := do
+  let env := Env.empty
+  let pos := synthesizedPos
+  -- \x. x  => cocase { ap(x, α) => <x | α> }
+  let x := "x"
+  let alpha := "alpha"
+  let body := Statement.cut pos (.var pos x) (.covar pos alpha)
+  let lambda := Producer.cocase pos [("ap", [x, alpha], body)]
+  
+  let arg := Producer.lit pos (.int 42)
+  let halt := Consumer.covar pos "halt"
+  
+  -- Application: <lambda | ap(42; halt)>
+  let stmtApp := Statement.cut pos lambda (.destructor pos "ap" [arg] halt)
+  
+  match ← evalStatement stmtApp env with
+  | .ok (.lit (.int 42)) => assert "Lambda application success" true
+  | .ok v => assert s!"Lambda application wrong value: {v}" false
+  | .error e => assert s!"Lambda application failed: {e}" false
+
 def runTests : IO (Nat × Nat) := do
   IO.println "\n=== Big-Step Unit Tests ==="
   let tests := [
@@ -103,7 +123,8 @@ def runTests : IO (Nat × Nat) := do
     testEvalLiteral,
     testEvalVar,
     testEvalUnboundVar,
-    testEvalBinOp
+    testEvalBinOp,
+    testEvalLambda
   ]
   let mut passed := 0
   let mut failed := 0
