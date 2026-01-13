@@ -193,6 +193,29 @@ def testEvalRecord : IO Bool := do
   | .error e => assert s!"Record field access failed: {e}" false
   | .jump _ _ => assert "Record field access returned jump" false
 
+def testEvalDataConMatch : IO Bool := do
+  let env := Env.empty
+  let pos := synthesizedPos
+  
+  -- Cons(1, Nil())
+  let nil := Producer.dataCon pos "Nil" []
+  let cons := Producer.dataCon pos "Cons" [Producer.lit pos (.int 1), nil]
+  
+  -- match cons { Cons(x, xs) => x }
+  let x := "x"
+  let xs := "xs"
+  let halt := Consumer.covar pos "halt"
+  let body := Statement.cut pos (.var pos x) halt
+  let caseConsumer := Consumer.case pos [("Cons", [x, xs], body)]
+  
+  let stmtMatch := Statement.cut pos cons caseConsumer
+  
+  match ← evalStatement stmtMatch env with
+  | .ok (.lit (.int 1)) => assert "DataCon match success" true
+  | .ok v => assert s!"DataCon match wrong value: {v}" false
+  | .error e => assert s!"DataCon match failed: {e}" false
+  | .jump _ _ => assert "DataCon match returned jump" false
+
 def runTests : IO (Nat × Nat) := do
   IO.println "\n=== Big-Step Unit Tests ==="
   let tests := [
@@ -205,7 +228,8 @@ def runTests : IO (Nat × Nat) := do
     testEvalLambda,
     testEvalLabelGoto,
     testEvalBuiltin,
-    testEvalRecord
+    testEvalRecord,
+    testEvalDataConMatch
   ]
   let mut passed := 0
   let mut failed := 0
