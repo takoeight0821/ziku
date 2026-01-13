@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: Refactor IR Evaluator to a Big-Step Interpreter
+## [~] Track: Refactor IR Evaluator to a Big-Step Interpreter
 *Link: [./conductor/tracks/big_step_eval_20260113/](./conductor/tracks/big_step_eval_20260113/)*
