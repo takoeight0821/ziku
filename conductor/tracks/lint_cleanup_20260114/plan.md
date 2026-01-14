@@ -2,12 +2,12 @@
 
 This plan outlines the steps to investigate, resolve, and prevent linting issues in the Ziku project.
 
-## Phase 1: Investigation and Baseline [checkpoint: none]
+## Phase 1: Investigation and Baseline [checkpoint: d600e9f]
 Focus on identifying the current state and creating a baseline of warnings.
 
 - [x] Task: Baseline - Capture current `lake build` and `lake test` output d2a415b
 - [x] Task: Baseline - Identify and categorize all active warnings/errors 041225a
-- [ ] Task: Conductor - User Manual Verification 'Investigation and Baseline' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Investigation and Baseline' (Protocol in workflow.md) d600e9f
 
 ## Phase 2: Resolve Unused Bindings and Imports [checkpoint: none]
 Cleanup of dead code and unused references.
