@@ -16,13 +16,14 @@ Cleanup of dead code and unused references.
 - [x] Task: Cleanup - Resolve all unused variable and parameter warnings b6734a0
 - [x] Task: Conductor - User Manual Verification 'Resolve Unused Bindings and Imports' (Protocol in workflow.md) ec97143
 
-## Phase 3: Style and Documentation [checkpoint: none]
+## Phase 3: Style and Documentation [checkpoint: 428258e]
 Standardizing code format and ensuring basic documentation.
 
-- [ ] Task: Style - Fix naming convention violations identified by linters
-- [ ] Task: Style - Address indentation and whitespace warnings
-- [ ] Task: Docs - Add missing docstrings to public declarations flagged by linters
-- [ ] Task: Conductor - User Manual Verification 'Style and Documentation' (Protocol in workflow.md)
+- [x] Task: Style - Fix naming convention violations identified by linters d4b6721
+- [x] Task: Style - Resolve deprecated String method warnings (trim, dropRight) 53106
+- [x] Task: Style - Address indentation and whitespace warnings 54953
+- [x] Task: Docs - Add missing docstrings to public declarations flagged by linters 428258e
+- [x] Task: Conductor - User Manual Verification 'Style and Documentation' (Protocol in workflow.md) 428258e
 
 ## Phase 4: Logic and Completeness [checkpoint: none]
 Addressing deeper compiler warnings regarding type safety and exhaustiveness.
