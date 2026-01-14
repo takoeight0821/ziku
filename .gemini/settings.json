@@ -11,6 +11,7 @@
             "run_shell_command(lake test)",
             "run_shell_command(lake build)",
             "run_shell_command(lake exe ziku)",
+            "run_shell_command(docker run --rm ziku)",
             "run_shell_command(hexdump)",
             "run_shell_command(timeout)",
             "run_shell_command(cd)",
