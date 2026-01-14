@@ -25,13 +25,13 @@ Standardizing code format and ensuring basic documentation.
 - [x] Task: Docs - Add missing docstrings to public declarations flagged by linters 428258e
 - [x] Task: Conductor - User Manual Verification 'Style and Documentation' (Protocol in workflow.md) 428258e
 
-## Phase 4: Logic and Completeness [checkpoint: none]
+## Phase 4: Logic and Completeness [checkpoint: 3e73059]
 Addressing deeper compiler warnings regarding type safety and exhaustiveness.
 
-- [ ] Task: Logic - Resolve non-exhaustive pattern matching warnings (where practical)
-- [ ] Task: Logic - Document and justify remaining `partial` definitions
-- [ ] Task: Logic - Address any implicit coercion or type-related warnings
-- [ ] Task: Conductor - User Manual Verification 'Logic and Completeness' (Protocol in workflow.md)
+- [x] Task: Logic - Resolve non-exhaustive pattern matching warnings (where practical) cc89cc1
+- [x] Task: Logic - Document and justify remaining `partial` definitions afbc11a
+- [x] Task: Logic - Address any implicit coercion or type-related warnings 3e73059
+- [x] Task: Conductor - User Manual Verification 'Logic and Completeness' (Protocol in workflow.md) 3e73059
 
 ## Phase 5: Linter Tightening [checkpoint: none]
 Configuring the project to maintain the new standard.
