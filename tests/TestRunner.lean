@@ -241,8 +241,7 @@ def runSchemeTest (tc : TestCase) : IO TestResult :=
 -- Evaluator Full Execution Helpers
 -- ============================================================================
 
-def runIREvalFull (input : String) : IO (Except String TestOutput) :=
-  do
+def runIREvalFull (input : String) : IO (Except String TestOutput) := do
 
   match Ziku.parseExprString input.trim with
 
@@ -260,7 +259,7 @@ def runIREvalFull (input : String) : IO (Except String TestOutput) :=
 
         match result with
 
-        | .value p _ => return .ok { output := Ziku.IR.truncate p.toString, isError := false }
+        | .value p _ => return .ok { output := p.toString, isError := false }
 
         | .stuck s env =>
 
@@ -277,8 +276,8 @@ def runIREvalFull (input : String) : IO (Except String TestOutput) :=
   | .error e => return .error e
 
 
-def runBigStepEvalFull (input : String) : IO (Except String TestOutput) :=
-  do
+
+def runBigStepEvalFull (input : String) : IO (Except String TestOutput) := do
 
   match Ziku.parseExprString input.trim with
 
@@ -296,7 +295,7 @@ def runBigStepEvalFull (input : String) : IO (Except String TestOutput) :=
 
         match result with
 
-        | .value v => return .ok { output := Ziku.IR.truncate (toString v), isError := false }
+        | .value v => return .ok { output := toString v, isError := false }
 
         | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
 
@@ -308,9 +307,23 @@ def runBigStepEvalFull (input : String) : IO (Except String TestOutput) :=
 
 
 
+def runBigStepEvalTest (input : String) : IO (Except String TestOutput) := do
+
+  match ← runBigStepEvalFull input with
+
+  | .ok output => return .ok { output with output := Ziku.IR.truncate output.output }
+
+  | .error e => return .error e
+
+
+
 -- ============================================================================
+
 -- Consistency Tests
+
 -- ============================================================================
+
+
 
 def runConsistencyTest (name : String) (inputPath : String) : IO TestResult :=
   do
@@ -377,19 +390,35 @@ def runTest (tc : TestCase) : IO TestResult :=
 
 
 
-  let result : Except String TestOutput ← match tc.testType with
+    let result : Except String TestOutput ← match tc.testType with
 
-    | "infer" => pure (runInferTest input)
 
-    | "ir-eval" => runIREvalTest input
 
-    | "ir-eval-big-step" => runBigStepEvalFull input
+      | "infer" => pure (runInferTest input)
 
-    | "translate" => pure (runTranslateTest input)
 
-    | "scheme-codegen" => pure (runSchemeCodegenTest input)
 
-    | _ => pure (runParserTest input)
+      | "ir-eval" => runIREvalTest input
+
+
+
+      | "ir-eval-big-step" => runBigStepEvalTest input
+
+
+
+      | "translate" => pure (runTranslateTest input)
+
+
+
+      | "scheme-codegen" => pure (runSchemeCodegenTest input)
+
+
+
+      | _ => pure (runParserTest input)
+
+
+
+  
 
 
 
