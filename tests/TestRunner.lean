@@ -356,7 +356,7 @@ def runConsistencyTest (name : String) (inputPath : String) : IO TestResult :=
             let irDisplay := Ziku.IR.truncate irOutput.output.trim
             pure (TestResult.fail s!"IR eval: {irDisplay}" s!"Scheme: {Ziku.IR.truncate schemeOutput}")
 
-def runBigStepConsistencyTest (name : String) (inputPath : String) : IO TestResult :=
+def runBigStepConsistencyTest (_name : String) (inputPath : String) : IO TestResult :=
   do
     let input ← IO.FS.readFile inputPath
 
@@ -644,7 +644,7 @@ def runEmitSchemeCategory : IO (Nat × Nat) :=
 
     pure (passed, failed)
 
-def runIOTest (baseName : String) (inputPath : String) (goldenPath : String) (stdinInputPath : Option String) : IO TestResult :=
+def runIOTest (_baseName : String) (inputPath : String) (goldenPath : String) (stdinInputPath : Option String) : IO TestResult :=
   do
     let golden ← readFileOrEmpty goldenPath
     
