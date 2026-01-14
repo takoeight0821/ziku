@@ -33,9 +33,9 @@ Addressing deeper compiler warnings regarding type safety and exhaustiveness.
 - [x] Task: Logic - Address any implicit coercion or type-related warnings 3e73059
 - [x] Task: Conductor - User Manual Verification 'Logic and Completeness' (Protocol in workflow.md) 3e73059
 
-## Phase 5: Linter Tightening [checkpoint: none]
+## Phase 5: Linter Tightening [checkpoint: 1003170]
 Configuring the project to maintain the new standard.
 
-- [ ] Task: Tightening - Enable additional built-in linters in `lakefile.lean`
-- [ ] Task: Final - Verify zero warnings for `lake build` and `lake test`
-- [ ] Task: Conductor - User Manual Verification 'Linter Tightening' (Protocol in workflow.md)
+- [x] Task: Tightening - Enable additional built-in linters in `lakefile.lean` e71b988
+- [x] Task: Final - Verify zero warnings for `lake build` and `lake test` cc89cc1
+- [x] Task: Conductor - User Manual Verification 'Linter Tightening' (Protocol in workflow.md) 1003170
