@@ -5,7 +5,7 @@ This plan outlines the steps to investigate, resolve, and prevent linting issues
 ## Phase 1: Investigation and Baseline [checkpoint: none]
 Focus on identifying the current state and creating a baseline of warnings.
 
-- [~] Task: Baseline - Capture current `lake build` and `lake test` output
+- [x] Task: Baseline - Capture current `lake build` and `lake test` output d2a415b
 - [ ] Task: Baseline - Identify and categorize all active warnings/errors
 - [ ] Task: Conductor - User Manual Verification 'Investigation and Baseline' (Protocol in workflow.md)
 
