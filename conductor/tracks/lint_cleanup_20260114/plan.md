@@ -12,8 +12,8 @@ Focus on identifying the current state and creating a baseline of warnings.
 ## Phase 2: Resolve Unused Bindings and Imports [checkpoint: none]
 Cleanup of dead code and unused references.
 
-- [ ] Task: Cleanup - Resolve all unused import warnings
-- [ ] Task: Cleanup - Resolve all unused variable and parameter warnings
+- [x] Task: Cleanup - Resolve all unused import warnings 3c705b0
+- [x] Task: Cleanup - Resolve all unused variable and parameter warnings b6734a0
 - [ ] Task: Conductor - User Manual Verification 'Resolve Unused Bindings and Imports' (Protocol in workflow.md)
 
 ## Phase 3: Style and Documentation [checkpoint: none]
