@@ -44,3 +44,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [ ] Track: CLI Enhancements - Help and Script Execution
 *Link: [./conductor/tracks/cli_enhancements_20260107/](./conductor/tracks/cli_enhancements_20260107/)*
+
+---
+
+## [~] **Track: chore: add cooldown 7 days to dependabot.yml**
+*Link: [./tracks/add_cooldown_7_days_dependabot_20260115/](./tracks/add_cooldown_7_days_dependabot_20260115/)*
