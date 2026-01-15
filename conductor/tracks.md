@@ -47,5 +47,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] **Track: chore: add cooldown 7 days to dependabot.yml**
+## [x] **Track: chore: add cooldown 7 days to dependabot.yml**
 *Link: [./tracks/add_cooldown_7_days_dependabot_20260115/](./tracks/add_cooldown_7_days_dependabot_20260115/)*
