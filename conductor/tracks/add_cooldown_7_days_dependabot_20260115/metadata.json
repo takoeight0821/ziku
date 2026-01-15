@@ -1,8 +1,0 @@
-{
-  "track_id": "add_cooldown_7_days_dependabot_20260115",
-  "type": "chore",
-  "status": "new",
-  "created_at": "2026-01-15T15:00:00Z",
-  "updated_at": "2026-01-15T15:00:00Z",
-  "description": "chore: add cooldown 7 days to dependabot.yml"
-}
