@@ -1,5 +1,6 @@
 import Ziku.Syntax
 import Ziku.Builtins
+import Ziku.ExternalBuiltins
 import Ziku.Type
 import Ziku.Elaborate
 
@@ -501,8 +502,11 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
       let (baseExpr, allArgs) := collectAppArgs expr
       match baseExpr with
       | .var _ name =>
-        -- Check if base is a builtin
-        match builtinTypes name with
+        -- Check if base is a builtin (internal or external)
+        let builtinSig := match builtinTypes name with
+          | some sig => some sig
+          | none => ExternalBuiltins.externalBuiltinTypesSync name
+        match builtinSig with
         | some (argTys, resultTy) =>
           -- Check if arity matches
           if allArgs.length == argTys.length then

@@ -1,5 +1,6 @@
 import Ziku.Syntax
 import Ziku.Builtins
+import Ziku.ExternalBuiltins
 import Ziku.IR.Syntax
 import Ziku.IR.Eval
 import Ziku.IR.Focusing
@@ -235,14 +236,14 @@ mutual
         let (baseExpr, allArgs) := Ziku.collectAppArgs e
         match baseExpr with
         | .var _ name =>
-          -- Check if base is a builtin
+          -- Check if base is an internal builtin
           match Ziku.nameToBuiltin name with
           | some builtin =>
             -- Check if arity matches
             if allArgs.length == Ziku.builtinArity builtin then
               -- Saturated builtin call: translate to Statement.builtin
               let α ← freshCovar
-              let argsP ← allArgs.mapM (fun a => match a with 
+              let argsP ← allArgs.mapM (fun a => match a with
                 | .app _ _ _ true => throw $ .notImplemented pos "covalue in builtin"
                 | _ => translateExpr a)
               return .mu pos α (.builtin pos builtin argsP (.covar pos α))
@@ -253,11 +254,29 @@ mutual
               let argP ← translateExpr arg
               return .mu pos α (.cut pos fnP (.destructor pos "ap" [argP] (.covar pos α)))
           | none =>
-            -- Not a builtin - normal function application
-            let α ← freshCovar
-            let fnP ← translateExpr fn
-            let argP ← translateExpr arg
-            return .mu pos α (.cut pos fnP (.destructor pos "ap" [argP] (.covar pos α)))
+            -- Check if it's an external builtin
+            match ExternalBuiltins.externalBuiltinAritySync name with
+            | some extArity =>
+              -- Check if arity matches
+              if allArgs.length == extArity then
+                -- Saturated external builtin call
+                let α ← freshCovar
+                let argsP ← allArgs.mapM (fun a => match a with
+                  | .app _ _ _ true => throw $ .notImplemented pos "covalue in builtin"
+                  | _ => translateExpr a)
+                return .mu pos α (.externalBuiltin pos name argsP (.covar pos α))
+              else
+                -- Partial application or wrong arity - normal function call
+                let α ← freshCovar
+                let fnP ← translateExpr fn
+                let argP ← translateExpr arg
+                return .mu pos α (.cut pos fnP (.destructor pos "ap" [argP] (.covar pos α)))
+            | none =>
+              -- Not a builtin - normal function application
+              let α ← freshCovar
+              let fnP ← translateExpr fn
+              let argP ← translateExpr arg
+              return .mu pos α (.cut pos fnP (.destructor pos "ap" [argP] (.covar pos α)))
         | _ =>
           -- Not a variable base - normal function application
           let α ← freshCovar

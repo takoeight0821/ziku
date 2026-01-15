@@ -1,0 +1,63 @@
+# Ziku External Builtin Definitions
+# These functions are defined in Scheme and can be called from Ziku programs.
+
+version: 1
+
+builtins:
+  # File I/O
+  - name: readFile
+    type: "String -> String"
+    arity: 1
+    scheme: |
+      (lambda (path)
+        (call-with-input-file path
+          (lambda (p) (get-string-all p))))
+
+  - name: writeFile
+    type: "String -> String -> Unit"
+    arity: 2
+    scheme: |
+      (lambda (path content)
+        (call-with-output-file path
+          (lambda (p) (put-string p content)))
+        '())
+
+  - name: fileExists
+    type: "String -> Bool"
+    arity: 1
+    scheme: "(lambda (path) (file-exists? path))"
+
+  # Environment
+  - name: getEnv
+    type: "String -> String"
+    arity: 1
+    scheme: |
+      (lambda (name)
+        (let ((val (getenv name)))
+          (if val val "")))
+
+  # Math
+  - name: sqrt
+    type: "Float -> Float"
+    arity: 1
+    scheme: "(lambda (x) (sqrt x))"
+
+  - name: sin
+    type: "Float -> Float"
+    arity: 1
+    scheme: "(lambda (x) (sin x))"
+
+  - name: cos
+    type: "Float -> Float"
+    arity: 1
+    scheme: "(lambda (x) (cos x))"
+
+  - name: floor
+    type: "Float -> Int"
+    arity: 1
+    scheme: "(lambda (x) (exact (floor x)))"
+
+  - name: ceil
+    type: "Float -> Int"
+    arity: 1
+    scheme: "(lambda (x) (exact (ceiling x)))"

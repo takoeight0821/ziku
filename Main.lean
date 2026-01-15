@@ -49,7 +49,7 @@ def runOnInput (mode : Mode) (input : String) : IO Unit := do
         IO.eprintln s!"Translate error: {err}"
         IO.Process.exit 1
       | .ok stmt =>
-        let scheme := Backend.Scheme.compile stmt
+        let scheme ← Backend.Scheme.compileIO stmt
         IO.println scheme
     | .eval | .repl =>
       match Translate.translateToStatement expr with
@@ -100,6 +100,9 @@ partial def repl : IO Unit := do
       repl
 
 def main (args : List String) : IO Unit := do
+  -- Initialize external builtins registry
+  let _ ← ExternalBuiltins.initRegistry
+
   let mode := parseArgs args
   match mode with
   | .repl =>

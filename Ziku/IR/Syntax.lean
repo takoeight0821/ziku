@@ -59,6 +59,8 @@ inductive Statement where
       -- f(p̄; c̄) - function/top-level call
   | builtin   : SourcePos → Builtin → List Producer → Consumer → Statement
       -- builtin(p̄; c) - built-in function call (strLen, strAt, etc.)
+  | externalBuiltin : SourcePos → String → List Producer → Consumer → Statement
+      -- externalBuiltin(name, p̄; c) - external built-in function call (defined in YAML)
   deriving Repr, BEq
 
 end
@@ -93,6 +95,7 @@ def Statement.pos : Statement → SourcePos
   | ifz p _ _ _ => p
   | call p _ _ _ => p
   | builtin p _ _ _ => p
+  | externalBuiltin p _ _ _ => p
 
 -- Free variables in Producer
 mutual
@@ -121,6 +124,7 @@ partial def Statement.freeVars : Statement → List Ident
   | .ifz _ p s1 s2 => p.freeVars ++ s1.freeVars ++ s2.freeVars
   | .call _ _ ps cs => ps.flatMap Producer.freeVars ++ cs.flatMap Consumer.freeVars
   | .builtin _ _ ps c => ps.flatMap Producer.freeVars ++ c.freeVars
+  | .externalBuiltin _ _ ps c => ps.flatMap Producer.freeVars ++ c.freeVars
 end
 
 -- Pretty printing
@@ -165,6 +169,9 @@ partial def Statement.toString : Statement → String
   | .builtin _ b ps c =>
     let psStr := String.intercalate ", " (ps.map Producer.toString)
     s!"{b}({psStr}; {c.toString})"
+  | .externalBuiltin _ name ps c =>
+    let psStr := String.intercalate ", " (ps.map Producer.toString)
+    s!"{name}({psStr}; {c.toString})"
 end
 
 instance : ToString Producer := ⟨Producer.toString⟩

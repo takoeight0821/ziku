@@ -169,6 +169,23 @@ mutual
           let ps' := ps.set idx (.var pos x)
           let inner ← focusStatement (.builtin pos b ps' c)
           pure (.cut pos p (.muTilde pos x inner))
+    | .externalBuiltin pos name ps c => do
+      -- Focus all producer arguments (same as builtin)
+      match ps.findIdx? Producer.needsFocus with
+      | none => do
+        let c' ← focusConsumer c
+        pure (.externalBuiltin pos name ps c')
+      | some idx =>
+        match ps[idx]? with
+        | none => do
+          let c' ← focusConsumer c
+          pure (.externalBuiltin pos name ps c')
+        | some nonValueP =>
+          let x ← freshVar
+          let p ← focusProducer nonValueP
+          let ps' := ps.set idx (.var pos x)
+          let inner ← focusStatement (.externalBuiltin pos name ps' c)
+          pure (.cut pos p (.muTilde pos x inner))
     | .call pos f ps cs => do
       match ps.findIdx? Producer.needsFocus with
       | none => do

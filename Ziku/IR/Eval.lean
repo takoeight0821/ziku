@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.ExternalBuiltins
 import Ziku.IR.Syntax
 
 namespace Ziku.IR
@@ -144,6 +145,10 @@ inductive EvalError where
   | caseNotFound : SourcePos → String → List String → EvalError
   | destructorNotFound : SourcePos → String → List String → EvalError
   | callNotSupported : SourcePos → EvalError
+  -- External builtin関連
+  | externalBuiltinNotFound : SourcePos → String → EvalError
+  | externalBuiltinSchemeError : SourcePos → String → String → EvalError
+  | externalBuiltinParseError : SourcePos → String → String → EvalError
   deriving Repr, Inhabited
 
 -- Evaluation result
@@ -298,6 +303,85 @@ partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (
     | .strAt => 2
     | .strSub => 3))
 
+-- Convert a Producer value to Scheme literal string
+private def producerToSchemeLit (p : Producer) : Option String :=
+  match p with
+  | .lit _ (.int n) => some s!"{n}"
+  | .lit _ (.float f) => some s!"{f}"
+  | .lit _ (.string s) => some s!"\"{s.replace "\"" "\\\""}\"" -- escape quotes
+  | .lit _ (.char c) => some s!"#\\x{String.mk [c]}"
+  | .lit _ (.bool true) => some "#t"
+  | .lit _ (.bool false) => some "#f"
+  | .lit _ .unit => some "'()"
+  | _ => none
+
+-- Parse Scheme result back to Producer
+private def parseSchemeResult (pos : SourcePos) (result : String) : Except EvalError Producer :=
+  let s := result.trim
+  if s.isEmpty then
+    .ok (.lit pos .unit)
+  else if s == "#t" then
+    .ok (.lit pos (.bool true))
+  else if s == "#f" then
+    .ok (.lit pos (.bool false))
+  else if s == "()" || s == "'()" then
+    .ok (.lit pos .unit)
+  else if s.startsWith "\"" && s.endsWith "\"" then
+    .ok (.lit pos (.string (s.drop 1 |>.dropRight 1)))
+  else match s.toInt? with
+    | some n => .ok (.lit pos (.int n))
+    | none => match s.toNat? with
+      | some n => .ok (.lit pos (.int n))
+      | none =>
+        -- Try float
+        if s.contains '.' || s.contains 'e' || s.contains 'E' then
+          -- Simple float parsing (Lean's toFloat? may work)
+          .ok (.lit pos (.string s)) -- Fallback to string
+        else
+          .ok (.lit pos (.string s)) -- Return as string if can't parse
+
+-- Evaluate external builtin by invoking Scheme subprocess
+partial def evalExternalBuiltin (pos : SourcePos) (name : String) (args : List Producer) (env : Env) :
+    IO (Except EvalError Producer) := do
+  -- Get external builtin definition
+  match ← ExternalBuiltins.getExternalBuiltin name with
+  | none => return .error (.externalBuiltinNotFound pos name)
+  | some ext =>
+    -- Resolve all arguments to values
+    let mut argScheme : List String := []
+    for arg in args do
+      match resolve arg env with
+      | .ok resolvedArg =>
+        match producerToSchemeLit resolvedArg with
+        | some lit => argScheme := argScheme ++ [lit]
+        | none => return .error (.externalBuiltinParseError pos name s!"Cannot convert argument to Scheme: {resolvedArg}")
+      | .error e => return .error e
+
+    -- Build Scheme expression
+    let schemeExpr := s!"(write ({ext.name} {String.intercalate " " argScheme}))"
+    let fullCode := s!";; External builtin definition\n(define {ext.name} {ext.schemeCode})\n;; Call\n{schemeExpr}"
+
+    -- Invoke Scheme
+    let child ← IO.Process.spawn {
+      cmd := "scheme"
+      args := #["--quiet"]
+      stdin := .piped
+      stdout := .piped
+      stderr := .piped
+    }
+    child.stdin.putStr fullCode
+    child.stdin.flush
+    let (stdout, child) ← child.takeStdin >>= fun c => do
+      let out ← c.stdout.readToEnd
+      return (out, c)
+    let exitCode ← child.wait
+
+    if exitCode == 0 then
+      return parseSchemeResult pos stdout
+    else
+      let stderr ← child.stderr.readToEnd
+      return .error (.externalBuiltinSchemeError pos name stderr)
+
 inductive State where
   | cut (p : Producer) (env_p : Env) (c : Consumer) (env_c : Env)
   | stmt (s : Statement) (env : Env)
@@ -326,6 +410,10 @@ partial def stateStep : State → IO (Except EvalError (Option State))
       | _ => .error (.patternMatchFailed pos cond (.muTilde cond.pos "_ifz" (.ifz pos cond s1 s2)))
   | .stmt (.builtin pos b ps c) env => do
     match ← evalBuiltin pos b ps env with
+    | .ok result => return .ok (some (.cut result .empty c env))
+    | .error e => return .error e
+  | .stmt (.externalBuiltin pos name ps c) env => do
+    match ← evalExternalBuiltin pos name ps env with
     | .ok result => return .ok (some (.cut result .empty c env))
     | .error e => return .error e
   | .stmt (.call pos _ _ _) _ => return .error (.callNotSupported pos)
@@ -464,6 +552,9 @@ def EvalError.toString : EvalError → String
   | .caseNotFound pos conName branches => s!"Case not found at {pos}: constructor '{conName}' not in branches {branches}"
   | .destructorNotFound pos d branches => s!"Destructor not found at {pos}: '{d}' not in {branches}"
   | .callNotSupported pos => s!"Call statements are not supported in evaluation at {pos}"
+  | .externalBuiltinNotFound pos name => s!"External builtin not found at {pos}: {name}"
+  | .externalBuiltinSchemeError pos name err => s!"External builtin Scheme error at {pos}: {name}: {truncate err}"
+  | .externalBuiltinParseError pos name err => s!"External builtin parse error at {pos}: {name}: {truncate err}"
 
 instance : ToString EvalError := ⟨EvalError.toString⟩
 

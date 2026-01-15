@@ -1,255 +1,98 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# Ziku - AI Coding Agent Instructions
 
 ## Project Overview
+Ziku is an arithmetic expression evaluator with type inference, implemented in **Lean 4** (v4.26.0). It features a hand-written parser, environment-based evaluator, and foundational type system designed for future Hindley-Milner extension (let bindings, lambdas, polymorphism).
 
-Ziku is a programming language implementation in Lean 4 featuring:
+**Key design principle**: Proofs are first-class citizens. This is a theorem proving project with executable code.
 
-- **Duality-aware design**: explicit data/codata symmetry
-- **Sequent calculus IR**: λμμ̃-calculus based intermediate representation
-- **Surface/IR separation**: user-friendly surface syntax translated to sequent calculus
-- **Copattern matching**: for codata construction using `#` (self-reference)
-- **Hindley-Milner type inference** with let-polymorphism
+## Architecture & File Organization
 
-## Build Commands
+### Core Modules (Ziku/)
+- [Syntax.lean](../Ziku/Syntax.lean): AST definition (`Expr` inductive), `size` for induction, `freeVars` for scoping
+- [Parser.lean](../Ziku/Parser.lean): Hand-written parser using mutual recursion (parseExpr ↔ parseFactor ↔ parseAtom)
+- [Type.lean](../Ziku/Type.lean): `Ty` (int | var) and `Subst` for future polymorphism
+- [Infer.lean](../Ziku/Infer.lean): Type inference with `InferState`, `freshTyVar`, `unify` (currently Int-only)
+- [Eval.lean](../Ziku/Eval.lean): Environment-based interpreter returning `Option Int` (handles division by zero)
 
-**IMPORTANT: Use Docker for all builds and tests to ensure consistent environments across development and CI.**
+### Proof Modules (Ziku/Proofs/)
+- [Eval.lean](../Ziku/Proofs/Eval.lean): Evaluation correctness (`eval_lit`, `eval_add`, `eval_div_zero`)
+- [Soundness.lean](../Ziku/Proofs/Soundness.lean): Type soundness (`infer_deterministic`, `infer_var_mem`)
+- [Arithmetic.lean](../Ziku/Proofs/Arithmetic.lean), [Identities.lean](../Ziku/Proofs/Identities.lean): Algebraic properties
 
-### Docker (Recommended - no local dependencies required)
+### Entry Points
+- [Main.lean](../Main.lean): REPL using `partial def repl` (`:quit`/`:q` to exit)
+- [Ziku.lean](../Ziku.lean): Library root importing all modules
+
+## Critical Patterns
+
+### Mutual Recursion for Precedence Parsing
+Parser uses `mutual ... end` for operator precedence (* / > + -):
+```lean
+mutual
+  partial def parseAtom : Parser Expr := ...  -- literals, vars, parens
+  partial def parseFactor : Parser Expr := ... -- handles * /
+  partial def parseExpr : Parser Expr := ...   -- handles + -
+end
+```
+**Always use this structure when adding operators**. See [Parser.lean](../Ziku/Parser.lean#L55-L113) for reference.
+
+### Partial Functions
+Use `partial def` for recursion without termination proofs (parser, REPL). For provable functions (evaluator, type inference), provide structural recursion or well-founded measure.
+
+### Theorem Naming Convention
+- `eval_*` for evaluation properties ([Eval.lean](../Ziku/Proofs/Eval.lean))
+- `infer_*` for type inference properties ([Soundness.lean](../Ziku/Proofs/Soundness.lean))
+- Parameters: `env`, `e`/`e1`/`e2`, `v`/`v1`/`v2`, hypotheses `h`/`h1`/`h2`
+
+### Error Handling
+- Parser: `Except String` (position-aware errors)
+- Evaluator: `Option Int` (returns `none` for undefined vars, division by zero)
+- Type inference: `Option (Ty × Subst × InferState)`
+
+## Build & Development Workflow
 
 ```bash
-# Build Docker image (one-time setup, ~5 minutes)
-docker build -t ziku .
-
-# Run tests
-docker run --rm ziku nix develop --command lake test
+# Build executable and library
+lake build
 
 # Run REPL
-docker run --rm -it ziku nix develop --command lake exe ziku
+./.lake/build/bin/ziku
 
-# Build project
-docker run --rm ziku nix develop --command lake build
+# Clean build artifacts
+lake clean
 
-# Run Chez Scheme
-docker run --rm -it ziku nix develop --command scheme
+# Update dependencies
+lake update
 ```
 
-### Native (only if Docker is unavailable)
+**No test framework configured** - verification is via formal proofs in `Ziku/Proofs/`.
 
-Requires Lean 4 and Chez Scheme installed locally.
+## Adding New Features
 
-```bash
-lake build              # Build everything
-lake test               # Run golden tests (parser, eval, infer, ir-eval)
-lake exe ziku           # Run REPL
-```
+### To Add a New Operator (e.g., modulo)
+1. Add constructor to `Expr` in [Syntax.lean](../Ziku/Syntax.lean#L3-L10)
+2. Update `Expr.size` and `Expr.freeVars`
+3. Add parsing in [Parser.lean](../Ziku/Parser.lean) (choose precedence level)
+4. Add evaluation case in [Eval.lean](../Ziku/Eval.lean#L7-L28)
+5. Add type inference case in [Infer.lean](../Ziku/Infer.lean#L32-L49)
+6. **Prove correctness** in [Proofs/Eval.lean](../Ziku/Proofs/Eval.lean)
 
-## Dependency Management
+### To Add Variables/Let Bindings
+1. Extend parser to handle `let x = e1 in e2` syntax
+2. Add `Expr.let` constructor
+3. Update `freeVars` to exclude bound variables
+4. Extend `Env` handling in evaluator
+5. Update `TyEnv` in type inference
+6. **Prove substitution lemmas** for new binding constructs
 
-### Nix-based Dependencies
+## Type System Design Notes
+Current implementation is Int-only, but infrastructure supports polymorphism:
+- `Ty.var n` for type variables (currently unused)
+- `Subst` for unification substitutions
+- `InferState` tracks fresh variable generation
+- `unify` is basic but extensible
 
-The project uses Nix flakes for reproducible dependency management. All dependencies are defined in `flake.nix` and pinned via `flake.lock`.
+See author's research on [sequent calculus](../docs/research/grokking-the-sequent-calculus.md) and [Malgo compiler](../docs/research/malgo.md) for architectural inspiration.
 
-**Dependencies managed by Nix:**
-- elan (Lean 4 version manager)
-- chez (Chez Scheme compiler)
-- git, curl, cacert (build tools)
-- python3 (build scripts)
-
-### Automated Updates
-
-**Renovate** (weekly, Mondays 9:00 UTC):
-- GitHub Actions (with SHA digest pinning for supply chain security)
-- Nix flake inputs (nixpkgs, flake-utils)
-- Git submodules
-
-**GitHub Actions Workflow** (weekly, Mondays 9:00 UTC):
-- Lean toolchain (`lean-toolchain` file)
-- Lake dependencies (`lake-manifest.json` with build/test validation)
-
-### How Renovate Runs
-
-Renovate runs via self-hosted GitHub Actions workflow (`.github/workflows/renovate.yml`):
-- **Schedule**: Weekly on Mondays at 9:00 UTC
-- **Authentication**: GitHub App with repository secrets (`RENOVATE_APP_ID`, `RENOVATE_APP_PRIVATE_KEY`)
-- **Configuration**: `.github/renovate.json`
-- **Features**: Digest pinning for GitHub Actions, grouped updates, commit signing
-
-**To manually trigger**: Go to Actions tab → Renovate workflow → Run workflow
-
-**GitHub App Setup**: See [README.md - Dependency Management](README.md#dependency-management) for detailed setup instructions (manual GitHub App creation via web UI)
-
-### Dependency Strategy
-
-**Nix packages**: Pinned via `flake.lock` (fully reproducible)
-- All build tools (elan, chez, git, curl, etc.) from nixpkgs
-- Updated automatically via Renovate (nix manager)
-- Reproducible builds guaranteed by Nix
-
-**Lean toolchain**: Pinned via `lean-toolchain` file (e.g., `leanprover/lean4:v4.26.0`)
-- Updated automatically via GitHub Actions (weekly checks)
-
-**Lake dependencies**: Managed by `lake-manifest.json`
-- Updated automatically with build/test validation before PR creation
-
-### Manual Updates
-
-To update dependencies manually:
-
-```bash
-# Update Nix flake inputs (requires Docker)
-docker run --rm -v "$(pwd)":/workspace -w /workspace nixos/nix:latest \
-  sh -c "echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf && nix flake update"
-docker build --no-cache -t ziku .
-
-# Update Lean toolchain
-# 1. Edit lean-toolchain file with desired version
-# 2. Run: docker build --no-cache -t ziku .
-
-# Update Lake dependencies
-lake update && lake build && lake test
-```
-
-### Rollback Procedures
-
-**If Nix flake update breaks builds:**
-1. Revert flake.lock: `git checkout HEAD~1 flake.lock`
-2. Rebuild: `docker build --no-cache -t ziku .`
-
-**If Renovate creates problematic PRs:**
-1. Close PR with comment explaining issue
-2. Add to `ignoreDeps` in `.github/renovate.json`
-3. Pin version manually if needed
-
-**If Lean toolchain update fails tests:**
-1. Close auto-generated PR
-2. Investigate test failures
-3. Wait for next Lean release or report upstream
-
-## Architecture
-
-```
-Ziku/
-├── Syntax.lean         # Shared types: SourcePos, Ident, Lit, BinOp, Builtin, Pat, Ty
-├── Surface/
-│   └── Syntax.lean     # Surface AST with label/goto
-├── IR/
-│   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
-│   └── Eval.lean       # IR evaluator with μ/μ̃-reduction and builtin evaluation
-├── Backend/
-│   └── Scheme.lean     # Scheme code generator (CPS translation)
-├── Translate.lean      # Surface → IR translation (including builtin detection)
-├── Lexer.lean          # Hand-written lexer with UTF-8 support
-├── Parser.lean         # Hand-written recursive descent parser
-├── Type.lean           # Type utilities: Subst, Scheme
-├── Infer.lean          # HM type inference (including builtin type checking)
-├── Elaborate.lean      # Codata elaboration
-└── Proofs/             # Lean proofs (Arithmetic, Eval, Identities, Soundness)
-```
-
-### Pipeline
-
-```
-Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
-                        ↓                              ↓
-                   [Elaborate] → [Infer]          [Scheme Backend]
-```
-
-### Key Types
-
-**Surface Language (Ziku.Expr)**:
-
-- `lit`, `var`, `hash` (#), `binOp`, `unaryOp`
-- `lam`, `app`, `let_`, `letRec`, `if_`
-- `match_`, `codata`, `field`, `record`
-- `label`, `goto` - control flow primitives
-- `ann` - type annotation
-
-**Sequent Calculus IR**:
-
-- `Producer`: `var`, `lit`, `mu`, `cocase`, `record`, `fix`, `dataCon`
-- `Consumer`: `covar`, `muTilde`, `case`, `destructor`
-- `Statement`: `cut`, `binOp`, `ifz`, `call`, `builtin`
-
-**Built-in Functions** (detected during type inference/translation):
-
-- String: `strLen`, `strAt`, `strSub`, `strToInt`, `intToStr`
-- Rune: `intToRune`, `runeToInt`, `runeToStr`
-
-**Types**: `Int`, `Float`, `String`, `Rune`, `Bool`, `Unit` (note: `Rune` replaces `Char` for Unicode code points)
-
-### Core Design
-
-**Surface Language**:
-
-- **Pattern matching** (`|` clauses): destructs data types
-  - Supports nested patterns: `Cons(MNum(a), rest)` compiles to nested case expressions
-  - Literal patterns in constructor args: `Cons(42, _)`
-  - Uses join points (`mu`/`covar`) for failure handling
-- **Copattern matching** (`{}` blocks): constructs codata types
-- **`#`**: represents the object being defined (like `this`/`self`)
-- **`label name { body }`**: creates a control point
-- **`goto(value, name)`**: jumps to label with value
-
-**IR (λμμ̃-calculus)**:
-
-- **`μα.s`**: producer abstraction, captures continuation α
-- **`μ̃x.s`**: consumer abstraction, binds value x
-- **`⟨p | c⟩`**: cut, connects producer p with consumer c
-
-### Translation Rules (Grokking the Sequent Calculus)
-
-```
-⟦x⟧                     =  x
-⟦⌜n⌝⟧                   =  ⌜n⌝
-⟦t₁ ⊙ t₂⟧               =  μα. ⊙(⟦t₁⟧, ⟦t₂⟧; α)
-⟦if t₁ then t₂ else t₃⟧ =  μα.ifz(⟦t₁⟧, ⟨⟦t₂⟧ | α⟩, ⟨⟦t₃⟧ | α⟩)
-⟦let x = t₁ in t₂⟧      =  μα.⟨⟦t₁⟧ | μ̃x.⟨⟦t₂⟧ | α⟩⟩
-⟦λx.t⟧                  =  cocase {ap(x; α) ⇒ ⟨⟦t⟧ | α⟩}
-⟦t₁ t₂⟧                 =  μα.⟨⟦t₁⟧ | ap(⟦t₂⟧; α)⟩
-⟦label α {t}⟧           =  μα.⟨⟦t⟧ | α⟩
-⟦goto(t; α)⟧            =  μβ.⟨⟦t⟧ | α⟩  (β fresh)
-```
-
-### IR Reduction Rules
-
-```
-⟨μα.s | c̄⟩    ⊲  s[c̄/α]     (μ-reduction)
-⟨v̄ | μ̃x.s⟩    ⊲  s[v̄/x]     (μ̃-reduction, v is value)
-```
-
-## Testing
-
-Golden tests in `tests/golden/`:
-
-- `parser/success/`: Parser success tests (.ziku -> .golden)
-- `parser/error/`: Parser error tests (expected parse failures)
-- `infer/success/`: Type inference success tests
-- `infer/error/`: Type inference error tests
-- `ir-eval/success/`: IR evaluation tests (via translation)
-
-Tests are auto-discovered from `.ziku` files. Add new test by:
-
-1. Create `tests/golden/{category}/{success|error}/{name}.ziku`
-2. Run `lake test` to auto-generate `.golden` file
-
-## Conventions
-
-- Use conventional commit format for commit messages
-- The parser is hand-written due to Std.Internal.Parsec API issues
-- Use `partial` for recursive functions where termination is hard to prove
-  - **When to use `partial`**: For evaluators, interpreters, and complex mutual recursions where termination proof is impractical
-  - **Alternatives to consider**:
-    - Add `termination_by` clause with explicit measure (e.g., `sizeOf`, custom metrics)
-    - Use fuel parameter (`fuel : Nat`) to bound recursion depth
-    - Implement step-based execution with explicit state machine
-    - Refactor mutual recursion into unified type + single recursive function
-  - **Trade-offs**: `partial def` enables practical implementation but cannot be used in proofs; choose based on whether the function needs to be used in formal verification
-- Source positions are tracked throughout AST for error reporting
-- Use explicit function calls (e.g., `Producer.substVar x p prod`) instead of dot notation in mutual recursive functions to avoid argument order issues
-
-## Hints
-
-- `rm` is denied for safety, use `trash` command instead
-- If you want to try simpler case, you should add it as golden test
+## Commit Convention
+Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `test:` (see [CLAUDE.md](../CLAUDE.md))

@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.ExternalBuiltins
 import Ziku.IR.Syntax
 import Ziku.IR.Focusing
 
@@ -472,6 +473,32 @@ partial def translateStatementM : Statement → GenM String
       let argCodes ← args.mapM translateProducerM
       let builtinCall := translateBuiltinApp b argCodes
       pure s!"({cCode} {builtinCall})"
+  | .externalBuiltin _ name args c => do
+    -- externalBuiltin(name, p̄; c) → (c (name arg1 arg2 ...))
+    let cCode ← translateConsumerM c
+    -- Handle μ-abstractions similarly to builtin
+    let hasThunks := args.any fun p => match p with | .mu _ _ _ => true | _ => false
+    if hasThunks then
+      let indices := List.range args.length
+      let argVars ← indices.mapM fun i => freshVar s!"arg{i}"
+      let argBindingsWithCounts ← args.zip argVars |>.mapM fun (arg, varName) => do
+        match arg with
+        | .mu _ α s =>
+          let alphaName := mangleIdent α
+          let sCode ← translateStatementM s
+          pure (s!"((lambda ({alphaName}) {sCode}) (lambda ({varName}) ", 2)
+        | _ =>
+          let argCode ← translateProducerM arg
+          pure (s!"(let (({varName} {argCode})) ", 1)
+      let argBindings := argBindingsWithCounts.map (·.1)
+      let totalParens := argBindingsWithCounts.foldl (fun acc (_, n) => acc + n) 0
+      let externalCall := s!"({name} {String.intercalate " " argVars})"
+      let closingParens := String.ofList (List.replicate totalParens ')')
+      pure (String.intercalate "" argBindings ++ s!"({cCode} {externalCall})" ++ closingParens)
+    else
+      let argCodes ← args.mapM translateProducerM
+      let externalCall := s!"({name} {String.intercalate " " argCodes})"
+      pure s!"({cCode} {externalCall})"
 
 end
 
@@ -570,7 +597,30 @@ def schemeRuntime : String :=
 
 "
 
--- Generate complete Scheme program
+-- Generate external builtin definitions
+def generateExternalBuiltinDefs : IO String := do
+  let reg ← ExternalBuiltins.getRegistry
+  if reg.builtins.isEmpty then
+    return ""
+  else
+    let defs := reg.builtins.map fun ext =>
+      s!"(define {ext.name} {ext.schemeCode})"
+    return "\n;; External Builtin Definitions\n" ++ String.intercalate "\n" defs ++ "\n"
+
+-- Generate complete Scheme program (IO version for external builtins)
+def compileIO (s : Statement) : IO String := do
+  let mainBody := translateStatement s
+  let externalDefs ← generateExternalBuiltinDefs
+  return schemeRuntime ++ externalDefs ++
+";; Main program
+(define (ziku-main halt)
+  " ++ mainBody ++ ")
+
+;; Run with result printer
+(ziku-main ziku-print-result)
+"
+
+-- Generate complete Scheme program (pure version, no external builtins)
 def compile (s : Statement) : String :=
   let mainBody := translateStatement s
   schemeRuntime ++
@@ -587,5 +637,11 @@ def compileProducer (p : Producer) : String :=
   let stmt := Statement.cut synthesizedPos p (Consumer.covar synthesizedPos "halt")
   let focused := Ziku.IR.Focusing.focus stmt
   compile focused
+
+-- Compile a producer with external builtins (IO version)
+def compileProducerIO (p : Producer) : IO String := do
+  let stmt := Statement.cut synthesizedPos p (Consumer.covar synthesizedPos "halt")
+  let focused := Ziku.IR.Focusing.focus stmt
+  compileIO focused
 
 end Ziku.Backend.Scheme

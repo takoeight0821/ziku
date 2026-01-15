@@ -7,6 +7,7 @@
       "Bash(rm:*)"
     ]
   },
+  "language": "Japanese",
   "enabledPlugins": {
     "plugin-dev@claude-plugins-official": true
   }
