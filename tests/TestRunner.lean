@@ -14,6 +14,8 @@ import Ziku.IR.BigStepEval
 import Ziku.Backend.Scheme
 import tests.BigStepEvalTest
 
+set_option linter.missingDocs false
+
 -- ============================================================================
 -- Truncate Tests (from TruncateTest.lean)
 -- ============================================================================
@@ -135,7 +137,7 @@ def discoverTests (dir : System.FilePath) : IO (List String) :=
     let zikuFiles := entries.filterMap fun entry =>
       let name := entry.fileName
       if name.endsWith ".ziku" then
-        some (name.dropRight 5)
+        some (name.dropEnd 5).toString
       else
         none
     pure (zikuFiles.toList.mergeSort (· < ·))
@@ -148,12 +150,12 @@ structure TestOutput where
   deriving Repr
 
 def runParserTest (input : String) : Except String TestOutput :=
-  match Ziku.parseExprString input.trim with 
+  match Ziku.parseExprString input.trimAscii.toString with 
   | .ok expr => .ok { output := toString expr, isError := false }
   | .error e => .ok { output := e, isError := true }
 
 def runInferTest (input : String) : Except String TestOutput :=
-  match Ziku.parseExprString input.trim with 
+  match Ziku.parseExprString input.trimAscii.toString with 
   | .ok expr =>
     match Ziku.runInfer expr with
     | .ok (ty, _) => .ok { output := toString ty, isError := false }
@@ -162,7 +164,7 @@ def runInferTest (input : String) : Except String TestOutput :=
 
 def runIREvalTest (input : String) : IO (Except String TestOutput) :=
   do
-    match Ziku.parseExprString input.trim with 
+    match Ziku.parseExprString input.trimAscii.toString with 
     | .ok expr =>
       match Ziku.elaborateAll expr with
       | .ok elaborated =>
@@ -180,7 +182,7 @@ def runIREvalTest (input : String) : IO (Except String TestOutput) :=
     | .error e => return .error e
 
 def runTranslateTest (input : String) : Except String TestOutput :=
-  match Ziku.parseExprString input.trim with 
+  match Ziku.parseExprString input.trimAscii.toString with 
   | .ok expr =>
     match Ziku.elaborateAll expr with
     | .ok elaborated =>
@@ -191,7 +193,7 @@ def runTranslateTest (input : String) : Except String TestOutput :=
   | .error e => .error e
 
 def generateScheme (input : String) : Except String String :=
-  match Ziku.parseExprString input.trim with 
+  match Ziku.parseExprString input.trimAscii.toString with 
   | .ok expr =>
     match Ziku.elaborateAll expr with
     | .ok elaborated =>
@@ -224,18 +226,18 @@ def runSchemeTest (tc : TestCase) : IO TestResult :=
         args := #["--script", tempFile]
       }
 
-      let actual := result.stdout.trim
+      let actual := result.stdout.trimAscii.toString
 
       if result.exitCode != 0 then
-        pure (TestResult.error s!"Scheme error: {result.stderr.trim}")
+        pure (TestResult.error s!"Scheme error: {result.stderr.trimAscii.toString}")
       else if golden.isEmpty then
         IO.FS.writeFile tc.goldenPath actual
         IO.println s!"  Created golden file: {tc.goldenPath}"
         pure TestResult.pass
-      else if actual == golden.trim then
+      else if actual == golden.trimAscii.toString then
         pure TestResult.pass
       else
-        pure (TestResult.fail golden.trim actual)
+        pure (TestResult.fail golden.trimAscii.toString actual)
 
 -- ============================================================================
 -- Evaluator Full Execution Helpers
@@ -243,7 +245,7 @@ def runSchemeTest (tc : TestCase) : IO TestResult :=
 
 def runIREvalFull (input : String) : IO (Except String TestOutput) := do
 
-  match Ziku.parseExprString input.trim with
+  match Ziku.parseExprString input.trimAscii.toString with
 
   | .ok expr =>
 
@@ -279,7 +281,7 @@ def runIREvalFull (input : String) : IO (Except String TestOutput) := do
 
 def runBigStepEvalFull (input : String) : IO (Except String TestOutput) := do
 
-  match Ziku.parseExprString input.trim with
+  match Ziku.parseExprString input.trimAscii.toString with
 
   | .ok expr =>
 
@@ -347,13 +349,13 @@ def runConsistencyTest (name : String) (inputPath : String) : IO TestResult :=
         }
 
         if result.exitCode != 0 then
-          pure (TestResult.error s!"Scheme error: {result.stderr.trim}")
+          pure (TestResult.error s!"Scheme error: {result.stderr.trimAscii.toString}")
         else
-          let schemeOutput := result.stdout.trim
-          if irOutput.output.trim == schemeOutput then
+          let schemeOutput := result.stdout.trimAscii.toString
+          if irOutput.output.trimAscii.toString == schemeOutput then
             pure TestResult.pass
           else
-            let irDisplay := Ziku.IR.truncate irOutput.output.trim
+            let irDisplay := Ziku.IR.truncate irOutput.output.trimAscii.toString
             pure (TestResult.fail s!"IR eval: {irDisplay}" s!"Scheme: {Ziku.IR.truncate schemeOutput}")
 
 def runBigStepConsistencyTest (_name : String) (inputPath : String) : IO TestResult :=
@@ -370,11 +372,11 @@ def runBigStepConsistencyTest (_name : String) (inputPath : String) : IO TestRes
       | .error e =>
         pure (TestResult.error s!"Big-step parse error: {e}")
       | .ok bigStepOutput =>
-        if smallStepOutput.output.trim == bigStepOutput.output.trim then
+        if smallStepOutput.output.trimAscii.toString == bigStepOutput.output.trimAscii.toString then
           pure TestResult.pass
         else
-          let smallDisplay := Ziku.IR.truncate smallStepOutput.output.trim
-          let bigDisplay := Ziku.IR.truncate bigStepOutput.output.trim
+          let smallDisplay := Ziku.IR.truncate smallStepOutput.output.trimAscii.toString
+          let bigDisplay := Ziku.IR.truncate bigStepOutput.output.trimAscii.toString
           pure (TestResult.fail s!"Small-step: {smallDisplay}" s!"Big-step: {bigDisplay}")
 
 -- ============================================================================
@@ -434,10 +436,10 @@ def runTest (tc : TestCase) : IO TestResult :=
         IO.FS.writeFile tc.goldenPath testOutput.output
         IO.println s!"  Created golden file: {tc.goldenPath}"
         pure TestResult.pass
-      else if testOutput.output.trim == golden.trim then
+      else if testOutput.output.trimAscii.toString == golden.trimAscii.toString then
         pure TestResult.pass
       else
-        pure (TestResult.fail golden.trim testOutput.output.trim)
+        pure (TestResult.fail golden.trimAscii.toString testOutput.output.trimAscii.toString)
 
 def runSubCategory (category : String) (subdir : String) (testType : String) (expectError : Bool) : IO (Nat × Nat) :=
   do
@@ -673,18 +675,18 @@ def runIOTest (_baseName : String) (inputPath : String) (goldenPath : String) (s
     let actualStdOut ← IO.ofExcept stdout.get
     let actualStdErr ← IO.ofExcept stderr.get
     
-    let actual := actualStdOut.trim
+    let actual := actualStdOut.trimAscii.toString
     
     if exitCode != 0 then
-      pure (TestResult.error s!"Runtime error: {actualStdErr.trim}")
+      pure (TestResult.error s!"Runtime error: {actualStdErr.trimAscii.toString}")
     else if golden.isEmpty then
       IO.FS.writeFile goldenPath actual
       IO.println s!"  Created golden file: {goldenPath}"
       pure TestResult.pass
-    else if actual == golden.trim then
+    else if actual == golden.trimAscii.toString then
       pure TestResult.pass
     else
-      pure (TestResult.fail golden.trim actual)
+      pure (TestResult.fail golden.trimAscii.toString actual)
 
 def runIOTestCategory : IO (Nat × Nat) :=
   do

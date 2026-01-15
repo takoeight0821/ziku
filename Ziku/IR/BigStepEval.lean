@@ -1,5 +1,7 @@
-import Ziku.Syntax
 import Ziku.IR.Syntax
+import Ziku.Builtins
+
+set_option linter.missingDocs false
 
 namespace Ziku.IR.BigStepEval
 

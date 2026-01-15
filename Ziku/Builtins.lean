@@ -10,6 +10,7 @@ the type inference and translation phases.
 -/
 
 -- Get builtin enum from name
+/-- Returns the 'Builtin' enum variant for a given function name, if it is a built-in. -/
 def nameToBuiltin : String → Option Builtin
   | "strLen"    => some .strLen
   | "strAt"     => some .strAt
@@ -24,6 +25,7 @@ def nameToBuiltin : String → Option Builtin
   | _           => none
 
 -- Get arity of builtin function
+/-- Returns the expected number of arguments for a given built-in function. -/
 def builtinArity : Builtin → Nat
   | .strLen    => 1
   | .strAt     => 2
@@ -38,6 +40,7 @@ def builtinArity : Builtin → Nat
 
 -- Check if a name is a builtin function and return its type signature
 -- Returns (argTypes, resultType) for the builtin
+/-- Returns the type signature (argument types and return type) for a given built-in function name. -/
 def builtinTypes : String → Option (List Ty × Ty)
   | "strLen"    => some ([.con default "String"], .con default "Int")
   | "strAt"     => some ([.con default "String", .con default "Int"], .con default "Rune")
@@ -53,6 +56,7 @@ def builtinTypes : String → Option (List Ty × Ty)
 
 -- Collect all curried arguments from a chain of applications
 -- e.g., ((f x) y) z  =>  (f, [x, y, z])
+/-- Flattens a chain of curried function applications into the base function and a list of arguments. -/
 def collectAppArgs : Expr → (Expr × List Expr)
   | .app _ fn arg _ =>
     let (base, args) := collectAppArgs fn

@@ -24,12 +24,17 @@ Based on anma's copattern flattening algorithm:
 -/
 
 -- Elaboration error with source location
+/-- Represents an error that occurred during codata elaboration. -/
 inductive ElaborateError where
+  /-- Error for mixed field and call accessors in the same codata block. -/
   | mixedAccessors (pos : SourcePos) (msg : String)
+  /-- Error for an empty copattern where one was expected. -/
   | emptyCopattern (pos : SourcePos)
+  /-- General elaboration error with a custom message. -/
   | customError (pos : SourcePos) (msg : String)
   deriving Repr, Nonempty
 
+/-- Returns the string representation of an elaboration error. -/
 def ElaborateError.toString : ElaborateError → String
   | .mixedAccessors pos msg =>
     s!"Elaboration error at {pos.line}:{pos.col}: {msg}"
@@ -41,20 +46,28 @@ def ElaborateError.toString : ElaborateError → String
 instance : ToString ElaborateError := ⟨ElaborateError.toString⟩
 
 -- Classification of copattern accessors
+/-- Represents the kind of a copattern accessor (field vs. call). -/
 inductive AccessorKind where
+  /-- Field accessor (e.g., '.field'). -/
   | field : AccessorKind
+  /-- Application accessor (e.g., '(arg)'). -/
   | call : AccessorKind
   deriving Repr, BEq, DecidableEq
 
 -- Get the kind of an accessor
+/-- Returns the kind of a given accessor. -/
 def Accessor.kind : Accessor → AccessorKind
   | .field _ => .field
   | .apply _ => .call
 
 -- Clause with pattern guards, copattern, and body
+/-- Represents a single clause in a codata block. -/
 structure Clause where
+  /-- List of patterns (pattern guards). -/
   patterns : List Pat
+  /-- Sequence of accessors (copattern). -/
   copattern : Copattern
+  /-- Body of the clause. -/
   body : Expr
   deriving Repr, BEq
 
@@ -67,11 +80,13 @@ instance : Inhabited Clause where
   }
 
 -- Get the kind of the first accessor in a copattern, if any
+/-- Returns the kind of the first accessor in a copattern, if any. -/
 def Copattern.firstKind? : Copattern → Option AccessorKind
   | [] => none
   | acc :: _ => some acc.kind
 
 -- Check if all copatterns have the same first accessor kind
+/-- Returns the shared accessor kind if all clauses have the same kind of first accessor. -/
 def allSameKind (clauses : List Clause) : Option AccessorKind :=
   match clauses with
   | [] => none
@@ -83,6 +98,7 @@ def allSameKind (clauses : List Clause) : Option AccessorKind :=
       none
 
 -- Group clauses by their copattern
+/-- Groups a list of clauses by their shared copattern sequence. -/
 def groupByCopattern (clauses : List Clause) : List (Copattern × List Clause) :=
   clauses.foldl (fun groups clause =>
     match groups.find? (fun (cp, _) => cp == clause.copattern) with
@@ -94,6 +110,7 @@ def groupByCopattern (clauses : List Clause) : List (Copattern × List Clause) :
 
 -- Build a match expression from clauses with patterns
 -- Each clause should have exactly one pattern
+/-- Constructs a match expression from a list of clauses that have pattern guards. -/
 def buildMatchExpr (pos : SourcePos) (argName : Ident) (clauses : List Clause)
     : Except ElaborateError Expr := do
   let cases ← clauses.mapM fun clause =>
@@ -112,6 +129,7 @@ mutual
 -- Elaborate pattern guards into lambda + match + codata
 -- { pat1 #copat1 => body1, pat2 #copat2 => body2 } becomes:
 -- \arg => { copat1 = match arg with | pat1 => body1, copat2 = match arg with | pat2 => body2 }
+/-- Elaborates pattern guards into an equivalent expression using lambdas and match. -/
 partial def elaborateWithPatternGuards (pos : SourcePos) (clauses : List Clause)
     : Except ElaborateError Expr := do
   -- Validate: all clauses must have exactly one pattern
@@ -140,6 +158,7 @@ partial def elaborateWithPatternGuards (pos : SourcePos) (clauses : List Clause)
   pure (.lam pos argName false innerExpr)
 
 -- Elaborate pattern guards into a match expression
+/-- Handles the base case of pattern matching during elaboration. -/
 partial def elaboratePatternMatch (pos : SourcePos) (clauses : List Clause) : Except ElaborateError Expr :=
   if clauses.isEmpty then
     throw (.emptyCopattern pos)
@@ -157,6 +176,7 @@ partial def elaboratePatternMatch (pos : SourcePos) (clauses : List Clause) : Ex
 
 -- Elaborate a codata expression into records and lambdas
 -- All helper functions are inlined to avoid partial def issues
+/-- Recursively elaborates a codata expression into nested records and lambdas. -/
 partial def elaborate (pos : SourcePos) (rawClauses : List (List Pat × Copattern × Expr)) : Except ElaborateError Expr :=
   -- Convert to clause structure
   let clauses : List Clause := rawClauses.map (fun (pats, copat, body) =>
@@ -241,11 +261,13 @@ partial def elaborate (pos : SourcePos) (rawClauses : List (List Pat × Copatter
 end -- mutual
 
 -- Top-level elaboration entry point
+/-- Top-level entry point for elaborating a single expression. -/
 def elaborateExpr : Expr → Except ElaborateError Expr
   | .codata pos clauses => elaborate pos clauses
   | e => pure e
 
 -- Recursively elaborate all codata expressions in an expression
+/-- Recursively elaborates all codata expressions found within an expression tree. -/
 partial def elaborateAll : Expr → Except ElaborateError Expr
   | .codata pos clauses => do
     let elaborated ← elaborate pos clauses

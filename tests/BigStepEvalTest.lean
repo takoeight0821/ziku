@@ -6,6 +6,8 @@ open Ziku
 open Ziku.IR
 open Ziku.IR.BigStepEval
 
+set_option linter.missingDocs false
+
 namespace BigStepEvalTest
 
 /-!

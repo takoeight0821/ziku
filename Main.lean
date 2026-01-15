@@ -2,15 +2,24 @@ import Ziku
 
 open Ziku
 
+/-- Execution mode for the Ziku compiler. -/
 inductive Mode
+  /-- Run the REPL. -/
   | repl (bigStep : Bool)
+  /-- Parse the input and print the AST. -/
   | parse
+  /-- Infer the type of the input. -/
   | infer
+  /-- Translate the input to IR and print it. -/
   | translate
+  /-- Compile the input to Scheme. -/
   | scheme
+  /-- Evaluate the input using the small-step evaluator. -/
   | eval
+  /-- Evaluate the input using the big-step evaluator. -/
   | evalBigStep
 
+/-- Parses command line arguments to determine the execution mode. -/
 def parseArgs (args : List String) : Mode :=
   match args with
   | "--parse" :: _ => .parse
@@ -27,6 +36,7 @@ def parseArgs (args : List String) : Mode :=
   | [] => .repl false
   | _ => .repl false
 
+/-- Runs the compiler on a given input string using the specified mode. -/
 def runOnInput (mode : Mode) (input : String) : IO Unit := do
   match parse input with
   | .error msg =>
@@ -84,13 +94,14 @@ def runOnInput (mode : Mode) (input : String) : IO Unit := do
           IO.eprintln s!"Eval error: {msg}"
           IO.Process.exit 1
 
+/-- Starts an interactive REPL loop. -/
 partial def repl (useBigStep : Bool) : IO Unit := do
   IO.print "> "
   let stdout ← IO.getStdout
   stdout.flush
   let stdin ← IO.getStdin
   let input ← stdin.getLine
-  let input := input.trim
+  let input := input.trimAscii.toString
 
   -- Handle EOF or quit commands
   if input.isEmpty then
@@ -122,6 +133,7 @@ partial def repl (useBigStep : Bool) : IO Unit := do
         | .error msg => IO.println s!"Eval error: {msg}"
       repl useBigStep
 
+/-- Main entry point for the Ziku compiler. -/
 def main (args : List String) : IO Unit := do
   let mode := parseArgs args
   match mode with
@@ -137,4 +149,4 @@ def main (args : List String) : IO Unit := do
       | "--big-step" :: file :: _ => IO.FS.readFile file
       | [_] => (← IO.getStdin).readToEnd
       | _ => (← IO.getStdin).readToEnd
-    runOnInput mode input.trim
+    runOnInput mode input.trimAscii.toString

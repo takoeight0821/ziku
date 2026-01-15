@@ -1,5 +1,7 @@
-import Ziku.Syntax
+import Ziku.Builtins
 import Ziku.IR.Syntax
+
+set_option linter.missingDocs false
 
 namespace Ziku.IR
 

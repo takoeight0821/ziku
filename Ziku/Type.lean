@@ -9,15 +9,20 @@ This module provides type inference utilities, using the `Ty` type from Syntax.l
 -/
 
 -- Type substitution
+/-- Represents a mapping from type variables to types. -/
 abbrev Subst := List (Ident × Ty)
 
 -- Type scheme for let-polymorphism
+/-- Represents a type scheme for let-polymorphism (e.g., 'forall a. a -> a'). -/
 structure Scheme where
+  /-- List of quantified type variables. -/
   vars : List Ident  -- Quantified variables
+  /-- The body of the type scheme. -/
   ty : Ty
   deriving Repr, BEq
 
 -- Apply substitution to a type
+/-- Applies a substitution to all type variables in a type. -/
 partial def Ty.applySubst (subst : Subst) : Ty → Ty
   | .var p x => match subst.lookup x with
     | some ty => ty.applySubst subst  -- Apply substitution to result
@@ -38,6 +43,7 @@ partial def Ty.applySubst (subst : Subst) : Ty → Ty
   | .tilde p t => .tilde p (t.applySubst subst)
 
 -- Free type variables
+/-- Returns the list of free type variables in a type. -/
 partial def Ty.freeVars : Ty → List Ident
   | .var _ x => [x]
   | .con _ _ => []
@@ -60,10 +66,12 @@ partial def Ty.freeVars : Ty → List Ident
   | .tilde _ t => t.freeVars
 
 -- Free type variables in a scheme
+/-- Returns the list of free type variables in a type scheme. -/
 def Scheme.freeVars (s : Scheme) : List Ident :=
   s.ty.freeVars.filter (fun v => !s.vars.contains v)
 
 -- Apply substitution to a scheme
+/-- Applies a substitution to a type scheme, avoiding captured variables. -/
 def Scheme.applySubst (subst : Subst) (s : Scheme) : Scheme :=
   let subst' := subst.filter (fun (v, _) => !s.vars.contains v)
   { s with ty := s.ty.applySubst subst' }

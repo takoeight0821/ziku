@@ -3,6 +3,8 @@ import Ziku.Elaborate
 import Ziku.Translate
 import Ziku.Backend.Scheme
 
+set_option linter.missingDocs false
+
 /-- Discover test files in a directory by scanning for .ziku files -/
 def discoverTests (dir : System.FilePath) : IO (List String) := do
   try
@@ -10,7 +12,7 @@ def discoverTests (dir : System.FilePath) : IO (List String) := do
     let zikuFiles := entries.filterMap fun entry =>
       let name := entry.fileName
       if name.endsWith ".ziku" then
-        some (name.dropRight 5)
+        some (name.dropEnd 5).toString
       else
         none
     pure (zikuFiles.toList.mergeSort (· < ·))
@@ -19,7 +21,7 @@ def discoverTests (dir : System.FilePath) : IO (List String) := do
 
 /-- Generate IR translation output -/
 def generateTranslateOutput (input : String) : Except String String :=
-  match Ziku.parseExprString input.trim with
+  match Ziku.parseExprString input.trimAscii.toString with
   | .ok expr =>
     match Ziku.elaborateAll expr with
     | .ok elaborated =>
@@ -31,7 +33,7 @@ def generateTranslateOutput (input : String) : Except String String :=
 
 /-- Generate Scheme code -/
 def generateSchemeOutput (input : String) : Except String String :=
-  match Ziku.parseExprString input.trim with
+  match Ziku.parseExprString input.trimAscii.toString with
   | .ok expr =>
     match Ziku.elaborateAll expr with
     | .ok elaborated =>

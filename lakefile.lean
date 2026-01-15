@@ -3,6 +3,12 @@ open Lake DSL
 
 package ziku where
   version := v!"0.1.0"
+  moreLeanArgs := #[
+    "-Dlinter.missingDocs=true",
+    "-Dlinter.unusedVariables=true",
+    "-Dlinter.deprecated=true",
+    "-Dlinter.unusedSectionVars=true"
+  ]
 
 require batteries from git
   "https://github.com/leanprover-community/batteries" @ "main"

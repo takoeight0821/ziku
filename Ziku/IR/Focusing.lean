@@ -1,6 +1,8 @@
 import Ziku.Syntax
 import Ziku.IR.Syntax
 
+set_option linter.missingDocs false
+
 namespace Ziku.IR.Focusing
 
 /-!

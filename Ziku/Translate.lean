@@ -4,6 +4,8 @@ import Ziku.IR.Syntax
 import Ziku.IR.Eval
 import Ziku.IR.Focusing
 
+set_option linter.missingDocs false
+
 namespace Ziku.Translate
 
 /-!
@@ -32,17 +34,24 @@ open Ziku (SourcePos Ident BinOp UnaryOp Builtin Lit Expr)
 open Ziku.IR (Producer Consumer Statement)
 
 -- Translation state
+/-- Represents the state of the translation pass. -/
 structure TranslateState where
+  /-- Counter for generating unique variable and covariable names. -/
   freshCounter : Nat := 0
+  /-- List of active labels in the current scope. -/
   labelScope : List Ident := []  -- Valid label names in scope
   deriving Inhabited
 
 -- Translation errors
+/-- Represents an error that occurred during translation from surface syntax to IR. -/
 inductive TranslateError where
+  /-- Error when a 'goto' refers to a label that is not in scope. -/
   | undefinedLabel (pos : SourcePos) (name : Ident)
+  /-- Error for language features that don't have translation rules yet. -/
   | notImplemented (pos : SourcePos) (feature : String)
   deriving Repr
 
+/-- Returns the string representation of a translation error. -/
 def TranslateError.toString : TranslateError → String
   | .undefinedLabel pos name => s!"Undefined label '{name}' at {pos.line}:{pos.col}"
   | .notImplemented pos feature => s!"Translation not implemented for {feature} at {pos.line}:{pos.col}"
@@ -50,6 +59,7 @@ def TranslateError.toString : TranslateError → String
 instance : ToString TranslateError := ⟨TranslateError.toString⟩
 
 -- Translation monad
+/-- The 'TranslateM' monad represents a stateful transformation from surface expressions to IR. -/
 abbrev TranslateM := StateT TranslateState (Except TranslateError)
 
 -- Inhabited instances for partial functions
