@@ -1183,7 +1183,7 @@ mutual
       match expect .eq s' with
       | .ok (_, s'') =>
         match parseConstructors s'' with
-        | .ok (constrs, s''') => .ok (.data name tyParams constrs, s''')
+        | .ok (constrs, s''') => .ok (.data name tyParams constrs none, s''')
         | .error msg => .error msg
       | .error msg => .error msg
     | .error msg => .error msg
@@ -1221,7 +1221,7 @@ mutual
         match parseCodataSigs s'' with
         | .ok (sigs, s''') =>
           match expect .rbrace s''' with
-          | .ok (_, s'''') => .ok (.codata name tyParams sigs, s'''')
+          | .ok (_, s'''') => .ok (.codata name tyParams sigs none, s'''')
           | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
@@ -1273,17 +1273,17 @@ mutual
         | some .eq =>
           let s''' := s'''.advance
           match parseExpr s''' with
-          | .ok (body, s'''') => .ok (.def_ name ty body, s'''')
+          | .ok (body, s'''') => .ok (.def_ name ty (some body) none, s'''')
           | .error msg => .error msg
         | some .pipe =>
           -- Pattern clauses
           match parseDefClauses s''' with
-          | .ok (clauses, s'''') => .ok (.defPat name ty clauses, s'''')
+          | .ok (clauses, s'''') => .ok (.defPat name ty clauses none, s'''')
           | .error msg => .error msg
         | some .lbrace =>
           -- Copattern block
           match parseDefClauses s''' with
-          | .ok (clauses, s'''') => .ok (.defPat name ty clauses, s'''')
+          | .ok (clauses, s'''') => .ok (.defPat name ty clauses none, s'''')
           | .error msg => .error msg
         | some tok => .error s!"expected '=' or '|' but found {tok}"
         | none => .error "unexpected EOF"

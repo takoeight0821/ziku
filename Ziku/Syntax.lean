@@ -309,17 +309,29 @@ inductive DefClause where
   | copatClause : List Pat → Copattern → Expr → DefClause        -- p1, p2 #.field => e
   deriving Repr, BEq
 
+-- Metadata for external declarations
+/-- Metadata for external declarations (e.g., @extern("scheme", "string-length")). -/
+structure ExternInfo where
+  /-- The target platform (e.g., "scheme"). -/
+  platform : String
+  /-- The name of the external entity. -/
+  name : String
+  deriving Repr, BEq
+
+instance : ToString ExternInfo where
+  toString info := s!"@extern(\"{info.platform}\", \"{info.name}\")"
+
 -- Top-level declarations
 /-- Represents a top-level declaration in Ziku. -/
 inductive Decl where
   /-- Data type declaration. -/
-  | data    : Ident → List Ident → List ConDecl → Decl          -- data T a = | C1 | C2
+  | data    : Ident → List Ident → List ConDecl → Option ExternInfo → Decl          -- data T a = | C1 | C2
   /-- Codata type declaration. -/
-  | codata  : Ident → List Ident → List CopatSig → Decl         -- codata T a { #.f : ty }
+  | codata  : Ident → List Ident → List CopatSig → Option ExternInfo → Decl         -- codata T a { #.f : ty }
   /-- Simple function definition. -/
-  | def_    : Ident → Ty → Expr → Decl                          -- def f : ty = e
+  | def_    : Ident → Ty → Option Expr → Option ExternInfo → Decl                   -- def f : ty = e
   /-- Function definition with pattern matching. -/
-  | defPat  : Ident → Ty → List DefClause → Decl                -- def f : ty | p => e
+  | defPat  : Ident → Ty → List DefClause → Option ExternInfo → Decl                -- def f : ty | p => e
   /-- Infix operator declaration. -/
   | infix_  : Nat → Bool → Ident → Decl                         -- infix 6 ++  (prec, rightAssoc, name)
   /-- Module declaration. -/
@@ -520,20 +532,25 @@ instance : ToString Expr := ⟨Expr.toString⟩
 -- Pretty print declarations
 /-- Returns the string representation of a top-level declaration. -/
 partial def Decl.toString : Decl → String
-  | .data name params constrs =>
+  | .data name params constrs extern =>
     let ps := if params.isEmpty then "" else " " ++ String.intercalate " " params
     let cs := constrs.map (fun c =>
       let args := if c.args.isEmpty then "" else " " ++ String.intercalate " " (c.args.map Ty.toString)
       s!"| {c.name}{args}")
-    s!"(Data {name}{ps} [{String.intercalate " " cs}])"
-  | .codata name params sigs =>
+    let ext := match extern with | some info => s!" {ToString.toString info}" | none => ""
+    s!"(Data {name}{ps} [{String.intercalate " " cs}]{ext})"
+  | .codata name params sigs extern =>
     let ps := if params.isEmpty then "" else " " ++ String.intercalate " " params
     let ss := sigs.map (fun s => s!"#{Copattern.toString s.accessors} : {s.ty}")
-    s!"(Codata {name}{ps} " ++ "{ " ++ String.intercalate ", " ss ++ " })"
-  | .def_ name ty body =>
-    s!"(Def \"{name}\" {ty} {body.toString})"
-  | .defPat name ty _clauses =>
-    s!"(DefPat \"{name}\" {ty} [...])"
+    let ext := match extern with | some info => s!" {ToString.toString info}" | none => ""
+    s!"(Codata {name}{ps} " ++ "{ " ++ String.intercalate ", " ss ++ " }" ++ s!"{ext})"
+  | .def_ name ty body extern =>
+    let ext := match extern with | some info => s!" {ToString.toString info}" | none => ""
+    let bStr := match body with | some b => s!" {b.toString}" | none => ""
+    s!"(Def \"{name}\" {ty}{bStr}{ext})"
+  | .defPat name ty _clauses extern =>
+    let ext := match extern with | some info => s!" {ToString.toString info}" | none => ""
+    s!"(DefPat \"{name}\" {ty} [...]{ext})"
   | .infix_ prec rightAssoc op =>
     let assoc := if rightAssoc then "right" else "left"
     s!"(Infix {prec} {assoc} \"{op}\")"
