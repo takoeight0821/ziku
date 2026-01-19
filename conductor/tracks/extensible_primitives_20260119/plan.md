@@ -3,17 +3,15 @@
 This plan outlines the steps to implement a mechanism for defining and using external primitives in Ziku, supporting the Scheme backend with runtime type contracts.
 
 ## Phase 1: AST and Parser Updates
-Support the `@extern` attribute and external declarations in the surface language.
+Support the `@("backend", "name")` syntax for external declarations.
 
 - [x] Task: Update `Ziku/Syntax.lean` to store external metadata in declarations. [1c47f1a]
-    - [ ] Define `ExternInfo` structure: `{ platform : String, name : String }`.
-    - [ ] Update `Decl.def_`, `Decl.defPat`, and `Decl.data` to include `Option ExternInfo`.
-    - [ ] Modify `Decl.def_` to allow an optional body (null for externals).
-- [ ] Task: Update `Ziku/Parser.lean` to parse the `@extern` attribute.
-    - [ ] Implement a parser for `@extern("platform", "name")`.
-    - [ ] Update `parseDecl` to check for attributes before parsing specific declaration types.
-    - [ ] Update `parseDefDecl` to handle `def` without a body when `@extern` is present.
-    - [ ] Update `parseDataDecl` to allow empty constructor lists when `@extern` is present.
+    - *Note: Will refine `ExternInfo` to support multiple backends in the next task.*
+- [x] Task: Update `Ziku/Syntax.lean` and `Ziku/Parser.lean` for new syntax. [ad95eca]
+    - [x] Modify `ExternInfo` in `Ziku/Syntax.lean` to be `List (String × String)` to support multiple backends.
+    - [x] Update `Ziku/Parser.lean` to parse `@("backend", "name")` on the RHS of declarations.
+    - [x] Support the `|` separator for multiple backends.
+    - [x] Ensure `data` declarations can also use this syntax.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: AST and Parser Updates' (Protocol in workflow.md)
 
 ## Phase 2: Type Inference for Externals
@@ -29,9 +27,9 @@ Integrate external declarations into the Hindley-Milner type inference system.
 Extend the IR and translation pass to handle external calls.
 
 - [ ] Task: Update `Ziku/IR/Syntax.lean` to include an `externalCall` statement.
-    - [ ] Add `Statement.externalCall` that stores the external info, arguments, and continuation.
+    - [ ] Add `Statement.externalCall` that stores the external info (for the chosen backend), arguments, and continuation.
 - [ ] Task: Update `Ziku/Translate.lean` to translate external function calls to `Statement.externalCall`.
-    - [ ] Modify the translation logic to recognize calls to identifiers declared as `@extern`.
+    - [ ] Modify the translation logic to look up the correct backend implementation from the `ExternInfo` list.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: IR and Translation' (Protocol in workflow.md)
 
 ## Phase 4: Scheme Backend and Runtime Contracts
