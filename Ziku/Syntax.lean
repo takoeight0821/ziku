@@ -310,16 +310,22 @@ inductive DefClause where
   deriving Repr, BEq
 
 -- Metadata for external declarations
-/-- Metadata for external declarations (e.g., @extern("scheme", "string-length")). -/
-structure ExternInfo where
+/-- Represents a single external definition entry: (backend, symbol). -/
+structure ExternEntry where
   /-- The target platform (e.g., "scheme"). -/
-  platform : String
-  /-- The name of the external entity. -/
-  name : String
+  backend : String
+  /-- The symbol name on the target platform. -/
+  symbol : String
   deriving Repr, BEq
 
-instance : ToString ExternInfo where
-  toString info := s!"@extern(\"{info.platform}\", \"{info.name}\")"
+instance : ToString ExternEntry where
+  toString e := s!"@(\"{e.backend}\", \"{e.symbol}\")"
+
+/-- Metadata for external declarations is a list of backend entries. -/
+abbrev ExternInfo := List ExternEntry
+
+def ExternInfo.toString (info : ExternInfo) : String :=
+  String.intercalate " | " (info.map ToString.toString)
 
 -- Top-level declarations
 /-- Represents a top-level declaration in Ziku. -/
@@ -537,19 +543,19 @@ partial def Decl.toString : Decl → String
     let cs := constrs.map (fun c =>
       let args := if c.args.isEmpty then "" else " " ++ String.intercalate " " (c.args.map Ty.toString)
       s!"| {c.name}{args}")
-    let ext := match extern with | some info => s!" {ToString.toString info}" | none => ""
+    let ext := match extern with | some info => s!" = {ExternInfo.toString info}" | none => ""
     s!"(Data {name}{ps} [{String.intercalate " " cs}]{ext})"
   | .codata name params sigs extern =>
     let ps := if params.isEmpty then "" else " " ++ String.intercalate " " params
     let ss := sigs.map (fun s => s!"#{Copattern.toString s.accessors} : {s.ty}")
-    let ext := match extern with | some info => s!" {ToString.toString info}" | none => ""
+    let ext := match extern with | some info => s!" = {ExternInfo.toString info}" | none => ""
     s!"(Codata {name}{ps} " ++ "{ " ++ String.intercalate ", " ss ++ " }" ++ s!"{ext})"
   | .def_ name ty body extern =>
-    let ext := match extern with | some info => s!" {ToString.toString info}" | none => ""
+    let ext := match extern with | some info => s!" = {ExternInfo.toString info}" | none => ""
     let bStr := match body with | some b => s!" {b.toString}" | none => ""
     s!"(Def \"{name}\" {ty}{bStr}{ext})"
   | .defPat name ty _clauses extern =>
-    let ext := match extern with | some info => s!" {ToString.toString info}" | none => ""
+    let ext := match extern with | some info => s!" = {ExternInfo.toString info}" | none => ""
     s!"(DefPat \"{name}\" {ty} [...]{ext})"
   | .infix_ prec rightAssoc op =>
     let assoc := if rightAssoc then "right" else "left"

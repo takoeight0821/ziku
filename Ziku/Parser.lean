@@ -1155,6 +1155,43 @@ mutual
     let value ← parseExpr
     return (name, value)
 
+  -- Parse extern body: = @("backend", "symbol") | @("backend2", "symbol2")
+  partial def parseExternBody : Parser (Option ExternInfo) := fun s =>
+    match expect .eq s with
+    | .ok (_, s') =>
+      match s'.peekToken? with
+      | some .at_ =>
+        match parseExternEntries s' with
+        | .ok (entries, s'') => .ok (some entries, s'')
+        | .error msg => .error msg
+      | _ => .ok (none, s) -- Not an extern body, let caller handle '='
+    | .error _ => .ok (none, s)
+
+  partial def parseExternEntries : Parser ExternInfo :=
+    sepBy1 parseExternEntry (expect .pipe)
+
+  partial def parseExternEntry : Parser ExternEntry := fun s =>
+    match expect .at_ s with
+    | .ok (_, s') =>
+      match expect .lparen s' with
+      | .ok (_, s'') =>
+        match s''.peekToken? with
+        | some (.string backend) =>
+          let s''' := s''.advance
+          match expect .comma s''' with
+          | .ok (_, s'''') =>
+            match s''''.peekToken? with
+            | some (.string symbol) =>
+              let s''''' := s''''.advance
+              match expect .rparen s''''' with
+              | .ok (_, s'''''') => .ok ({ backend, symbol }, s'''''')
+              | .error msg => .error msg
+            | _ => .error "expected external symbol string"
+          | .error msg => .error msg
+        | _ => .error "expected backend string"
+      | .error msg => .error msg
+    | .error msg => .error msg
+
   -- Parse declaration
   partial def parseDecl : Parser Decl := fun s =>
     match s.peekToken? with
@@ -1169,7 +1206,7 @@ mutual
     | some tok => .error s!"expected declaration but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
     | none => .error "expected declaration but found EOF"
 
-  -- Parse data declaration: data T a b = | C1 ty1 | C2 ty2
+  -- Parse data declaration: data T a b = ...
   partial def parseDataDecl : Parser Decl := fun s =>
     let s := s.advance  -- skip 'data'
     match expectConId s with
@@ -1180,10 +1217,16 @@ mutual
           | .ok (id, st') => loop (id :: acc) st'
           | .error _ => (acc.reverse, st)
         loop [] s'
-      match expect .eq s' with
-      | .ok (_, s'') =>
-        match parseConstructors s'' with
-        | .ok (constrs, s''') => .ok (.data name tyParams constrs none, s''')
+      -- Check for extern body first
+      match parseExternBody s' with
+      | .ok (some extern, s'') => .ok (.data name tyParams [] (some extern), s'')
+      | .ok (none, _) =>
+        -- Regular data declaration
+        match expect .eq s' with
+        | .ok (_, s'') =>
+          match parseConstructors s'' with
+          | .ok (constrs, s''') => .ok (.data name tyParams constrs none, s''')
+          | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
     | .error msg => .error msg
@@ -1205,7 +1248,7 @@ mutual
       | .error msg => .error msg
     | .error msg => .error msg
 
-  -- Parse codata declaration: codata T a { #.f : ty }
+  -- Parse codata declaration: codata T a { ... }
   partial def parseCodataDecl : Parser Decl := fun s =>
     let s := s.advance  -- skip 'codata'
     match expectConId s with
@@ -1216,12 +1259,22 @@ mutual
           | .ok (id, st') => loop (id :: acc) st'
           | .error _ => (acc.reverse, st)
         loop [] s'
-      match expect .lbrace s' with
-      | .ok (_, s'') =>
-        match parseCodataSigs s'' with
-        | .ok (sigs, s''') =>
-          match expect .rbrace s''' with
-          | .ok (_, s'''') => .ok (.codata name tyParams sigs none, s'''')
+      -- Check for extern body
+      match parseExternBody s' with
+      | .ok (some extern, s'') =>
+         -- Allow optional body for extern codata? Usually opaque codata isn't a thing, but let's see.
+         -- Spec says "Opaque Types: data Vector a = ...".
+         -- Codata is defined by observations. An extern codata might be a handle.
+         -- If it has no body, we pass empty list.
+         .ok (.codata name tyParams [] (some extern), s'')
+      | .ok (none, _) =>
+        match expect .lbrace s' with
+        | .ok (_, s'') =>
+          match parseCodataSigs s'' with
+          | .ok (sigs, s''') =>
+            match expect .rbrace s''' with
+            | .ok (_, s'''') => .ok (.codata name tyParams sigs none, s'''')
+            | .error msg => .error msg
           | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
@@ -1269,24 +1322,31 @@ mutual
     | .ok (_, s'') =>
       match parseType s'' with
       | .ok (ty, s''') =>
-        match s'''.peekToken? with
-        | some .eq =>
-          let s''' := s'''.advance
-          match parseExpr s''' with
-          | .ok (body, s'''') => .ok (.def_ name ty (some body) none, s'''')
-          | .error msg => .error msg
-        | some .pipe =>
-          -- Pattern clauses
-          match parseDefClauses s''' with
-          | .ok (clauses, s'''') => .ok (.defPat name ty clauses none, s'''')
-          | .error msg => .error msg
-        | some .lbrace =>
-          -- Copattern block
-          match parseDefClauses s''' with
-          | .ok (clauses, s'''') => .ok (.defPat name ty clauses none, s'''')
-          | .error msg => .error msg
-        | some tok => .error s!"expected '=' or '|' but found {tok}"
-        | none => .error "unexpected EOF"
+        -- Check for extern body first
+        match parseExternBody s''' with
+        | .ok (some extern, s'''') =>
+           .ok (.def_ name ty none (some extern), s'''')
+        | .ok (none, _) =>
+          -- Regular def
+          match s'''.peekToken? with
+          | some .eq =>
+            let s''' := s'''.advance
+            match parseExpr s''' with
+            | .ok (body, s'''') => .ok (.def_ name ty (some body) none, s'''')
+            | .error msg => .error msg
+          | some .pipe =>
+            -- Pattern clauses
+            match parseDefClauses s''' with
+            | .ok (clauses, s'''') => .ok (.defPat name ty clauses none, s'''')
+            | .error msg => .error msg
+          | some .lbrace =>
+            -- Copattern block
+            match parseDefClauses s''' with
+            | .ok (clauses, s'''') => .ok (.defPat name ty clauses none, s'''')
+            | .error msg => .error msg
+          | some tok => .error s!"expected '=', '|' or extern definition but found {tok}"
+          | none => .error "unexpected EOF"
+        | .error msg => .error msg
       | .error msg => .error msg
     | .error msg => .error msg
 
