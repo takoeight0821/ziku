@@ -1,16 +1,15 @@
-# Product Guidelines
+# Product Guidelines: Ziku
 
-## Communication Style
-- **Technical & Precise:** Given the project's roots in type theory and sequent calculus, documentation and communication should prioritize accuracy and correct terminology (e.g., "producer" vs "consumer", "data" vs "codata").
-- **Research-Oriented:** Discussions should often reference relevant papers or theoretical concepts where applicable.
-- **Clear & Structured:** Complex topics (like the λμμ̃-calculus IR) should be broken down clearly, but without oversimplifying the underlying mathematics.
+## Prose Style
+**Concise and Technical:** Documentation and error messages should be direct and low-verbosity, assuming the reader is an experienced developer or researcher. Avoid unnecessary fluff; focus on precise technical explanations and clear examples.
 
-## Design Philosophy
-- **Symmetry First:** Design decisions should prioritize the duality between data and codata. If a feature exists for one, its dual should likely exist for the other.
-- **Explicit over Implicit:** The IR should make control flow and evaluation order explicit.
-- **Minimalism:** The core language should remain small and orthogonal, with features built upon the fundamental primitives of the sequent calculus.
+## Brand Messaging
+**Innovative Research:** The messaging should highlight Ziku's unique position as a language built on duality-aware design and a sequent calculus IR. It should appeal to those interested in the frontiers of programming language theory.
 
-## Development Standards
-- **Formal Verification Mindset:** While not everything needs a proof, the code should be written with an awareness of the underlying properties being preserved (e.g., type safety, termination).
-- **Golden Testing:** Maintain a robust suite of golden tests to catch regressions in parsing, type inference, and evaluation.
-- **AI-Native:** Embrace the use of AI tools for generating boilerplate, writing tests, and exploring implementation strategies, while maintaining strict human review for correctness.
+## Visual Identity
+**Minimalist and Functional:** The design aesthetic should be clean and code-centric, utilizing high-contrast syntax highlighting and simple typography that prioritizes readability of complex code structures.
+
+## User Experience Principles
+1.  **Transparency:** The connection between surface syntax and the underlying IR should be clear and explorable.
+2.  **Robustness:** The toolchain should be reliable, with reproducible builds and clear error reporting.
+3.  **Efficiency:** The workflow (edit-compile-run) should be fast, leveraging the Chez Scheme backend.

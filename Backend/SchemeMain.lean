@@ -7,8 +7,9 @@ open Ziku
 open Ziku.Translate
 open Ziku.Backend.Scheme
 
+/-- Compiles a Ziku source string to Scheme and prints the result. -/
 def compileToScheme (input : String) : IO Unit := do
-  let input := input.trim
+  let input := input.trimAscii.toString
   if input.isEmpty then
     IO.eprintln "Error: Empty input"
     return
@@ -31,7 +32,7 @@ def compileToScheme (input : String) : IO Unit := do
         -- Compile to Scheme
         let schemeCode := compileProducer producer
         IO.print schemeCode
-
+/-- Main entry point for the Scheme backend compiler. -/
 def main (args : List String) : IO UInt32 := do
   match args with
   | [] =>

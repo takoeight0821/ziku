@@ -25,38 +25,57 @@ open Ziku (SourcePos Ident BinOp UnaryOp Builtin Lit Ty Pat synthesizedPos)
 mutual
 
 -- Producers: construct/produce elements of a type
+/-- Represents a producer in the sequent calculus IR. -/
 inductive Producer where
+  /-- Variable producer. -/
   | var       : SourcePos → Ident → Producer                        -- Variable: x
+  /-- Literal producer. -/
   | lit       : SourcePos → Lit → Producer                          -- Literal: 42
+  /-- captured continuation abstraction (μα.s). -/
   | mu        : SourcePos → Ident → Statement → Producer            -- μα.s
+  /-- destructor matching (codata construction). -/
   | cocase    : SourcePos → List (Ident × List Ident × Statement) → Producer
       -- cocase { D(x̄; ᾱ) ⇒ s, ... }
       -- Destructor name, argument variables (producer vars), result covars (consumer vars), body
+  /-- record construction. -/
   | record    : SourcePos → List (Ident × Producer) → Producer      -- { x = p, y = q }
+  /-- fixpoint operator. -/
   | fix       : SourcePos → Ident → Producer → Producer             -- fix x. p (fixpoint)
+  /-- data constructor application. -/
   | dataCon   : SourcePos → Ident → List Producer → Producer        -- K(v1, v2, ...) - data constructor
   deriving Repr, BEq
 
 -- Consumers: consume/destruct elements of a type
+/-- Represents a consumer in the sequent calculus IR. -/
 inductive Consumer where
+  /-- Covariable consumer (continuation). -/
   | covar     : SourcePos → Ident → Consumer                        -- Covariable: α
+  /-- variable abstraction (μ̃x.s). -/
   | muTilde   : SourcePos → Ident → Statement → Consumer            -- μ̃x.s
+  /-- constructor matching (data destruction). -/
   | case      : SourcePos → List (Ident × List Ident × Statement) → Consumer
       -- case { K(x̄; ᾱ) ⇒ s, ... }
       -- Constructor name, bound variables, body
+  /-- destructor application. -/
   | destructor: SourcePos → Ident → List Producer → Consumer → Consumer
       -- D(p̄; c) - apply destructor with arguments and continuation
   deriving Repr, BEq
 
 -- Statements: drive computation
+/-- Represents a statement in the sequent calculus IR. -/
 inductive Statement where
+  /-- Cut connecting a producer and a consumer. -/
   | cut       : SourcePos → Producer → Consumer → Statement         -- ⟨p | c⟩
+  /-- Primitive binary operation. -/
   | binOp     : SourcePos → BinOp → Producer → Producer → Consumer → Statement
       -- ⊙(p₁, p₂; c) - primitive binary operation
+  /-- Conditional jump on zero. -/
   | ifz       : SourcePos → Producer → Statement → Statement → Statement
       -- ifz(p, s₁, s₂) - conditional on zero/nonzero
+  /-- Function or top-level call. -/
   | call      : SourcePos → Ident → List Producer → List Consumer → Statement
       -- f(p̄; c̄) - function/top-level call
+  /-- Built-in function call. -/
   | builtin   : SourcePos → Builtin → List Producer → Consumer → Statement
       -- builtin(p̄; c) - built-in function call (strLen, strAt, etc.)
   deriving Repr, BEq
@@ -70,6 +89,7 @@ instance : Inhabited Consumer where
   default := .covar synthesizedPos "default"
 
 -- Get source position from Producer
+/-- Returns the source position of a producer. -/
 def Producer.pos : Producer → SourcePos
   | var p _ => p
   | lit p _ => p
@@ -80,6 +100,7 @@ def Producer.pos : Producer → SourcePos
   | dataCon p _ _ => p
 
 -- Get source position from Consumer
+/-- Returns the source position of a consumer. -/
 def Consumer.pos : Consumer → SourcePos
   | covar p _ => p
   | muTilde p _ _ => p
@@ -87,6 +108,7 @@ def Consumer.pos : Consumer → SourcePos
   | destructor p _ _ _ => p
 
 -- Get source position from Statement
+/-- Returns the source position of a statement. -/
 def Statement.pos : Statement → SourcePos
   | cut p _ _ => p
   | binOp p _ _ _ _ => p
@@ -96,6 +118,7 @@ def Statement.pos : Statement → SourcePos
 
 -- Free variables in Producer
 mutual
+/-- Returns the list of free variables in a producer. -/
 partial def Producer.freeVars : Producer → List Ident
   | .var _ x => [x]
   | .lit _ _ => []
@@ -107,6 +130,7 @@ partial def Producer.freeVars : Producer → List Ident
   | .fix _ x body => body.freeVars.filter (· != x)  -- x is bound
   | .dataCon _ _ args => args.flatMap Producer.freeVars
 
+/-- Returns the list of free variables in a consumer. -/
 partial def Consumer.freeVars : Consumer → List Ident
   | .covar _ α => [α]
   | .muTilde _ x s => s.freeVars.filter (· != x)
@@ -115,6 +139,7 @@ partial def Consumer.freeVars : Consumer → List Ident
       s.freeVars.filter (fun v => !vars.contains v))
   | .destructor _ _ ps c => ps.flatMap Producer.freeVars ++ c.freeVars
 
+/-- Returns the list of free variables in a statement. -/
 partial def Statement.freeVars : Statement → List Ident
   | .cut _ p c => p.freeVars ++ c.freeVars
   | .binOp _ _ p1 p2 c => p1.freeVars ++ p2.freeVars ++ c.freeVars
@@ -125,6 +150,7 @@ end
 
 -- Pretty printing
 mutual
+/-- Returns the string representation of a producer. -/
 partial def Producer.toString : Producer → String
   | .var _ x => x
   | .lit _ l => s!"{l}"
@@ -142,6 +168,7 @@ partial def Producer.toString : Producer → String
     if args.isEmpty then con
     else s!"({con} {String.intercalate " " (args.map Producer.toString)})"
 
+/-- Returns the string representation of a consumer. -/
 partial def Consumer.toString : Consumer → String
   | .covar _ α => α
   | .muTilde _ x s => s!"(μ~{x}. {s.toString})"
@@ -154,6 +181,7 @@ partial def Consumer.toString : Consumer → String
     let psStr := if ps.isEmpty then "" else "(" ++ String.intercalate ", " (ps.map Producer.toString) ++ ")"
     s!"{d}{psStr}; {c.toString}"
 
+/-- Returns the string representation of a statement. -/
 partial def Statement.toString : Statement → String
   | .cut _ p c => s!"⟨{p.toString} | {c.toString}⟩"
   | .binOp _ op p1 p2 c => s!"{op}({p1.toString}, {p2.toString}; {c.toString})"
@@ -164,7 +192,8 @@ partial def Statement.toString : Statement → String
     s!"{f}({psStr}; {csStr})"
   | .builtin _ b ps c =>
     let psStr := String.intercalate ", " (ps.map Producer.toString)
-    s!"{b}({psStr}; {c.toString})"
+    let csStr := c.toString
+    s!"{b}({psStr}; {csStr})"
 end
 
 instance : ToString Producer := ⟨Producer.toString⟩
@@ -172,14 +201,20 @@ instance : ToString Consumer := ⟨Consumer.toString⟩
 instance : ToString Statement := ⟨Statement.toString⟩
 
 -- Top-level definition in IR
+/-- Represents a top-level definition in the IR. -/
 structure TopDef where
+  /-- Name of the definition. -/
   name : Ident
+  /-- List of bound producer variables. -/
   params : List Ident      -- Producer parameters (variables)
+  /-- List of bound consumer covariables. -/
   coparams : List Ident    -- Consumer parameters (covariables)
+  /-- Body of the definition. -/
   body : Statement
   deriving Repr, BEq
 
 -- IR Program
+/-- An IR program is a list of top-level definitions. -/
 abbrev Program := List TopDef
 
 end Ziku.IR

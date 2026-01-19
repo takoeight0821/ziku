@@ -22,14 +22,21 @@ keeping the constraint generation code simple.
 -/
 
 -- Type error with source location and detailed message
+/-- Represents an error that occurred during type inference. -/
 inductive TypeError where
+  /-- Error when two types fail to unify. -/
   | unificationError (pos : SourcePos) (expected : Ty) (actual : Ty) (msg : String)
+  /-- Error when a variable is used but not defined in the environment. -/
   | unboundVariable (pos : SourcePos) (name : Ident)
+  /-- Error when a type variable would contain itself (infinite type). -/
   | occursCheck (pos : SourcePos) (varName : Ident) (ty : Ty)
+  /-- Error for language features that don't have inference rules yet. -/
   | notImplemented (pos : SourcePos) (feature : String)
+  /-- General inference error with a custom message. -/
   | customError (pos : SourcePos) (msg : String)
   deriving Repr
 
+/-- Returns the string representation of a type error. -/
 def TypeError.toString : TypeError → String
   | .unificationError pos expected actual msg =>
     s!"Type error at {pos.line}:{pos.col}: {msg}\n  Expected: {expected}\n  Actual: {actual}"
@@ -45,9 +52,11 @@ def TypeError.toString : TypeError → String
 instance : ToString TypeError := ⟨TypeError.toString⟩
 
 -- Type environment mapping variables to type schemes
+/-- Type environment mapping variables to their type schemes. -/
 abbrev TyEnv := List (Ident × Scheme)
 
 -- Label environment mapping label names to their expected value types
+/-- Label environment mapping label names to the types they expect to receive. -/
 abbrev LabelEnv := List (Ident × Ty)
 
 /-- Type constraints generated during inference -/
@@ -77,8 +86,11 @@ inductive Constraint where
 
 /-- State for constraint generation phase -/
 structure GenState where
+  /-- Counter for generating unique type variable names. -/
   nextVar : Nat := 0
+  /-- List of collected type constraints. -/
   constraints : List Constraint := []
+  /-- Environment for labels (used by goto). -/
   labelEnv : LabelEnv := []
   deriving Inhabited
 
@@ -89,6 +101,7 @@ abbrev GenM := StateT GenState (Except TypeError)
 instance : Nonempty (GenM Ty) := ⟨pure (.con synthesizedPos "Unit")⟩
 
 -- Generate fresh type variable
+/-- Generates a fresh, unique type variable. -/
 def freshTyVar : GenM Ty := do
   let s ← get
   let name := s!"_t{s.nextVar}"
@@ -96,24 +109,34 @@ def freshTyVar : GenM Ty := do
   return .var synthesizedPos name
 
 -- Add a constraint to the state
+/-- Adds a new constraint to the current generation state. -/
 def addConstraint (c : Constraint) : GenM Unit :=
   modify fun s => { s with constraints := c :: s.constraints }
 
 -- Add a label binding to the state
+/-- Adds a label binding to the local environment. -/
 def addLabelBinding (name : Ident) (ty : Ty) : GenM Unit :=
   modify fun s => { s with labelEnv := (name, ty) :: s.labelEnv }
 
 -- Pop the most recent label binding (for scoped labels)
+/-- Removes the most recent label binding. -/
 def popLabelBinding : GenM Unit :=
   modify fun s => { s with labelEnv := s.labelEnv.drop 1 }
 
 -- Standard types (using synthesized position for compiler-generated types)
+/-- Predefined integer type. -/
 def tyInt : Ty := .con synthesizedPos "Int"
+/-- Predefined boolean type. -/
 def tyBool : Ty := .con synthesizedPos "Bool"
+/-- Predefined unit type. -/
 def tyUnit : Ty := .con synthesizedPos "Unit"
+/-- Predefined string type. -/
 def tyString : Ty := .con synthesizedPos "String"
+/-- Predefined character type. -/
 def tyChar : Ty := .con synthesizedPos "Char"
+/-- Predefined rune type. -/
 def tyRune : Ty := .con synthesizedPos "Rune"
+/-- Predefined floating-point type. -/
 def tyFloat : Ty := .con synthesizedPos "Float"
 
 -- Get expected and result types for binary operators
@@ -121,6 +144,7 @@ def tyFloat : Ty := .con synthesizedPos "Float"
 -- monomorphic on Int. True polymorphic equality would require type class
 -- constraints (Eq, Ord), which are not yet implemented in the type system.
 -- The .pipe operator is handled separately as a special case (see infer function).
+/-- Returns expected argument and result types for a binary operator. -/
 def binOpTypes : BinOp → Ty × Ty
   | .add | .sub | .mul | .div => (tyInt, tyInt)
   | .eq | .ne | .lt | .le | .gt | .ge => (tyInt, tyBool)
@@ -129,11 +153,13 @@ def binOpTypes : BinOp → Ty × Ty
   | .pipe => (tyInt, tyInt)  -- Not used; .pipe has special handling in infer
 
 -- Get expected and result types for unary operators
+/-- Returns expected argument and result types for a unary operator. -/
 def unaryOpTypes : UnaryOp → Ty × Ty
   | .neg => (tyInt, tyInt)
   | .not => (tyBool, tyBool)
 
 -- Occurs check: does a type variable occur in a type?
+/-- Returns true if a type variable occurs within a given type (occurs check). -/
 partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
   match ty with
   | .var _ x => x == varName
@@ -157,6 +183,7 @@ partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
 -- Unification with error reporting
 -- Bottom type unifies with any type (⊥ <: τ for all τ)
 -- Now takes and returns nextVar for fresh variable generation during row unification
+/-- Unifies two types at a given source position, producing a substitution and updated variable counter. -/
 partial def unifyAt (pos : SourcePos) (t1 t2 : Ty) (nextVar : Nat) : Except TypeError (Subst × Nat) :=
   match t1, t2 with
   -- Bottom type unifies with anything
@@ -332,20 +359,24 @@ where
       .ok (commonSubst ++ s1 ++ s2, n4)
 
 -- Apply substitution to environment
+/-- Applies a substitution to all type schemes in a type environment. -/
 def TyEnv.applySubst (subst : Subst) (env : TyEnv) : TyEnv :=
   env.map (fun (x, scheme) => (x, scheme.applySubst subst))
 
 -- Free variables in environment
+/-- Returns the list of free type variables across all schemes in a type environment. -/
 def TyEnv.freeVars (env : TyEnv) : List Ident :=
   (env.map (fun (_, scheme) => scheme.freeVars)).flatten
 
 -- Generalize: convert a type to a scheme by quantifying over free variables
+/-- Generalizes a type into a scheme by quantifying over all free variables not in the environment. -/
 def generalize (env : TyEnv) (ty : Ty) : Scheme :=
   let envVars := env.freeVars
   let vars := ty.freeVars.filter (fun v => !envVars.contains v)
   { vars := vars, ty := ty }
 
 -- Instantiate: convert a scheme to a type by replacing quantified variables with fresh ones
+/-- Instantiates a type scheme by replacing all quantified variables with fresh ones. -/
 def instantiate (scheme : Scheme) : GenM Ty := do
   let mut subst : Subst := []
   for v in scheme.vars do
@@ -355,6 +386,7 @@ def instantiate (scheme : Scheme) : GenM Ty := do
 
 -- Convert a Ty.forall_ to a Scheme by extracting quantified variables
 -- Used for explicit forall annotations like `let id : forall a. a -> a = ...`
+/-- Converts a polymorphic type (with explicit 'forall') to a type scheme. -/
 def tyToScheme (ty : Ty) : Scheme :=
   match ty with
   | .forall_ _ x inner =>
@@ -371,6 +403,7 @@ def tyToScheme (ty : Ty) : Scheme :=
 
 -- Instantiate a Ty: if it's a forall type, replace quantified variables with fresh ones
 -- This handles explicit forall types in annotations like `(e : forall a. a -> a)`
+/-- Instantiates a 'forall' type into a monomorphic type with fresh variables. -/
 partial def instantiateTy (ty : Ty) : GenM Ty :=
   match ty with
   | .forall_ _ x inner => do
@@ -384,6 +417,7 @@ partial def instantiateTy (ty : Ty) : GenM Ty :=
 
 -- Pattern type checking: returns variable bindings
 -- Given a pattern and expected type, extract variable bindings and add unification constraints
+/-- Checks a pattern against an expected type and returns the variable bindings. -/
 partial def checkPattern (pat : Pat) (expectedTy : Ty) : GenM (List (Ident × Scheme)) :=
   match pat with
   | .var _ x =>
@@ -429,6 +463,7 @@ partial def checkPattern (pat : Pat) (expectedTy : Ty) : GenM (List (Ident × Sc
 
 -- Constraint generation phase: traverse AST and generate constraints
 -- Returns the type of the expression (constraints are added to state)
+/-- Traverses the AST and generates type constraints for an expression. -/
 partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
   match expr with
   | .lit _ (.int _) => return tyInt
@@ -663,6 +698,7 @@ The key insight for bottom type propagation:
 
 /-- State for constraint solving -/
 structure SolverState where
+  /-- Current substitution from type variables to types. -/
   subst : Subst := []
   /-- Type variables that are known to be bottom (either directly or through propagation) -/
   bottomVars : List Ident := []
@@ -670,7 +706,7 @@ structure SolverState where
   nextVar : Nat := 0
   deriving Inhabited
 
-/-- Check if a type is or contains a bottom type variable -/
+/-- Returns true if a type contains any variables that are known to be bottom. -/
 partial def isBottomTainted (bottomVars : List Ident) : Ty → Bool
   | .bottom _ => true
   | .var _ x => bottomVars.contains x
@@ -690,16 +726,16 @@ partial def isBottomTainted (bottomVars : List Ident) : Ty → Bool
     | none => false
   | .tilde _ t => isBottomTainted bottomVars t
 
-/-- Extract type variable name if the type is a variable -/
+/-- Extracts the type variable name if the type is a variable, otherwise returns 'none'. -/
 def Ty.varName? : Ty → Option Ident
   | .var _ x => some x
   | _ => none
 
-/-- Compose two substitutions: apply s1 first, then s2 -/
+/-- Composes two substitutions into a single substitution. -/
 def composeSubst (s1 s2 : Subst) : Subst :=
   s1.map (fun (x, t) => (x, t.applySubst s2)) ++ s2.filter (fun (x, _) => !s1.any (·.1 == x))
 
-/-- Solve a single unify constraint, tracking bottom propagation -/
+/-- Solves a single unification constraint, propagating bottom taint if necessary. -/
 partial def solveUnify (pos : SourcePos) (t1 t2 : Ty) (state : SolverState)
     : Except TypeError SolverState := do
   let t1' := t1.applySubst state.subst
@@ -737,7 +773,7 @@ partial def solveUnify (pos : SourcePos) (t1 t2 : Ty) (state : SolverState)
     .ok { subst := composeSubst state.subst newSubst, bottomVars := state.bottomVars, nextVar := newNextVar }
   | .error e => .error e
 
-/-- Solve a bottomProp constraint: if any source is bottom, mark target as bottom -/
+/-- Marks the target type as bottom if any source type is bottom-tainted. -/
 def solveBottomProp (sources : List Ty) (target : Ty) (state : SolverState) : SolverState :=
   let sources' := sources.map (·.applySubst state.subst)
   let anySourceBottom := sources'.any (isBottomTainted state.bottomVars)
@@ -751,17 +787,17 @@ def solveBottomProp (sources : List Ty) (target : Ty) (state : SolverState) : So
     | none => state  -- Target already resolved to concrete type
   else state
 
-/-- Collect all bottomProp constraints for reference during solving -/
+/-- Collects all 'bottomProp' constraints from a list of constraints. -/
 def collectBottomProps (constraints : List Constraint) : List (List Ty × Ty) :=
   constraints.filterMap fun
     | .bottomProp sources target => some (sources, target)
     | _ => none
 
-/-- Apply all bottomProp constraints once -/
+/-- Applies a list of bottom propagation constraints to the solver state once. -/
 def applyBottomProps (bottomProps : List (List Ty × Ty)) (state : SolverState) : SolverState :=
   bottomProps.foldl (fun s (sources, target) => solveBottomProp sources target s) state
 
-/-- Propagate bottom through all bottomProp constraints until fixpoint -/
+/-- Repeatedly applies bottom propagation until no more variables are marked as bottom. -/
 partial def propagateBottomFixpoint (bottomProps : List (List Ty × Ty)) (state : SolverState) : SolverState :=
   let newState := applyBottomProps bottomProps state
   if newState.bottomVars.length > state.bottomVars.length then
@@ -769,7 +805,7 @@ partial def propagateBottomFixpoint (bottomProps : List (List Ty × Ty)) (state 
   else
     newState
 
-/-- Solve all constraints with interleaved bottom propagation -/
+/-- Solves all generated constraints, interleaving unification and bottom propagation. -/
 def solveConstraints (constraints : List Constraint) (initNextVar : Nat := 0) : Except TypeError SolverState := do
   let bottomProps := collectBottomProps constraints
   let mut state : SolverState := { nextVar := initNextVar }
@@ -793,7 +829,7 @@ def solveConstraints (constraints : List Constraint) (initNextVar : Nat := 0) : 
 
   return state
 
-/-- Finalize a type by replacing bottom-tainted variables with bottom -/
+/-- Replaces all bottom-tainted variables in a type with the actual 'bottom' type. -/
 partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
   | .var p x => if bottomVars.contains x then .bottom p else .var p x
   | .con p c => .con p c
@@ -811,7 +847,7 @@ partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
   | .bottom p => .bottom p
   | .tilde p t => .tilde p (finalizeTy bottomVars t)
 
-/-- Run inference: generates constraints, solves them, returns final type -/
+/-- Top-level entry point for type inference. Generates and solves constraints for an expression. -/
 def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) := do
   -- Phase 1: Generate constraints
   let initState : GenState := { nextVar := 0, constraints := [], labelEnv := [] }

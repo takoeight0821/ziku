@@ -1,0 +1,8 @@
+{
+  "track_id": "lint_cleanup_20260114",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-01-14T15:00:00Z",
+  "updated_at": "2026-01-14T15:00:00Z",
+  "description": "Resolve lint warnings and errors and tighten linter configuration."
+}

@@ -3,8 +3,20 @@ open Lake DSL
 
 package ziku where
   version := v!"0.1.0"
+  moreLeanArgs := #[
+    "-Dlinter.missingDocs=true",
+    "-Dlinter.unusedVariables=true",
+    "-Dlinter.deprecated=true",
+    "-Dlinter.unusedSectionVars=true"
+  ]
+
+require batteries from git
+  "https://github.com/leanprover-community/batteries" @ "main"
 
 lean_lib Ziku
+
+lean_lib Tests where
+  globs := #[.submodules `tests]
 
 @[default_target]
 lean_exe ziku where

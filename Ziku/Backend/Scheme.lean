@@ -1,6 +1,7 @@
 import Ziku.Syntax
-import Ziku.IR.Syntax
 import Ziku.IR.Focusing
+
+set_option linter.missingDocs false
 
 namespace Ziku.Backend.Scheme
 

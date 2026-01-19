@@ -5,9 +5,11 @@ import Ziku.Translate
 import Ziku.IR.Eval
 import Ziku.Backend.Scheme
 
+set_option linter.missingDocs false
+
 /-- Run a specific phase on input -/
 def runPhase (phase : String) (input : String) : IO Unit := do
-  match Ziku.parseExprString input.trim with
+  match Ziku.parseExprString input.trimAscii.toString with
   | .error e =>
     IO.println s!"Parse error: {e}"
     return

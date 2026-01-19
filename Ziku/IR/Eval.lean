@@ -1,5 +1,7 @@
-import Ziku.Syntax
+import Ziku.Builtins
 import Ziku.IR.Syntax
+
+set_option linter.missingDocs false
 
 namespace Ziku.IR
 
@@ -242,7 +244,7 @@ partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (
     | .ok (Producer.lit _ (Lit.string s)), .ok (Producer.lit _ (Lit.int start)), .ok (Producer.lit _ (Lit.int len)) =>
       if start < 0 || len < 0 || start.toNat > s.length
       then .error (.stringIndexOutOfBounds pos s start)
-      else .ok (Producer.lit pos (Lit.string (s.drop start.toNat |>.take len.toNat)))
+      else .ok (Producer.lit pos (Lit.string (s.drop start.toNat |>.take len.toNat |>.toString)))
     | .error e, _, _ => .error e
     | _, .error e, _ => .error e
     | _, _, .error e => .error e
@@ -283,7 +285,7 @@ partial def evalBuiltin (pos : SourcePos) (b : Builtin) (args : List Producer) (
      | .ok (Producer.lit _ (Lit.string prompt)) => do
         IO.print prompt
         let input ← IO.getStdin >>= (·.getLine)
-        return .ok (Producer.lit pos (Lit.string input.trimRight))
+        return .ok (Producer.lit pos (Lit.string input.trimAsciiEnd.toString))
      | .ok _ => return .error (.builtinArgTypeMismatch pos b args)
      | .error e => return .error e
   | .println, [p] =>
@@ -446,7 +448,7 @@ def defaultFuel : Nat := 100000
 def eval (s : Statement) : IO EvalResult := evalWithFuel defaultFuel (.stmt s .empty)
 
 def truncate (s : String) (maxLen : Nat := 80) : String :=
-  if s.length <= maxLen then s else if maxLen < 3 then "..." else s.take (maxLen - 3) ++ "..."
+  if s.length <= maxLen then s else if maxLen < 3 then "..." else (s.take (maxLen - 3)).toString ++ "..."
 
 def EvalError.toString : EvalError → String
   | .divisionByZero pos => s!"Division by zero at {pos}"

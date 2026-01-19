@@ -9,82 +9,151 @@ This module implements a lexer (tokenizer) for the Ziku programming language.
 -/
 
 -- Token types
+/-- Represents a single token in the Ziku source code. -/
 inductive Token where
   -- Literals
+  /-- Integer literal. -/
   | int     : Int → Token
+  /-- Floating-point literal. -/
   | float   : Float → Token
+  /-- String literal. -/
   | string  : String → Token
+  /-- Character literal. -/
   | char    : Char → Token
   -- Identifiers and keywords
+  /-- Identifier (e.g., 'x', 'myVar'). -/
   | ident   : String → Token
+  /-- Constructor identifier (e.g., 'Cons', 'Nil'). -/
   | conId   : String → Token    -- Constructor identifier (starts with uppercase)
   -- Keywords
+  /-- 'data' keyword. -/
   | kData   : Token     -- data
+  /-- 'codata' keyword. -/
   | kCodata : Token     -- codata
+  /-- 'def' keyword. -/
   | kDef    : Token     -- def
+  /-- 'let' keyword. -/
   | kLet    : Token     -- let
+  /-- 'rec' keyword. -/
   | kRec    : Token     -- rec
+  /-- 'in' keyword. -/
   | kIn     : Token     -- in
+  /-- 'match' keyword. -/
   | kMatch  : Token     -- match
+  /-- 'with' keyword. -/
   | kWith   : Token     -- with
+  /-- 'end' keyword. -/
   | kEnd    : Token     -- end
+  /-- 'if' keyword. -/
   | kIf     : Token     -- if
+  /-- 'then' keyword. -/
   | kThen   : Token     -- then
+  /-- 'else' keyword. -/
   | kElse   : Token     -- else
+  /-- 'true' keyword. -/
   | kTrue   : Token     -- true
+  /-- 'false' keyword. -/
   | kFalse  : Token     -- false
+  /-- 'not' keyword. -/
   | kNot    : Token     -- not
+  /-- 'forall' keyword. -/
   | kForall : Token     -- forall
+  /-- 'module' keyword. -/
   | kModule : Token     -- module
+  /-- 'where' keyword. -/
   | kWhere  : Token     -- where
+  /-- 'import' keyword. -/
   | kImport : Token     -- import
+  /-- 'as' keyword. -/
   | kAs     : Token     -- as
+  /-- 'infix' keyword. -/
   | kInfix  : Token     -- infix
+  /-- 'infixr' keyword. -/
   | kInfixr : Token     -- infixr
+  /-- 'infixl' keyword. -/
   | kInfixl : Token     -- infixl
+  /-- 'label' keyword. -/
   | kLabel  : Token     -- label
+  /-- 'goto' keyword. -/
   | kGoto   : Token     -- goto
   -- Punctuation
+  /-- Left parenthesis '('. -/
   | lparen  : Token     -- (
+  /-- Right parenthesis ')'. -/
   | rparen  : Token     -- )
+  /-- Left brace '{'. -/
   | lbrace  : Token     -- {
+  /-- Right brace '}'. -/
   | rbrace  : Token     -- }
+  /-- Left angle bracket '<'. -/
   | langle  : Token     -- <
+  /-- Right angle bracket '>'. -/
   | rangle  : Token     -- >
+  /-- Left square bracket '['. -/
   | lbracket : Token    -- [
+  /-- Right square bracket ']'. -/
   | rbracket : Token    -- ]
+  /-- Comma ','. -/
   | comma   : Token     -- ,
+  /-- Dot '.'. -/
   | dot     : Token     -- .
+  /-- Colon ':'. -/
   | colon   : Token     -- :
+  /-- Semicolon ';'. -/
   | semi    : Token     -- ;
+  /-- Pipe symbol '|'. -/
   | pipe    : Token     -- |
+  /-- Hash symbol '#'. -/
   | hash    : Token     -- #
+  /-- Underscore '_'. -/
   | underscore : Token  -- _
   -- Operators
+  /-- Arrow operator '->'. -/
   | arrow   : Token     -- ->
+  /-- Fat arrow operator '=>'. -/
   | fatArrow : Token    -- =>
+  /-- Backslash '\'. -/
   | backslash : Token   -- \
+  /-- Assignment or binding '='. -/
   | eq      : Token     -- =
+  /-- Equality '=='. -/
   | eqEq    : Token     -- ==
+  /-- Inequality '!='. -/
   | neq     : Token     -- !=
+  /-- Less than '<'. -/
   | lt      : Token     -- <
+  /-- Less than or equal '<='. -/
   | le      : Token     -- <=
+  /-- Greater than '>'. -/
   | gt      : Token     -- >
+  /-- Greater than or equal '>='. -/
   | ge      : Token     -- >=
+  /-- Addition '+'. -/
   | plus    : Token     -- +
+  /-- Subtraction '-'. -/
   | minus   : Token     -- -
+  /-- Multiplication '*'. -/
   | star    : Token     -- *
+  /-- Division '/'. -/
   | slash   : Token     -- /
+  /-- Logical AND '&&'. -/
   | ampAmp  : Token     -- &&
+  /-- Logical OR '||'. -/
   | pipeOr  : Token     -- ||
+  /-- Concatenation '++'. -/
   | plusPlus : Token    -- ++
+  /-- Pipe operator '|>'. -/
   | pipeGt  : Token     -- |>
+  /-- Constructor prefix '@'. -/
   | at_     : Token     -- @ (constructor prefix)
+  /-- Covalue marker '~'. -/
   | tilde   : Token     -- ~ (covalue marker)
   -- Special
+  /-- End of file. -/
   | eof     : Token
   deriving Repr, BEq
 
+/-- Returns the string representation of a token. -/
 def Token.toString : Token → String
   | .int n => s!"int({n})"
   | .float f => s!"float({f})"
@@ -157,46 +226,63 @@ def Token.toString : Token → String
 instance : ToString Token := ⟨Token.toString⟩
 
 -- Positioned token
+/-- A token paired with its starting position in the source code. -/
 structure PosToken where
+  /-- The token value. -/
   token : Token
+  /-- The starting position of the token. -/
   pos : SourcePos
   deriving Repr
 
 -- Lexer state
+/-- Represents the state of the lexer during tokenization. -/
 structure LexState where
+  /-- The full input string. -/
   input : String
+  /-- The input string as a list of characters (for UTF-8 support). -/
   chars : List Char  -- Character list for proper UTF-8 handling
+  /-- Current position in the character list. -/
   pos : Nat := 0     -- Position in character list (not bytes)
+  /-- Current line number. -/
   line : Nat := 1
+  /-- Current column number. -/
   col : Nat := 1
   deriving Repr
 
+/-- Returns true if the lexer has reached the end of the input. -/
 def LexState.eof (s : LexState) : Bool :=
   s.pos >= s.chars.length
 
+/-- Returns the current character without advancing the lexer. -/
 def LexState.peek? (s : LexState) : Option Char :=
   s.chars[s.pos]?
 
+/-- Returns the character at 'n' positions ahead without advancing. -/
 def LexState.peekN (s : LexState) (n : Nat) : Option Char :=
   s.chars[s.pos + n]?
 
+/-- Advances the lexer state by one character. -/
 def LexState.advance (s : LexState) : LexState :=
   match s.peek? with
   | some '\n' => { s with pos := s.pos + 1, line := s.line + 1, col := 1 }
   | some _ => { s with pos := s.pos + 1, col := s.col + 1 }
   | none => s
 
+/-- Advances the lexer state by 'n' characters. -/
 def LexState.advanceN (s : LexState) (n : Nat) : LexState :=
   match n with
   | 0 => s
   | n + 1 => s.advance.advanceN n
 
+/-- Returns the current source position. -/
 def LexState.sourcePos (s : LexState) : SourcePos :=
   { line := s.line, col := s.col }
 
+/-- The 'Lexer' type represents a stateful transformation from 'LexState' to an result or error. -/
 abbrev Lexer α := LexState → Except String (α × LexState)
 
 -- Keywords map
+/-- A mapping from keyword strings to their corresponding 'Token' variants. -/
 def keywords : List (String × Token) :=
   [ ("data", .kData), ("codata", .kCodata), ("def", .kDef)
   , ("let", .kLet), ("rec", .kRec), ("in", .kIn)
@@ -209,10 +295,12 @@ def keywords : List (String × Token) :=
   , ("label", .kLabel), ("goto", .kGoto)
   ]
 
+/-- Looks up a string in the keywords map. -/
 def lookupKeyword (s : String) : Option Token :=
   (keywords.find? (fun (k, _) => k == s)).map Prod.snd
 
 -- Skip whitespace and comments
+/-- Skips whitespace characters and both single-line and multi-line comments. -/
 partial def skipWhitespaceAndComments (s : LexState) : LexState :=
   let s := skipWs s
   match s.peek?, s.peekN 1 with
@@ -245,6 +333,7 @@ where
       | none, _ => s  -- Unclosed comment, will be caught later
 
 -- Lex a number: integer or float
+/-- Lexes a numeric literal (integer or float). -/
 partial def lexNumber (s : LexState) : Except String (Token × LexState) := do
   let startPos := s.sourcePos
   -- Optional leading minus for negative numbers
@@ -305,6 +394,7 @@ where
     numer / denom
 
 -- Lex an identifier or keyword
+/-- Lexes an identifier or keyword. -/
 partial def lexIdent (s : LexState) : Except String (Token × LexState) := do
   let (chars, s) := lexIdentChars s []
   let str := String.ofList chars.reverse
@@ -327,6 +417,7 @@ where
     | none => (acc, s)
 
 -- Lex a string literal
+/-- Lexes a string literal with escape sequences. -/
 partial def lexString (s : LexState) : Except String (Token × LexState) := do
   let startPos := s.sourcePos
   let s := s.advance  -- skip opening "
@@ -351,6 +442,7 @@ where
     | none => .error "unterminated string"
 
 -- Lex a character literal
+/-- Lexes a single character literal. -/
 def lexChar (s : LexState) : Except String (Token × LexState) := do
   let startPos := s.sourcePos
   let s := s.advance  -- skip opening '
@@ -371,6 +463,7 @@ def lexChar (s : LexState) : Except String (Token × LexState) := do
   | _ => .error s!"expected closing ' at {s.sourcePos.line}:{s.sourcePos.col}"
 
 -- Lex a single token
+/-- Lexes a single token from the current state. -/
 partial def lexToken (s : LexState) : Except String (PosToken × LexState) := do
   let s := skipWhitespaceAndComments s
   let pos := s.sourcePos
@@ -443,6 +536,7 @@ partial def lexToken (s : LexState) : Except String (PosToken × LexState) := do
     | none, _ => .error "unexpected end of input"
 
 -- Tokenize entire input
+/-- Tokenizes the entire input string into a list of positioned tokens. -/
 partial def tokenize (input : String) : Except String (List PosToken) := do
   let s : LexState := { input := input, chars := input.toList }
   go s []

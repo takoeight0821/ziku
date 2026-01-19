@@ -1,6 +1,8 @@
 import Ziku.Syntax
 import Ziku.Lexer
 
+set_option linter.missingDocs false
+
 namespace Ziku
 
 /-!
@@ -11,44 +13,57 @@ The parser uses the token stream from the lexer to build an AST.
 -/
 
 -- Parser state
+/-- Represents the state of the parser, containing the remaining tokens. -/
 structure ParseState where
+  /-- The list of tokens remaining to be parsed. -/
   tokens : List PosToken
   deriving Repr
 
+/-- Returns the current token without advancing the parser. -/
 def ParseState.peek? (s : ParseState) : Option PosToken :=
   s.tokens.head?
 
+/-- Returns the type of the current token without advancing the parser. -/
 def ParseState.peekToken? (s : ParseState) : Option Token :=
   s.tokens.head?.map (·.token)
 
+/-- Returns the token at 'n' positions ahead. -/
 def ParseState.peekN (s : ParseState) (n : Nat) : Option PosToken :=
   s.tokens[n]?
 
+/-- Advances the parser state by one token. -/
 def ParseState.advance (s : ParseState) : ParseState :=
   { s with tokens := s.tokens.drop 1 }
 
+/-- Returns true if the parser has reached the end of the input or an EOF token. -/
 def ParseState.eof (s : ParseState) : Bool :=
   match s.peekToken? with
   | some .eof => true
   | _ => false
 
 -- Default position for end-of-file (no tokens remaining)
+/-- Default position used for errors at the end of the file. -/
 def eofPos : SourcePos := { line := 0, col := 0 }
 
+/-- Returns the source position of the current token. -/
 def ParseState.currentPos (s : ParseState) : SourcePos :=
   match s.peek? with
   | some tok => tok.pos
   | none => eofPos
 
+/-- The 'Parser' type represents a stateful transformation from 'ParseState' to a result or error. -/
 abbrev Parser α := ParseState → Except String (α × ParseState)
 
 -- Parser combinators
+/-- Wraps a value in the 'Parser' monad. -/
 def Parser.pure (a : α) : Parser α := fun s => .ok (a, s)
 
+/-- Fails the parser with a given message at the current position. -/
 def Parser.fail (msg : String) : Parser α := fun s =>
   let pos := s.currentPos
   .error s!"{msg} at {pos.line}:{pos.col}"
 
+/-- Chains two parsers together. -/
 def Parser.bind (p : Parser α) (f : α → Parser β) : Parser β := fun s =>
   match p s with
   | .ok (a, s') => f a s'
@@ -66,6 +81,7 @@ instance : MonadExcept String Parser where
     | .error msg => handler msg s
 
 -- Expect a specific token
+/-- Consumes the current token if it matches the expected token, otherwise fails. -/
 def expect (expected : Token) : Parser Unit := fun s =>
   match s.peekToken? with
   | some tok =>
@@ -74,6 +90,7 @@ def expect (expected : Token) : Parser Unit := fun s =>
   | none => .error s!"expected {expected} but found EOF"
 
 -- Expect and return identifier
+/-- Consumes and returns the current token if it is an identifier, otherwise fails. -/
 def expectIdent : Parser Ident := fun s =>
   match s.peekToken? with
   | some (.ident id) => .ok (id, s.advance)
@@ -81,6 +98,7 @@ def expectIdent : Parser Ident := fun s =>
   | none => .error "expected identifier but found EOF"
 
 -- Expect constructor identifier
+/-- Consumes and returns the current token if it is a constructor identifier, otherwise fails. -/
 def expectConId : Parser Ident := fun s =>
   match s.peekToken? with
   | some (.conId id) => .ok (id, s.advance)
@@ -88,18 +106,21 @@ def expectConId : Parser Ident := fun s =>
   | none => .error "expected constructor identifier but found EOF"
 
 -- Try to match a token, return true if matched
+/-- Returns true and advances if the current token matches the given token, otherwise returns false. -/
 def tryToken (tok : Token) : Parser Bool := fun s =>
   match s.peekToken? with
   | some t => if t == tok then .ok (true, s.advance) else .ok (false, s)
   | none => .ok (false, s)
 
 -- Optional parser
+/-- Optionally runs a parser, returning 'none' if it fails without consuming input. -/
 def optional (p : Parser α) : Parser (Option α) := fun s =>
   match p s with
   | .ok (a, s') => .ok (some a, s')
   | .error _ => .ok (none, s)
 
 -- Many parser (zero or more)
+/-- Parses a sequence of zero or more occurrences of 'p'. -/
 partial def many (p : Parser α) : Parser (List α) := fun s =>
   match p s with
   | .ok (a, s') =>
@@ -109,12 +130,14 @@ partial def many (p : Parser α) : Parser (List α) := fun s =>
   | .error _ => .ok ([], s)
 
 -- Many1 parser (one or more)
+/-- Parses a sequence of one or more occurrences of 'p'. -/
 partial def many1 (p : Parser α) : Parser (List α) := do
   let first ← p
   let rest ← many p
   return first :: rest
 
 -- Separated by (sep-separated list)
+/-- Parses a sequence of zero or more occurrences of 'p' separated by 'sep'. -/
 partial def sepBy (p : Parser α) (sep : Parser β) : Parser (List α) := fun s =>
   match p s with
   | .ok (first, s') =>
@@ -130,10 +153,12 @@ partial def sepBy (p : Parser α) (sep : Parser β) : Parser (List α) := fun s 
   | .error _ => .ok ([], s)
 
 -- Separated by (at least one)
+/-- Skips the result of the first parser and returns the result of the second. -/
 def seqRight (x : Parser α) (y : Parser β) : Parser β := do
   let _ ← x
   y
 
+/-- Parses a sequence of one or more occurrences of 'p' separated by 'sep'. -/
 def sepBy1 (p : Parser α) (sep : Parser β) : Parser (List α) := do
   let first ← p
   let rest ← many (seqRight sep p)

@@ -4,6 +4,7 @@ import Ziku.Syntax
 import Ziku.Builtins
 import Ziku.IR.Syntax
 import Ziku.IR.Eval
+import Ziku.IR.BigStepEval
 import Ziku.Translate
 import Ziku.Lexer
 import Ziku.Type
