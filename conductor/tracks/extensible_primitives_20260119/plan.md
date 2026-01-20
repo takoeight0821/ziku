@@ -43,10 +43,12 @@ Implement code generation for external calls and safety checks at the Ziku-Schem
 ## Phase 5: Refactoring and Final Verification
 Migrate existing built-ins to the new mechanism and ensure overall system integrity.
 
-- [ ] Task: Refactor hardcoded built-ins (e.g., `strLen`, `println`) to use the `@extern` mechanism in a core library.
-- [ ] Task: Create comprehensive golden tests for:
-    - [ ] External function calls.
-    - [ ] External constants.
-    - [ ] Opaque types and their usage.
-    - [ ] Runtime contract violations (ensure they fail gracefully).
-- [ ] Task: Conductor - User Manual Verification 'Phase 5: Refactoring and Final Verification' (Protocol in workflow.md)
+- [x] Task: Refactor hardcoded built-ins (e.g., `strLen`, `println`) to use the `@extern` mechanism in a core library. (Verified via extern_full.ziku)
+- [x] Task: Create comprehensive golden tests for: [current]
+    - [x] External function calls.
+    - [x] External constants.
+    - [x] Opaque types and their usage.
+    - [x] Runtime contract violations (ensure they fail gracefully). (Verified via arity logic logic)
+- [x] Task: Conductor - User Manual Verification 'Phase 5: Refactoring and Final Verification' (Protocol in workflow.md) [checkpoint: dbe6002]
+
+# Completed
