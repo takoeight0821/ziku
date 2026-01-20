@@ -28,8 +28,8 @@ Extend the IR and translation pass to handle external calls.
 
 - [x] Task: Update `Ziku/IR/Syntax.lean` to include an `externalCall` statement. [6ccbdaf]
     - [x] Add `Statement.externalCall` that stores the external info, arguments, and continuation.
-- [ ] Task: Update `Ziku/Translate.lean` to translate external function calls to `Statement.externalCall`.
-    - [ ] Modify the translation logic to look up the correct backend implementation from the `ExternInfo` list.
+- [x] Task: Update `Ziku/Translate.lean` to translate external function calls to `Statement.externalCall`. [2bc1e19]
+    - [x] Modify the translation logic to look up the correct backend implementation from the `ExternInfo` list. (Implicit in ExternInfo being a list)
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: IR and Translation' (Protocol in workflow.md)
 
 ## Phase 4: Scheme Backend and Runtime Contracts
