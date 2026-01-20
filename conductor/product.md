@@ -16,3 +16,4 @@ Ziku is designed for **Programming Language Researchers** exploring the λμμ̃
 - **Control Flow:** First-class control primitives using `label` and `goto`.
 - **Inference:** Robust let-polymorphism via Hindley-Milner type inference.
 - **Backend:** High-performance compilation to Chez Scheme.
+- **Extensible Primitives:** Mechanism to define external functions and opaque types directly in Ziku source, allowing seamless integration with host environment features.

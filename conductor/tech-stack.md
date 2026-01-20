@@ -5,6 +5,7 @@
 
 ## Backend and Compilation
 - **Chez Scheme**: The primary compilation target. Ziku's IR is translated to Scheme for high-performance execution.
+- **FFI (Foreign Function Interface)**: A dynamic wrapper mechanism in the Scheme backend that enables Ziku to call native host procedures with runtime arity checking and automatic currying.
 
 ## Infrastructure and Tooling
 - **Lake**: The build system and package manager for the Lean 4 codebase.
