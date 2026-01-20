@@ -227,10 +227,15 @@ structure ExternEntry where
   backend : String
   /-- The symbol name on the target platform. -/
   symbol : String
+  /-- Arity of the function (optional). -/
+  arity : Option Nat
   deriving Repr, BEq
 
 instance : ToString ExternEntry where
-  toString e := s!"@(\"{e.backend}\", \"{e.symbol}\")"
+  toString e := 
+    match e.arity with
+    | some a => s!"@(\"{e.backend}\", \"{e.symbol}\", {a})"
+    | none => s!"@(\"{e.backend}\", \"{e.symbol}\")"
 
 /-- Metadata for external declarations is a list of backend entries. -/
 abbrev ExternInfo := List ExternEntry

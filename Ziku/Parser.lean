@@ -1188,9 +1188,20 @@ mutual
             match s''''.peekToken? with
             | some (.string symbol) =>
               let s''''' := s''''.advance
-              match expect .rparen s''''' with
-              | .ok (_, s'''''') => .ok ({ backend, symbol }, s'''''')
-              | .error msg => .error msg
+              match s'''''.peekToken? with
+              | some .comma =>
+                let s'''''' := s'''''.advance
+                match s''''''.peekToken? with
+                | some (.int n) =>
+                  let s''''''' := s''''''.advance
+                  match expect .rparen s''''''' with
+                  | .ok (_, s'''''''') => .ok ({ backend, symbol, arity := some n.toNat }, s'''''''')
+                  | .error msg => .error msg
+                | _ => .error "expected integer arity"
+              | _ =>
+                match expect .rparen s''''' with
+                | .ok (_, s'''''') => .ok ({ backend, symbol, arity := none }, s'''''')
+                | .error msg => .error msg
             | _ => .error "expected external symbol string"
           | .error msg => .error msg
         | _ => .error "expected backend string"

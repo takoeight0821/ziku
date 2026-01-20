@@ -473,9 +473,17 @@ partial def translateStatementM : Statement → GenM String
       let argCodes ← args.mapM translateProducerM
       let builtinCall := translateBuiltinApp b argCodes
       pure s!"({cCode} {builtinCall})"
-  | .externalCall _ info _ _ => do
-    -- Placeholder for Phase 4
-    pure s!"(error \"External call not implemented: {info.toString}\")"
+  | .externalCall _ info _ c => do
+    let cCode ← translateConsumerM c
+    match info.find? (fun e => e.backend == "scheme") with
+    | some entry =>
+      let symbol := entry.symbol
+      let arityArg := match entry.arity with
+        | some a => toString a
+        | none => "#f"
+      -- (c (ziku-extern-wrapper 'symbol arity))
+      pure s!"({cCode} (ziku-extern-wrapper '{symbol} {arityArg}))"
+    | none => pure s!"(error \"No scheme implementation for extern\")"
 
 end
 
@@ -571,6 +579,24 @@ def schemeRuntime : String :=
     (if (eof-object? line)
         \"\"
         line)))
+
+(define (ziku-extern-wrapper name arity)
+  (let ((proc (top-level-value name)))
+    (letrec ((wrapper (lambda (collected)
+                        (lambda (msg)
+                          (if (and (pair? msg) (eq? (car msg) 'ap))
+                              (let ((inner (cdr msg)))
+                                (let ((arg (car inner)) (cont (cdr inner)))
+                                  (let ((new-args (append collected (list arg))))
+                                    (if (if arity
+                                            (= (length new-args) arity)
+                                            (let ((mask (procedure-arity-mask proc)))
+                                              (logbit? (length new-args) mask)))
+                                        (cont (apply proc new-args))
+                                        (cont (wrapper new-args))))))
+                              ;; Record/Method call support? Not implemented for externs yet
+                              (error \"Extern wrapper received unknown message\"))))))
+      (wrapper '()))))
 
 "
 

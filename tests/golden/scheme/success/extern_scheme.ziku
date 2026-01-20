@@ -1,0 +1,7 @@
+let strLen : String -> Int = @("scheme", "string-length") in
+let s = "hello" in
+let len = strLen s in
+if len == 5 then
+  println "OK"
+else
+  println "FAIL"
