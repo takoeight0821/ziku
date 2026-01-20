@@ -12,7 +12,7 @@ Support the `@("backend", "name")` syntax for external declarations.
     - [x] Update `Ziku/Parser.lean` to parse `@("backend", "name")` on the RHS of declarations.
     - [x] Support the `|` separator for multiple backends.
     - [x] Ensure `data` declarations can also use this syntax.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: AST and Parser Updates' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: AST and Parser Updates' (Protocol in workflow.md) [checkpoint: e1db3ff]
 
 ## Phase 2: Type Inference for Externals
 Integrate external declarations into the Hindley-Milner type inference system.
