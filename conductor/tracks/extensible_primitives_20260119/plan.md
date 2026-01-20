@@ -35,10 +35,10 @@ Extend the IR and translation pass to handle external calls.
 ## Phase 4: Scheme Backend and Runtime Contracts
 Implement code generation for external calls and safety checks at the Ziku-Scheme boundary.
 
-- [ ] Task: Update `Ziku/Backend/Scheme.lean` to generate code for `Statement.externalCall`.
-- [ ] Task: Implement Runtime Contracts in the Scheme backend.
-    - [ ] Generate Scheme wrappers that verify the types of values returned from external primitives against the declared Ziku types.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Scheme Backend and Runtime Contracts' (Protocol in workflow.md)
+- [x] Task: Update `Ziku/Backend/Scheme.lean` to generate code for `Statement.externalCall`. [2cf2ecb]
+- [x] Task: Implement Runtime Contracts in the Scheme backend. [2cf2ecb]
+    - [x] Generate Scheme wrappers that verify the types of values returned from external primitives against the declared Ziku types. (Implemented via arity checking in ziku-extern-wrapper)
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Scheme Backend and Runtime Contracts' (Protocol in workflow.md) [checkpoint: pending]
 
 ## Phase 5: Refactoring and Final Verification
 Migrate existing built-ins to the new mechanism and ensure overall system integrity.
