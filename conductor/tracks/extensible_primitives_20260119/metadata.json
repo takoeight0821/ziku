@@ -1,0 +1,8 @@
+{
+  "track_id": "extensible_primitives_20260119",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-19T00:00:00Z",
+  "updated_at": "2026-01-19T00:00:00Z",
+  "description": "primitiveの扱いを改善したいです。今は処理系に組み込まれたprimitiveのみが扱えますが、これを拡張可能にしたいです。良い案を検討してください。"
+}

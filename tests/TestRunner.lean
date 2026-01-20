@@ -150,9 +150,19 @@ structure TestOutput where
   deriving Repr
 
 def runParserTest (input : String) : Except String TestOutput :=
-  match Ziku.parseExprString input.trimAscii.toString with 
-  | .ok expr => .ok { output := toString expr, isError := false }
-  | .error e => .ok { output := e, isError := true }
+  match Ziku.parseProgram input.trimAscii.toString with
+  | .ok decls => .ok { output := toString decls, isError := false }
+  | .error progErr =>
+    match Ziku.parseExprString input.trimAscii.toString with 
+    | .ok expr => .ok { output := toString expr, isError := false }
+    | .error exprErr =>
+      let trimmed := input.trimAscii.toString
+      if trimmed.startsWith "data" || trimmed.startsWith "codata" || trimmed.startsWith "def" ||
+         trimmed.startsWith "module" || trimmed.startsWith "import" || trimmed.startsWith "infix" ||
+         trimmed.startsWith "@" then
+        .ok { output := progErr, isError := true }
+      else
+        .ok { output := exprErr, isError := true }
 
 def runInferTest (input : String) : Except String TestOutput :=
   match Ziku.parseExprString input.trimAscii.toString with 

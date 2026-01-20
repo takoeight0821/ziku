@@ -709,6 +709,11 @@ mutual
     | some (.char c) => .ok (Expr.lit pos (.char c), s.advance)
     | some .kTrue => .ok (Expr.lit pos (.bool true), s.advance)
     | some .kFalse => .ok (Expr.lit pos (.bool false), s.advance)
+    -- Extern: @("scheme", "foo") | @...
+    | some .at_ =>
+      match parseExternEntries s with
+      | .ok (info, s') => .ok (Expr.extern pos info, s')
+      | .error msg => .error msg
     -- Hash (self-reference) for codata
     | some .hash => .ok (Expr.hash pos, s.advance)
     -- Variable
@@ -1322,31 +1327,24 @@ mutual
     | .ok (_, s'') =>
       match parseType s'' with
       | .ok (ty, s''') =>
-        -- Check for extern body first
-        match parseExternBody s''' with
-        | .ok (some extern, s'''') =>
-           .ok (.def_ name ty none (some extern), s'''')
-        | .ok (none, _) =>
-          -- Regular def
-          match s'''.peekToken? with
-          | some .eq =>
-            let s''' := s'''.advance
-            match parseExpr s''' with
-            | .ok (body, s'''') => .ok (.def_ name ty (some body) none, s'''')
-            | .error msg => .error msg
-          | some .pipe =>
-            -- Pattern clauses
-            match parseDefClauses s''' with
-            | .ok (clauses, s'''') => .ok (.defPat name ty clauses none, s'''')
-            | .error msg => .error msg
-          | some .lbrace =>
-            -- Copattern block
-            match parseDefClauses s''' with
-            | .ok (clauses, s'''') => .ok (.defPat name ty clauses none, s'''')
-            | .error msg => .error msg
-          | some tok => .error s!"expected '=', '|' or extern definition but found {tok}"
-          | none => .error "unexpected EOF"
-        | .error msg => .error msg
+        match s'''.peekToken? with
+        | some .eq =>
+          let s''' := s'''.advance
+          match parseExpr s''' with
+          | .ok (body, s'''') => .ok (.def_ name ty (some body), s'''')
+          | .error msg => .error msg
+        | some .pipe =>
+          -- Pattern clauses
+          match parseDefClauses s''' with
+          | .ok (clauses, s'''') => .ok (.defPat name ty clauses, s'''')
+          | .error msg => .error msg
+        | some .lbrace =>
+          -- Copattern block
+          match parseDefClauses s''' with
+          | .ok (clauses, s'''') => .ok (.defPat name ty clauses, s'''')
+          | .error msg => .error msg
+        | some tok => .error s!"expected '=' or '|' but found {tok}"
+        | none => .error "unexpected EOF"
       | .error msg => .error msg
     | .error msg => .error msg
 

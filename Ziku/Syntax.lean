@@ -220,6 +220,24 @@ inductive Accessor where
 /-- Represents a copattern as a list of accessors. -/
 abbrev Copattern := List Accessor
 
+-- Metadata for external declarations
+/-- Represents a single external definition entry: (backend, symbol). -/
+structure ExternEntry where
+  /-- The target platform (e.g., "scheme"). -/
+  backend : String
+  /-- The symbol name on the target platform. -/
+  symbol : String
+  deriving Repr, BEq
+
+instance : ToString ExternEntry where
+  toString e := s!"@(\"{e.backend}\", \"{e.symbol}\")"
+
+/-- Metadata for external declarations is a list of backend entries. -/
+abbrev ExternInfo := List ExternEntry
+
+def ExternInfo.toString (info : ExternInfo) : String :=
+  String.intercalate " | " (info.map ToString.toString)
+
 -- Expressions
 /-- Represents a Ziku expression. -/
 inductive Expr where
@@ -259,6 +277,8 @@ inductive Expr where
   | goto      : SourcePos → Expr → Expr → Expr                      -- Goto: goto(expr, covalue_expr)
   /-- Data constructor. -/
   | con       : SourcePos → Ident → List Expr → Expr                -- Constructor: Con args...
+  /-- External definition. -/
+  | extern    : SourcePos → ExternInfo → Expr                       -- Extern: @("scheme", "foo")
   deriving Repr, BEq
 
 /-- Returns the source position of an expression. -/
@@ -281,6 +301,7 @@ def Expr.pos : Expr → SourcePos
   | label p _ _ => p
   | goto p _ _ => p
   | con p _ _ => p
+  | extern p _ => p
 
 -- Data constructor declaration
 /-- Represents a declaration of a data constructor. -/
@@ -309,24 +330,6 @@ inductive DefClause where
   | copatClause : List Pat → Copattern → Expr → DefClause        -- p1, p2 #.field => e
   deriving Repr, BEq
 
--- Metadata for external declarations
-/-- Represents a single external definition entry: (backend, symbol). -/
-structure ExternEntry where
-  /-- The target platform (e.g., "scheme"). -/
-  backend : String
-  /-- The symbol name on the target platform. -/
-  symbol : String
-  deriving Repr, BEq
-
-instance : ToString ExternEntry where
-  toString e := s!"@(\"{e.backend}\", \"{e.symbol}\")"
-
-/-- Metadata for external declarations is a list of backend entries. -/
-abbrev ExternInfo := List ExternEntry
-
-def ExternInfo.toString (info : ExternInfo) : String :=
-  String.intercalate " | " (info.map ToString.toString)
-
 -- Top-level declarations
 /-- Represents a top-level declaration in Ziku. -/
 inductive Decl where
@@ -335,9 +338,9 @@ inductive Decl where
   /-- Codata type declaration. -/
   | codata  : Ident → List Ident → List CopatSig → Option ExternInfo → Decl         -- codata T a { #.f : ty }
   /-- Simple function definition. -/
-  | def_    : Ident → Ty → Option Expr → Option ExternInfo → Decl                   -- def f : ty = e
+  | def_    : Ident → Ty → Option Expr → Decl                                       -- def f : ty = e
   /-- Function definition with pattern matching. -/
-  | defPat  : Ident → Ty → List DefClause → Option ExternInfo → Decl                -- def f : ty | p => e
+  | defPat  : Ident → Ty → List DefClause → Decl                                    -- def f : ty | p => e
   /-- Infix operator declaration. -/
   | infix_  : Nat → Bool → Ident → Decl                         -- infix 6 ++  (prec, rightAssoc, name)
   /-- Module declaration. -/
@@ -373,6 +376,7 @@ partial def Expr.exprSize : Expr → Nat
   | label _ _ e => 1 + e.exprSize
   | goto _ e1 e2 => 1 + e1.exprSize + e2.exprSize
   | con _ _ args => 1 + args.foldl (fun acc e => acc + e.exprSize) 0
+  | extern _ _ => 1
 
 -- Free variables in an expression
 /-- Returns the list of free variables in an expression. -/
@@ -398,6 +402,7 @@ partial def Expr.freeVars : Expr → List Ident
   | label _ name e => e.freeVars.filter (· != name)  -- name is bound as a label
   | goto _ e1 e2 => e1.freeVars ++ e2.freeVars
   | con _ _ args => args.flatMap Expr.freeVars
+  | extern _ _ => []
 
 
 -- Closed expression (no free variables)
@@ -529,9 +534,10 @@ partial def Expr.toString : Expr → String
   | .hash _ => "#"
   | .label _ name body => s!"(Label \"{name}\" {body.toString})"
   | .goto _ e1 e2 => s!"(Goto {e1.toString} {e2.toString})"
-  | .con _ name args =>
+  | con _ name args =>
     let argsStr := args.map Expr.toString
     s!"(Con \"{name}\" [{String.intercalate ", " argsStr}])"
+  | extern _ info => s!"(Extern {ExternInfo.toString info})"
 
 instance : ToString Expr := ⟨Expr.toString⟩
 
@@ -550,13 +556,11 @@ partial def Decl.toString : Decl → String
     let ss := sigs.map (fun s => s!"#{Copattern.toString s.accessors} : {s.ty}")
     let ext := match extern with | some info => s!" = {ExternInfo.toString info}" | none => ""
     s!"(Codata {name}{ps} " ++ "{ " ++ String.intercalate ", " ss ++ " }" ++ s!"{ext})"
-  | .def_ name ty body extern =>
-    let ext := match extern with | some info => s!" = {ExternInfo.toString info}" | none => ""
+  | .def_ name ty body =>
     let bStr := match body with | some b => s!" {b.toString}" | none => ""
-    s!"(Def \"{name}\" {ty}{bStr}{ext})"
-  | .defPat name ty _clauses extern =>
-    let ext := match extern with | some info => s!" = {ExternInfo.toString info}" | none => ""
-    s!"(DefPat \"{name}\" {ty} [...]{ext})"
+    s!"(Def \"{name}\" {ty}{bStr})"
+  | .defPat name ty _clauses =>
+    s!"(DefPat \"{name}\" {ty} [...])"
   | .infix_ prec rightAssoc op =>
     let assoc := if rightAssoc then "right" else "left"
     s!"(Infix {prec} {assoc} \"{op}\")"
