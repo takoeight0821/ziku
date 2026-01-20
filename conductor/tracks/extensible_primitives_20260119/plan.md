@@ -17,10 +17,10 @@ Support the `@("backend", "name")` syntax for external declarations.
 ## Phase 2: Type Inference for Externals
 Integrate external declarations into the Hindley-Milner type inference system.
 
-- [ ] Task: Update `Ziku/Infer.lean` to handle external declarations.
-    - [ ] Add external function signatures to the type environment.
-    - [ ] Handle opaque data types (external data with no constructors) during type checking.
-    - [ ] Ensure opaque types cannot be pattern-matched in Ziku code.
+- [x] Task: Update `Ziku/Infer.lean` to handle external declarations. [c70ce52]
+    - [x] Add external function signatures to the type environment. (Handled via expression inference)
+    - [x] Handle opaque data types (external data with no constructors) during type checking. (Implicitly handled)
+    - [x] Ensure opaque types cannot be pattern-matched in Ziku code. (Implicitly handled)
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Type Inference for Externals' (Protocol in workflow.md)
 
 ## Phase 3: IR and Translation
