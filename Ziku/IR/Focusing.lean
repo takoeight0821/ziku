@@ -187,6 +187,23 @@ mutual
           let ps' := ps.set idx (.var pos x)
           let inner ← focusStatement (.call pos f ps' cs)
           pure (.cut pos p (.muTilde pos x inner))
+    | .externalCall pos info ps c => do
+      -- Focus all producer arguments
+      match ps.findIdx? Producer.needsFocus with
+      | none => do
+        let c' ← focusConsumer c
+        pure (.externalCall pos info ps c')
+      | some idx =>
+        match ps[idx]? with
+        | none => do
+          let c' ← focusConsumer c
+          pure (.externalCall pos info ps c')
+        | some nonValueP =>
+          let x ← freshVar
+          let p ← focusProducer nonValueP
+          let ps' := ps.set idx (.var pos x)
+          let inner ← focusStatement (.externalCall pos info ps' c)
+          pure (.cut pos p (.muTilde pos x inner))
 end
 
 -- Main entry point: apply focusing transformation to a statement

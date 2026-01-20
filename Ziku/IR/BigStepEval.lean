@@ -394,6 +394,7 @@ mutual
       match ← evalBuiltin pos b args with
       | .ok result => applyConsumer result c env
       | .error e => return .error e
+    | .externalCall pos _ _ _ => return .error (.callNotSupported pos) -- Placeholder for Phase 4
     | .call pos _ _ _ => return .error (.callNotSupported pos)
 end
 

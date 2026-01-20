@@ -473,6 +473,9 @@ partial def translateStatementM : Statement → GenM String
       let argCodes ← args.mapM translateProducerM
       let builtinCall := translateBuiltinApp b argCodes
       pure s!"({cCode} {builtinCall})"
+  | .externalCall _ info _ _ => do
+    -- Placeholder for Phase 4
+    pure s!"(error \"External call not implemented: {info.toString}\")"
 
 end
 
