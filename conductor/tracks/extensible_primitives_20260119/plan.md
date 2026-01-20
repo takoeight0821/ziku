@@ -21,7 +21,7 @@ Integrate external declarations into the Hindley-Milner type inference system.
     - [x] Add external function signatures to the type environment. (Handled via expression inference)
     - [x] Handle opaque data types (external data with no constructors) during type checking. (Implicitly handled)
     - [x] Ensure opaque types cannot be pattern-matched in Ziku code. (Implicitly handled)
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Type Inference for Externals' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Type Inference for Externals' (Protocol in workflow.md) [checkpoint: 81ce829]
 
 ## Phase 3: IR and Translation
 Extend the IR and translation pass to handle external calls.
