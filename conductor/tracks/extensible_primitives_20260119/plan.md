@@ -26,8 +26,8 @@ Integrate external declarations into the Hindley-Milner type inference system.
 ## Phase 3: IR and Translation
 Extend the IR and translation pass to handle external calls.
 
-- [ ] Task: Update `Ziku/IR/Syntax.lean` to include an `externalCall` statement.
-    - [ ] Add `Statement.externalCall` that stores the external info (for the chosen backend), arguments, and continuation.
+- [x] Task: Update `Ziku/IR/Syntax.lean` to include an `externalCall` statement. [6ccbdaf]
+    - [x] Add `Statement.externalCall` that stores the external info, arguments, and continuation.
 - [ ] Task: Update `Ziku/Translate.lean` to translate external function calls to `Statement.externalCall`.
     - [ ] Modify the translation logic to look up the correct backend implementation from the `ExternInfo` list.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: IR and Translation' (Protocol in workflow.md)
