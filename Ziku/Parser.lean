@@ -105,6 +105,20 @@ def expectConId : Parser Ident := fun s =>
   | some tok => .error s!"expected constructor identifier but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
   | none => .error "expected constructor identifier but found EOF"
 
+/-- Consumes and returns the current token if it is a string literal, otherwise fails. -/
+def expectString : Parser String := fun s =>
+  match s.peekToken? with
+  | some (.string str) => .ok (str, s.advance)
+  | some tok => .error s!"expected string literal but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+  | none => .error "expected string literal but found EOF"
+
+/-- Consumes and returns the current token if it is an integer, otherwise fails. -/
+def expectInt : Parser Int := fun s =>
+  match s.peekToken? with
+  | some (.int n) => .ok (n, s.advance)
+  | some tok => .error s!"expected integer but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
+  | none => .error "expected integer but found EOF"
+
 -- Try to match a token, return true if matched
 /-- Returns true and advances if the current token matches the given token, otherwise returns false. -/
 def tryToken (tok : Token) : Parser Bool := fun s =>
@@ -1175,38 +1189,18 @@ mutual
   partial def parseExternEntries : Parser ExternInfo :=
     sepBy1 parseExternEntry (expect .pipe)
 
-  partial def parseExternEntry : Parser ExternEntry := fun s =>
-    match expect .at_ s with
-    | .ok (_, s') =>
-      match expect .lparen s' with
-      | .ok (_, s'') =>
-        match s''.peekToken? with
-        | some (.string backend) =>
-          let s''' := s''.advance
-          match expect .comma s''' with
-          | .ok (_, s'''') =>
-            match s''''.peekToken? with
-            | some (.string symbol) =>
-              let s''''' := s''''.advance
-              match s'''''.peekToken? with
-              | some .comma =>
-                let s'''''' := s'''''.advance
-                match s''''''.peekToken? with
-                | some (.int n) =>
-                  let s''''''' := s''''''.advance
-                  match expect .rparen s''''''' with
-                  | .ok (_, s'''''''') => .ok ({ backend, symbol, arity := some n.toNat }, s'''''''')
-                  | .error msg => .error msg
-                | _ => .error "expected integer arity"
-              | _ =>
-                match expect .rparen s''''' with
-                | .ok (_, s'''''') => .ok ({ backend, symbol, arity := none }, s'''''')
-                | .error msg => .error msg
-            | _ => .error "expected external symbol string"
-          | .error msg => .error msg
-        | _ => .error "expected backend string"
-      | .error msg => .error msg
-    | .error msg => .error msg
+  partial def parseExternEntry : Parser ExternEntry := do
+    let _ ← expect .at_
+    let _ ← expect .lparen
+    let backend ← expectString
+    let _ ← expect .comma
+    let symbol ← expectString
+    let arity ← optional do
+      let _ ← expect .comma
+      let n ← expectInt
+      pure n.toNat
+    let _ ← expect .rparen
+    return { backend, symbol, arity }
 
   -- Parse declaration
   partial def parseDecl : Parser Decl := fun s =>
