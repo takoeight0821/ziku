@@ -1,1 +1,1 @@
-[(Def "strLen" (String -> Int) (Extern @("scheme", "string-length"))), (Data Vector a [] = @("scheme", "vector")), (Def "print" (~String -> Unit) (Extern @("scheme", "display") | @("c", "printf")))]
+[(Def "strLen" (String -> Int) (Extern @("scheme", "string-length", 1))), (Data Vector a [] = @("scheme", "vector", 0)), (Def "print" (~String -> Unit) (Extern @("scheme", "display", 1) | @("c", "printf", 1)))]

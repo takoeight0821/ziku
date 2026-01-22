@@ -477,12 +477,8 @@ partial def translateStatementM : Statement → GenM String
     let cCode ← translateConsumerM c
     match info.find? (fun e => e.backend == "scheme") with
     | some entry =>
-      let symbol := entry.symbol
-      let arityArg := match entry.arity with
-        | some a => toString a
-        | none => "#f"
       -- (c (ziku-extern-wrapper 'symbol arity))
-      pure s!"({cCode} (ziku-extern-wrapper '{symbol} {arityArg}))"
+      pure s!"({cCode} (ziku-extern-wrapper '{entry.symbol} {entry.arity}))"
     | none => pure s!"(error \"No scheme implementation for extern\")"
 
 end
@@ -585,16 +581,13 @@ def schemeRuntime : String :=
     (letrec ((wrapper (lambda (collected)
                         (lambda (msg)
                           (if (and (pair? msg) (eq? (car msg) 'ap))
-                              (let ((inner (cdr msg)))
-                                (let ((arg (car inner)) (cont (cdr inner)))
-                                  (let ((new-args (append collected (list arg))))
-                                    (if (if arity
-                                            (= (length new-args) arity)
-                                            (let ((mask (procedure-arity-mask proc)))
-                                              (logbit? (length new-args) mask)))
-                                        (cont (apply proc new-args))
-                                        (cont (wrapper new-args))))))
-                              ;; Record/Method call support? Not implemented for externs yet
+                              (let* ((inner (cdr msg))
+                                     (arg (car inner))
+                                     (cont (cdr inner))
+                                     (new-args (append collected (list arg))))
+                                (if (= (length new-args) arity)
+                                    (cont (apply proc new-args))
+                                    (cont (wrapper new-args))))
                               (error \"Extern wrapper received unknown message\"))))))
       (wrapper '()))))
 

@@ -221,21 +221,18 @@ inductive Accessor where
 abbrev Copattern := List Accessor
 
 -- Metadata for external declarations
-/-- Represents a single external definition entry: (backend, symbol). -/
+/-- Represents a single external definition entry: (backend, symbol, arity). -/
 structure ExternEntry where
   /-- The target platform (e.g., "scheme"). -/
   backend : String
   /-- The symbol name on the target platform. -/
   symbol : String
-  /-- Arity of the function (optional). -/
-  arity : Option Nat
+  /-- Arity of the function (required). -/
+  arity : Nat
   deriving Repr, BEq
 
 instance : ToString ExternEntry where
-  toString e := 
-    match e.arity with
-    | some a => s!"@(\"{e.backend}\", \"{e.symbol}\", {a})"
-    | none => s!"@(\"{e.backend}\", \"{e.symbol}\")"
+  toString e := s!"@(\"{e.backend}\", \"{e.symbol}\", {e.arity})"
 
 /-- Metadata for external declarations is a list of backend entries. -/
 abbrev ExternInfo := List ExternEntry

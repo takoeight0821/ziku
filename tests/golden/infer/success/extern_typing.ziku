@@ -1,2 +1,2 @@
-let strLen : String -> Int = @("scheme", "string-length") in
+let strLen : String -> Int = @("scheme", "string-length", 1) in
 strLen "hello"

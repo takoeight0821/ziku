@@ -1,4 +1,4 @@
-let strLen : String -> Int = @("scheme", "string-length") in
+let strLen : String -> Int = @("scheme", "string-length", 1) in
 let s = "hello" in
 let len = strLen s in
 if len == 5 then

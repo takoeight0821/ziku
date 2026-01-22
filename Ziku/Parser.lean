@@ -1058,12 +1058,10 @@ mutual
     let backend ← expectString
     let _ ← expect .comma
     let symbol ← expectString
-    let arity ← optional do
-      let _ ← expect .comma
-      let n ← expectInt
-      pure n.toNat
+    let _ ← expect .comma
+    let n ← expectInt
     let _ ← expect .rparen
-    return { backend, symbol, arity }
+    return { backend, symbol, arity := n.toNat }
 
   -- Parse declaration
   partial def parseDecl : Parser Decl := fun s =>
