@@ -1,0 +1,14 @@
+let strLen : String -> Int = @("scheme", "string-length", 1) in
+let strAt : String -> Int -> Rune = @("scheme", "string-ref", 2) in
+let strSub : String -> Int -> Int -> String = @("scheme", "substring", 3) in
+let intToStr : Int -> String = @("scheme", "number->string", 1) in
+let println : String -> Unit = @("scheme", "ziku-println", 1) in
+
+let s = "hello world" in
+let len = strLen s in
+let c = strAt s 0 in
+let sub = strSub s 0 5 in
+let n = intToStr len in
+
+let ignore = println sub in
+println n

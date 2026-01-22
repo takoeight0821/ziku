@@ -1,0 +1,5 @@
+def strLen : String -> Int = @("scheme", "string-length", 1)
+
+data Vector a = @("scheme", "vector", 0)
+
+def print : ~String -> Unit = @("scheme", "display", 1) | @("c", "printf", 1)

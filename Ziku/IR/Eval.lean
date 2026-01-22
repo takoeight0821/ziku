@@ -89,6 +89,7 @@ partial def Statement.substVar (x : Ident) (p : Producer) : Statement → Statem
   | .ifz pos cond s1 s2 => .ifz pos (Producer.substVar x p cond) (Statement.substVar x p s1) (Statement.substVar x p s2)
   | .call pos f ps cs => .call pos f (ps.map (Producer.substVar x p)) (cs.map (Consumer.substVar x p))
   | .builtin pos b ps cons => .builtin pos b (ps.map (Producer.substVar x p)) (Consumer.substVar x p cons)
+  | .externalCall pos info ps cons => .externalCall pos info (ps.map (Producer.substVar x p)) (Consumer.substVar x p cons)
 end
 
 -- Substitution: replace covariable α with consumer c in statement
@@ -124,6 +125,7 @@ partial def Statement.substCovar (α : Ident) (c : Consumer) : Statement → Sta
   | .ifz pos cond s1 s2 => .ifz pos (Producer.substCovar α c cond) (Statement.substCovar α c s1) (Statement.substCovar α c s2)
   | .call pos f ps cs => .call pos f (ps.map (Producer.substCovar α c)) (cs.map (Consumer.substCovar α c))
   | .builtin pos b ps cons => .builtin pos b (ps.map (Producer.substCovar α c)) (Consumer.substCovar α c cons)
+  | .externalCall pos info ps cons => .externalCall pos info (ps.map (Producer.substCovar α c)) (Consumer.substCovar α c cons)
 end
 
 -- Evaluation errors (all variants include SourcePos for error reporting)
@@ -330,6 +332,7 @@ partial def stateStep : State → IO (Except EvalError (Option State))
     match ← evalBuiltin pos b ps env with
     | .ok result => return .ok (some (.cut result .empty c env))
     | .error e => return .error e
+  | .stmt (.externalCall pos _ _ _) _ => return .error (.callNotSupported pos) -- Placeholder for Phase 4
   | .stmt (.call pos _ _ _) _ => return .error (.callNotSupported pos)
   | .cut p env_p c env_c =>
     return match p, c with

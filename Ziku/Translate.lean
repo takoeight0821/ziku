@@ -345,6 +345,11 @@ mutual
       -- ⟦Con(e1, ..., en)⟧ = dataCon Con (⟦e1⟧, ..., ⟦en⟧)
       let argsP ← args.mapM translateExpr
       return .dataCon pos conName argsP
+    | .extern pos info => do
+      -- ⟦@(...)⟧ = μα. externalCall(info, [], α)
+      -- Returns the external entity (as a wrapped handler) to the continuation
+      let α ← freshCovar
+      return .mu pos α (.externalCall pos info [] (.covar pos α))
 
   -- Compile nested patterns for constructor arguments
   -- Takes list of ArgPatterns and generates nested case expressions

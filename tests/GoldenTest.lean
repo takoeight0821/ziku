@@ -49,9 +49,20 @@ structure TestOutput where
 
 /-- Run a parser test -/
 def runParserTest (input : String) : Except String TestOutput :=
-  match Ziku.parseExprString input.trim with
-  | .ok expr => .ok { output := toString expr, isError := false }
-  | .error e => .ok { output := e, isError := true }  -- Parse errors are test output for error tests
+  match Ziku.parseProgram input.trim with
+  | .ok decls => .ok { output := toString decls, isError := false }
+  | .error progErr =>
+    -- DBG: IO.println s!"Parser failed: {progErr}"
+    match Ziku.parseExprString input.trim with
+    | .ok expr => .ok { output := toString expr, isError := false }
+    | .error exprErr =>
+      let trimmed := input.trim
+      if trimmed.startsWith "data" || trimmed.startsWith "codata" || trimmed.startsWith "def" ||
+         trimmed.startsWith "module" || trimmed.startsWith "import" || trimmed.startsWith "infix" ||
+         trimmed.startsWith "@" then
+        .ok { output := s!"PROG_ERR: {progErr}", isError := true }
+      else
+        .ok { output := s!"EXPR_ERR: {exprErr} || PROG_ERR: {progErr}", isError := true }
 
 
 /-- Run a type inference test -/

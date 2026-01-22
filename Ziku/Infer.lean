@@ -682,6 +682,10 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     -- Create a row-polymorphic variant type [Con T1 ... Tn | ρ]
     let rowVar ← freshTyVar
     return .variant pos [(conName, argTys)] (some rowVar)
+  | .extern _ _ => do
+    -- External call: return a fresh type variable for now
+    -- Phase 2 will implement proper type lookup from environment or annotations
+    freshTyVar
 
 /-! ## Constraint Solving
 
