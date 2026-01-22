@@ -210,111 +210,81 @@ mutual
     let args ← many parseAtomType
     return args.foldl (Ty.app pos) base
 
+  -- Parse variant type after '[' (handles row polymorphism)
+  partial def parseVariantType (pos : SourcePos) : Parser Ty := do
+    let cases ← parseVariantTypeCases
+    let hasPipe ← tryToken .pipe
+    if hasPipe then
+      let tok? ← peek?
+      match tok? with
+      | some (.ident rowVar) =>
+        -- Open variant with row variable: [Con | r]
+        advance
+        let _ ← expect .rbracket
+        return .variant pos cases (some (.var pos rowVar))
+      | some (.conId _) =>
+        -- Another constructor case, continue parsing
+        let moreCases ← parseVariantTypeCases
+        let hasPipe' ← tryToken .pipe
+        if hasPipe' then
+          let rowVar ← expectIdent
+          let _ ← expect .rbracket
+          return .variant pos (cases ++ moreCases) (some (.var pos rowVar))
+        else
+          let _ ← expect .rbracket
+          return .variant pos (cases ++ moreCases) none
+      | _ =>
+        -- Closed variant: [Con]
+        let _ ← expect .rbracket
+        return .variant pos cases none
+    else
+      let _ ← expect .rbracket
+      return .variant pos cases none
+
   -- Parse atomic type
-  partial def parseAtomType : Parser Ty := fun s =>
-    let pos := s.currentPos
-    match s.peekToken? with
-    | some (.ident id) => .ok (.var pos id, s.advance)
-    | some (.conId id) => .ok (.con pos id, s.advance)
+  partial def parseAtomType : Parser Ty := do
+    let pos ← currentPos
+    let tok? ← peek?
+    match tok? with
+    | some (.ident id) =>
+      advance
+      return .var pos id
+    | some (.conId id) =>
+      advance
+      return .con pos id
     | some .kForall =>
-      let s := s.advance
-      match parseTypeVars s with
-      | .ok (vars, s') =>
-        match expect .dot s' with
-        | .ok (_, s'') =>
-          match parseType s'' with
-          | .ok (ty, s''') =>
-            let result := vars.foldr (fun v acc => Ty.forall_ pos v acc) ty
-            .ok (result, s''')
-          | .error msg => .error msg
-        | .error msg => .error msg
-      | .error msg => .error msg
+      advance
+      let vars ← parseTypeVars
+      let _ ← expect .dot
+      let ty ← parseType
+      return vars.foldr (fun v acc => Ty.forall_ pos v acc) ty
     | some .lparen =>
-      let s := s.advance
-      match parseType s with
-      | .ok (ty, s') =>
-        match expect .rparen s' with
-        | .ok (_, s'') => .ok (ty, s'')
-        | .error msg => .error msg
-      | .error msg => .error msg
+      advance
+      let ty ← parseType
+      let _ ← expect .rparen
+      return ty
     | some .lbrace =>
-      -- Record type: { x : ty, ... } or { x : ty | r } for row polymorphism
-      let s := s.advance
-      match parseRecordTypeFields s with
-      | .ok (fields, s') =>
-        -- Check for row tail: | ident
-        match tryToken .pipe s' with
-        | .ok (hasPipe, s'') =>
-          if hasPipe then
-            -- Open record with row variable: { x : ty | r }
-            match expectIdent s'' with
-            | .ok (rowVar, s''') =>
-              match expect .rbrace s''' with
-              | .ok (_, s'''') => .ok (.record pos fields (some (.var pos rowVar)), s'''')
-              | .error msg => .error msg
-            | .error msg => .error msg
-          else
-            -- Closed record: { x : ty }
-            match expect .rbrace s'' with
-            | .ok (_, s''') => .ok (.record pos fields none, s''')
-            | .error msg => .error msg
-        | .error msg => .error msg
-      | .error msg => .error msg
+      -- Record type: { x : ty, ... } or { x : ty | r }
+      advance
+      let fields ← parseRecordTypeFields
+      let hasPipe ← tryToken .pipe
+      if hasPipe then
+        let rowVar ← expectIdent
+        let _ ← expect .rbrace
+        return .record pos fields (some (.var pos rowVar))
+      else
+        let _ ← expect .rbrace
+        return .record pos fields none
     | some .lbracket =>
-      -- Variant type: [Con1 ty1 ty2 | Con2 | r] for row polymorphic variants
-      let s := s.advance
-      match parseVariantTypeCases s with
-      | .ok (cases, s') =>
-        -- Check for row tail: | ident (lowercase = row variable)
-        match tryToken .pipe s' with
-        | .ok (hasPipe, s'') =>
-          if hasPipe then
-            -- Check if it's a row variable (lowercase) or another constructor (uppercase)
-            match s''.peekToken? with
-            | some (.ident rowVar) =>
-              -- Open variant with row variable: [Con | r]
-              let s''' := s''.advance
-              match expect .rbracket s''' with
-              | .ok (_, s'''') => .ok (.variant pos cases (some (.var pos rowVar)), s'''')
-              | .error msg => .error msg
-            | some (.conId _) =>
-              -- Another constructor case, continue parsing
-              match parseVariantTypeCases s'' with
-              | .ok (moreCases, s''') =>
-                match tryToken .pipe s''' with
-                | .ok (hasPipe', s'''') =>
-                  if hasPipe' then
-                    match expectIdent s'''' with
-                    | .ok (rowVar, s''''') =>
-                      match expect .rbracket s''''' with
-                      | .ok (_, s'''''') => .ok (.variant pos (cases ++ moreCases) (some (.var pos rowVar)), s'''''')
-                      | .error msg => .error msg
-                    | .error msg => .error msg
-                  else
-                    match expect .rbracket s'''' with
-                    | .ok (_, s''''') => .ok (.variant pos (cases ++ moreCases) none, s''''')
-                    | .error msg => .error msg
-                | .error msg => .error msg
-              | .error msg => .error msg
-            | _ =>
-              -- Closed variant: [Con]
-              match expect .rbracket s'' with
-              | .ok (_, s''') => .ok (.variant pos cases none, s''')
-              | .error msg => .error msg
-          else
-            -- Closed variant: [Con]
-            match expect .rbracket s'' with
-            | .ok (_, s''') => .ok (.variant pos cases none, s''')
-            | .error msg => .error msg
-        | .error msg => .error msg
-      | .error msg => .error msg
+      -- Variant type: [Con1 ty1 ty2 | Con2 | r]
+      advance
+      parseVariantType pos
     | some .tilde =>
-      let s := s.advance
-      match parseAtomType s with
-      | .ok (ty, s') => .ok (.tilde pos ty, s')
-      | .error msg => .error msg
-    | some tok => .error s!"expected type but found {tok} at {s.currentPos.line}:{s.currentPos.col}"
-    | none => .error "expected type but found EOF"
+      advance
+      let ty ← parseAtomType
+      return .tilde pos ty
+    | some tok => throw s!"expected type but found {tok} at {pos.line}:{pos.col}"
+    | none => throw "expected type but found EOF"
 
   partial def parseTypeVars : Parser (List Ident) := many1 expectIdent
 
@@ -424,28 +394,24 @@ mutual
 
   -- Parse copattern accessor
   -- Supports: .field, (arg), and bare identifier arg (space-separated)
-  partial def parseAccessor : Parser Accessor := fun s =>
-    match s.peekToken? with
+  partial def parseAccessor : Parser Accessor := do
+    let tok? ← peek?
+    match tok? with
     | some .dot =>
-      let s := s.advance
-      match s.peekToken? with
-      | some (.ident id) => .ok (.field id, s.advance)
-      | some tok => .error s!"expected field name after '.' but found {tok}"
-      | none => .error "expected field name after '.'"
+      advance
+      let id ← expectIdent
+      return .field id
     | some .lparen =>
-      let s := s.advance
-      match s.peekToken? with
-      | some (.ident id) =>
-        let s := s.advance
-        match expect .rparen s with
-        | .ok (_, s') => .ok (.apply id, s')
-        | .error msg => .error msg
-      | some tok => .error s!"expected identifier in copattern application but found {tok}"
-      | none => .error "expected identifier in copattern application"
+      advance
+      let id ← expectIdent
+      let _ ← expect .rparen
+      return .apply id
     -- Bare identifier as space-separated argument
-    | some (.ident id) => .ok (.apply id, s.advance)
-    | some tok => .error s!"expected '.', '(' or identifier but found {tok}"
-    | none => .error "expected accessor"
+    | some (.ident id) =>
+      advance
+      return .apply id
+    | some tok => throw s!"expected '.', '(' or identifier but found {tok}"
+    | none => throw "expected accessor"
 
   -- Parse copattern (after #)
   partial def parseCopattern : Parser Copattern := many parseAccessor
@@ -1269,16 +1235,11 @@ mutual
     | _ => return .import_ name none none
 
   -- Parse infix declaration
-  partial def parseInfixDecl (rightAssoc : Bool) : Parser Decl := fun s =>
-    let s := s.advance  -- skip 'infix'/'infixr'/'infixl'
-    match s.peekToken? with
-    | some (.int prec) =>
-      let s := s.advance
-      match expectIdent s with
-      | .ok (op, s') => .ok (.infix_ prec.toNat rightAssoc op, s')
-      | .error msg => .error msg
-    | some tok => .error s!"expected precedence number but found {tok}"
-    | none => .error "unexpected EOF"
+  partial def parseInfixDecl (rightAssoc : Bool) : Parser Decl := do
+    advance  -- skip 'infix'/'infixr'/'infixl'
+    let prec ← expectInt
+    let op ← expectIdent
+    return .infix_ prec.toNat rightAssoc op
 
   partial def parseDecls : Parser (List Decl) := many parseDecl
 
