@@ -16,3 +16,7 @@ import Ziku.Proofs.Eval
 import Ziku.Proofs.Arithmetic
 import Ziku.Proofs.Identities
 import Ziku.Proofs.Soundness
+import Ziku.Proofs.IR.Values
+import Ziku.Proofs.IR.Substitution
+import Ziku.Proofs.IR.Semantics
+import Ziku.Proofs.IR.Evaluation
