@@ -253,3 +253,4 @@ Tests are auto-discovered from `.ziku` files. Add new test by:
 
 - `rm` is denied for safety, use `trash` command instead
 - If you want to try simpler case, you should add it as golden test
+- If you write a plan, please add the date at the top of the file

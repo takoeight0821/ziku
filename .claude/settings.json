@@ -7,7 +7,5 @@
       "Bash(rm:*)"
     ]
   },
-  "enabledPlugins": {
-    "plugin-dev@claude-plugins-official": true
-  }
+  "plansDirectory": "./.claude/plans"
 }
