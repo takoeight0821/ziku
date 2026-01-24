@@ -14,25 +14,26 @@ Ziku is a programming language implementation in Lean 4 featuring:
 
 ## Build Commands
 
-**IMPORTANT: Use Docker for all builds and tests to ensure consistent environments across development and CI.**
-
 ### Docker (Recommended - no local dependencies required)
 
 ```bash
 # Build Docker image (one-time setup)
 docker build -t ziku .
 
-# Run tests
-docker run --rm ziku nix develop --command lake test
+# Run tests (default command)
+docker run --rm ziku
 
 # Run REPL
-docker run --rm -it ziku nix develop --command lake exe ziku
+docker run --rm -it ziku lake exe ziku
 
 # Build project
-docker run --rm ziku nix develop --command lake build
+docker run --rm ziku lake build
+
+# Run specific test category
+docker run --rm ziku lake test -- parser
 ```
 
-### Native (only if Docker is unavailable)
+### Native
 
 Requires Lean 4 and Chez Scheme installed locally.
 
@@ -40,6 +41,7 @@ Requires Lean 4 and Chez Scheme installed locally.
 lake build              # Build everything
 lake test               # Run golden tests (parser, eval, infer, ir-eval)
 lake exe ziku           # Run REPL
+make -j4 test-parallel  # Run tests in parallel
 ```
 
 ## Dependency Management
@@ -47,10 +49,10 @@ lake exe ziku           # Run REPL
 See [README.md#for-developers](README.md#for-developers) for detailed dependency management setup.
 
 Quick reference:
-- Nix flakes (`flake.nix`, `flake.lock`) for reproducible builds
 - Renovate for automated dependency updates (weekly)
 - Lean toolchain pinned via `lean-toolchain`
 - Lake dependencies managed by `lake-manifest.json`
+- Docker uses Debian trixie-slim with apt packages
 
 ## Architecture
 
@@ -113,8 +115,8 @@ Available categories: `truncate`, `big-step`, `parser`, `infer`, `ir-eval`, `ir-
 
 After making code changes, verify:
 
-1. **Build succeeds**: `docker run --rm ziku nix develop --command lake build`
-2. **All tests pass**: `docker run --rm ziku nix develop --command lake test`
+1. **Build succeeds**: `docker run --rm ziku lake build`
+2. **All tests pass**: `docker run --rm ziku`
 3. **New features have tests**: Add corresponding golden tests in `tests/golden/`
 4. **Proofs are complete**: If `Proofs/` was modified, ensure no `sorry` remains
 

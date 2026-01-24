@@ -19,9 +19,9 @@ A functional programming language exploring the duality between data and codata.
 No local dependencies required:
 
 ```bash
-docker build -t ziku .                                        # Build image
-docker run --rm -it ziku nix develop --command lake exe ziku  # Run REPL
-docker run --rm ziku nix develop --command lake test          # Run tests
+docker build -t ziku .              # Build image
+docker run --rm -it ziku lake exe ziku  # Run REPL
+docker run --rm ziku                # Run tests
 ```
 
 ### Native
@@ -29,9 +29,9 @@ docker run --rm ziku nix develop --command lake test          # Run tests
 Requires [Lean 4](https://lean-lang.org/) and [Chez Scheme](https://cisco.github.io/ChezScheme/):
 
 ```bash
-lake build         # Build
-lake exe ziku      # Run REPL
-lake test          # Run tests
+lake build              # Build
+lake exe ziku           # Run REPL
+make -j4 test-parallel  # Run tests
 ```
 
 ## Examples
@@ -78,7 +78,7 @@ label done {
 
 ### Dependency Management
 
-This project uses Renovate for automated dependency updates and Nix flakes for reproducible builds.
+This project uses Renovate for automated dependency updates.
 
 **Renovate Setup (for maintainers):**
 
