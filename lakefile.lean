@@ -27,14 +27,6 @@ lean_exe ziku where
 lean_exe «test-runner» where
   root := `tests.TestRunner
 
--- Legacy golden test runner (kept for backward compatibility)
-lean_exe «golden-test» where
-  root := `tests.GoldenTest
-
--- Legacy truncate test runner (kept for backward compatibility)
-lean_exe «truncate-test» where
-  root := `tests.TruncateTest
-
 @[default_target]
 lean_exe «scheme-backend» where
   root := `Backend.SchemeMain

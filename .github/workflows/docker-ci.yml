@@ -33,5 +33,5 @@ jobs:
           cache-to: type=gha,mode=max,scope=ziku-build
           provenance: false
 
-      - name: Run tests inside Docker
-        run: docker run --rm ziku:test nix develop --command lake test
+      - name: Run tests inside Docker (parallel)
+        run: docker run --rm ziku:test

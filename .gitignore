@@ -5,3 +5,6 @@
 
 # GitHub App private keys
 *.pem
+
+# Test results (parallel execution)
+.test-results/

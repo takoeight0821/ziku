@@ -2,14 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/*]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -43,7 +43,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y chezscheme
 
       - name: Build
-        run: lake build
+        run: lake build && lake build test-runner
 
-      - name: Run tests
-        run: lake test
+      - name: Run tests (parallel)
+        run: make -j$(nproc) test-parallel

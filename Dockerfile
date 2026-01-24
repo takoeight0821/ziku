@@ -1,27 +1,72 @@
-FROM nixos/nix:latest
+# Multi-stage build for minimal image size
+# Supports both amd64 and arm64 architectures
 
-# Enable flakes
-RUN mkdir -p /etc/nix && \
-    echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
+# Stage 1: Build Lean project
+FROM debian:trixie-slim AS builder
 
-# Set working directory
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    ca-certificates \
+    make \
+    chezscheme \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install elan
+RUN curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | \
+    sh -s -- -y --default-toolchain none
+
+ENV PATH="/root/.elan/bin:${PATH}"
+
 WORKDIR /app
 
-# Copy flake files first for better caching
-COPY flake.nix flake.lock ./
+# Install Lean toolchain (for caching)
+COPY lean-toolchain ./
+RUN elan toolchain install $(cat lean-toolchain)
 
-# Build the development environment
-RUN nix develop --command true
+# Copy dependency files and fetch
+COPY lakefile.lean lake-manifest.json ./
+RUN lake update
 
-# Copy project files
-COPY lean-toolchain lakefile.lean lake-manifest.json ./
+# Copy source and build
 COPY Main.lean Ziku.lean ZikuTest.lean ./
 COPY Ziku/ Ziku/
 COPY Backend/ Backend/
 COPY tests/ tests/
 
-# Install Lean toolchain and build
-RUN nix develop --command sh -c "elan toolchain install \$(cat lean-toolchain) && lake build"
+RUN lake build && lake build test-runner
 
-# Default command
-CMD ["nix", "develop", "--command", "bash"]
+# Stage 2: Runtime (minimal)
+FROM debian:trixie-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    make \
+    ca-certificates \
+    chezscheme \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy elan and Lean toolchain
+COPY --from=builder /root/.elan /root/.elan
+ENV PATH="/root/.elan/bin:${PATH}"
+
+# Copy built artifacts
+COPY --from=builder /app/.lake /app/.lake
+COPY --from=builder /app/lakefile.lean /app/
+COPY --from=builder /app/lake-manifest.json /app/
+COPY --from=builder /app/lean-toolchain /app/
+COPY --from=builder /app/Main.lean /app/
+COPY --from=builder /app/Ziku.lean /app/
+COPY --from=builder /app/ZikuTest.lean /app/
+COPY --from=builder /app/Ziku /app/Ziku
+COPY --from=builder /app/Backend /app/Backend
+
+# Copy test files and scripts
+COPY tests/ tests/
+COPY Makefile ./
+COPY scripts/ scripts/
+
+CMD ["bash", "-c", "make -j4 test-parallel"]
