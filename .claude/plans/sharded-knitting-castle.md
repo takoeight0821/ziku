@@ -1,298 +1,197 @@
-# テスト高速化プラン
+# Docker イメージ軽量化プラン（改訂版）
 
-**日付**: 2026-01-24
+**日付**: 2026-01-24（改訂）
 
-## 現状分析
+## 目的
 
-### テスト実行時間の内訳（推定）
+Docker CIのイメージサイズを削減し、イメージのload時間を短縮する。
+また、arm64/amd64両アーキテクチャで動作可能にする。
 
-| テスト種類 | テスト数 | 推定時間 | 割合 |
-|-----------|---------|---------|------|
-| **Scheme consistency** | 124 | 60〜250秒 | **50〜70%** |
-| IR-eval (小ステップ) | 128 | 5〜20秒 | 10〜15% |
-| Big-step consistency | 124 | 5〜15秒 | 5〜10% |
-| Type inference | 82 | 4〜16秒 | 5〜10% |
-| Parser | 99 | 0.1〜1秒 | <1% |
-| その他 | 339 | 10〜30秒 | 10〜15% |
-| **合計** | **約896** | **70〜290秒** | 100% |
+## 現状の問題
 
-### 主要なボトルネック
+- **イメージサイズ**: 4.26GB（Nix環境全体が含まれる）
+- **プラットフォーム制約**: arm64ではChezSchemeのDebianパッケージが未提供
+- **前回の試行結果**: Nixクロージャ抽出は複雑すぎて断念
 
-1. **Scheme外部プロセス呼び出し（最大のボトルネック）**
-   - 124回のSchemeプロセス起動（各0.5〜2秒）
-   - 毎回の一時ファイル作成・削除
-   - プロセス間通信のオーバーヘッド
+## 解決策: ChezSchemeをソースからビルド
 
-2. **逐次実行**
-   - `TestRunner.lean`は全テストを順次実行
-   - CPUマルチコアを活用していない
+ChezSchemeをソースからビルドすることで：
+1. arm64/amd64両対応を実現
+2. Nixへの依存を排除
+3. 必要最小限の依存関係でイメージを軽量化
 
-3. **環境操作のO(n)問題**
-   - `Env.lookup`が`List.find?`で線形探索
-   - 大規模テスト（mal_step4_fn等）で顕著
+### ChezScheme ビルドの特徴
 
-4. **Docker/Nixのオーバーヘッド**
-   - Docker起動: 数秒〜十数秒
-   - Nix環境構築: 初回数分
+- **arm64サポート**: Cisco公式で完全サポート
+- **ビルド時間**: 5-10分程度
+- **最小化オプション**: `--disable-x11 --disable-curses`で依存関係削減
+- **ランタイム依存**: libc, libz程度で済む
 
-## 高速化オプション
+## 実装詳細
 
-### Option A: Scheme REPL永続化（効果：高、工数：中）
+### Dockerfile
 
-**概要**: 各テストで新プロセスを起動する代わりに、1つのScheme REPLを永続化して再利用
+```dockerfile
+# Multi-stage build for minimal image size
+# Supports both amd64 and arm64 architectures
 
-**実装方法**:
-1. テスト開始時にScheme REPLをバックグラウンドで起動
-2. 各テストはREPLに式を送信して結果を受信
-3. テスト終了時にREPLを終了
+# Chez Scheme version (managed by Renovate)
+# renovate: datasource=github-releases depName=cisco/ChezScheme
+ARG CHEZ_VERSION=10.1.0
 
-**期待効果**: Scheme consistencyテストを60〜250秒 → 10〜30秒に短縮
+# Stage 1: Build Chez Scheme
+FROM debian:bookworm-slim AS chez-builder
 
-### Option B: テストの並列実行（効果：高、工数：高）
+ARG CHEZ_VERSION
 
-**概要**: 独立したテストを複数スレッドで並列実行
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-**実装方法**:
-1. `IO.asTask`を使用してテストを並列起動
-2. 結果を集約して表示
-3. スレッド数を設定可能に
+WORKDIR /build
 
-**期待効果**: 全体の実行時間を1/N（Nはコア数）に短縮
+# Download and build Chez Scheme (minimal configuration)
+RUN curl -L https://github.com/cisco/ChezScheme/releases/download/v${CHEZ_VERSION}/csv${CHEZ_VERSION}.tar.gz | tar xz && \
+    cd csv${CHEZ_VERSION} && \
+    ./configure --disable-x11 --disable-curses && \
+    make && \
+    make install DESTDIR=/chez-install
 
-**注意点**:
-- Lean 4のIO.asTaskの制限を確認する必要あり
-- 出力の競合を避ける設計が必要
+# Stage 2: Build Lean project
+FROM debian:bookworm-slim AS lean-builder
 
-### Option C: 環境のハッシュテーブル化（効果：中、工数：低）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    ca-certificates \
+    make \
+    && rm -rf /var/lib/apt/lists/*
 
-**概要**: `Env`の内部表現を`List`から`HashMap`に変更
+# Copy Chez Scheme from previous stage
+COPY --from=chez-builder /chez-install/usr/local /usr/local
 
-**実装方法**:
-```lean
--- 現在
-structure Env where
-  bindings : List (Ident × EnvValue)
+# Install elan
+RUN curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | \
+    sh -s -- -y --default-toolchain none
 
--- 変更後
-structure Env where
-  bindings : Std.HashMap Ident EnvValue
+ENV PATH="/root/.elan/bin:${PATH}"
+
+WORKDIR /app
+
+# Install Lean toolchain (for caching)
+COPY lean-toolchain ./
+RUN elan toolchain install $(cat lean-toolchain)
+
+# Copy dependency files and fetch
+COPY lakefile.lean lake-manifest.json ./
+RUN lake update
+
+# Copy source and build
+COPY Main.lean Ziku.lean ZikuTest.lean ./
+COPY Ziku/ Ziku/
+COPY Backend/ Backend/
+COPY tests/ tests/
+
+RUN lake build
+
+# Stage 3: Runtime (minimal)
+FROM debian:bookworm-slim
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    make \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy Chez Scheme
+COPY --from=chez-builder /chez-install/usr/local /usr/local
+
+# Copy elan and Lean toolchain
+COPY --from=lean-builder /root/.elan /root/.elan
+ENV PATH="/root/.elan/bin:${PATH}"
+
+# Copy built artifacts
+COPY --from=lean-builder /app/.lake /app/.lake
+COPY --from=lean-builder /app/lakefile.lean /app/
+COPY --from=lean-builder /app/lake-manifest.json /app/
+COPY --from=lean-builder /app/lean-toolchain /app/
+COPY --from=lean-builder /app/Main.lean /app/
+COPY --from=lean-builder /app/Ziku.lean /app/
+COPY --from=lean-builder /app/ZikuTest.lean /app/
+COPY --from=lean-builder /app/Ziku /app/Ziku
+COPY --from=lean-builder /app/Backend /app/Backend
+
+# Copy test files and scripts
+COPY tests/ tests/
+COPY Makefile ./
+COPY scripts/ scripts/
+
+CMD ["bash", "-c", "make -j4 test-parallel"]
 ```
 
-**期待効果**: IR-evalテストを5〜20秒 → 2〜8秒に短縮
+### 期待効果
 
-### Option D: ネイティブ実行への移行（効果：中、工数：低）
+- **マルチアーキテクチャ対応**: arm64/amd64両方で動作
+- **Nix依存排除**: シンプルなDebianベースに
+- **イメージサイズ削減**: ChezSchemeパッケージ（arm64で未提供）の問題を解決
 
-**概要**: ローカル開発時はDockerを使わずネイティブ実行を推奨
+## 修正対象ファイル
 
-**実装方法**:
-1. CLAUDE.mdの推奨コマンドを更新
-2. CIでのみDockerを使用
+- `Dockerfile`: 3ステージビルドに書き換え
+- `.github/renovate.json`: ChezScheme用のcustomManagerを追加
 
-**期待効果**: Docker起動オーバーヘッド（数秒〜十数秒）を削減
+### renovate.json への追加
 
-### Option E: テストの分類と選択的実行（効果：中、工数：低）
-
-**概要**: 変更に関連するテストのみを実行
-
-**実装方法**:
-1. `lake test --category parser`のようなオプションを追加
-2. 開発中は関連テストのみ実行
-3. CIでは全テスト実行
-
-**期待効果**: 開発サイクルを大幅に短縮
-
-### Option F: Scheme consistencyテストのスキップオプション（効果：高、工数：低）
-
-**概要**: 通常のテスト実行ではScheme consistencyをスキップ
-
-**実装方法**:
-1. 環境変数`ZIKU_FULL_TEST`でフル実行を制御
-2. デフォルトではScheme consistencyをスキップ
-3. CIと明示的な指定時のみフル実行
-
-**期待効果**: 通常のテスト実行を60〜250秒短縮
-
-## 推奨アプローチ
-
-### Phase 1: カテゴリ別実行の実装（Lean側）
-
-**目的**: 各カテゴリを独立して実行可能にする
-
-**実装内容**:
-- コマンドライン引数でカテゴリを指定可能に
-- `lake test -- parser` でパーサーテストのみ実行
-- `lake test -- infer` で型推論テストのみ実行
-- 引数なしで全テスト実行（現状維持）
-
-### Phase 2: シェルレベルでの並列実行
-
-**目的**: xargs/GNU parallelでカテゴリを並列実行
-
-**実装内容**:
-- Makefileまたはシェルスクリプトを追加
-- 各カテゴリを独立プロセスで並列実行
-
-```bash
-# xargsでの並列実行例
-echo "parser infer ir-eval" | xargs -P3 -n1 lake test --
-
-# GNU parallelでの並列実行例
-parallel lake test -- ::: parser infer ir-eval
-
-# Makefileでの並列実行
-make -j4 test
+```json
+{
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\nARG CHEZ_VERSION=(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "{{datasource}}",
+      "depNameTemplate": "{{depName}}"
+    }
+  ]
+}
 ```
-
-**利点**:
-- Lean側の実装がシンプル（引数処理のみ）
-- シェルの成熟した並列化機構を活用
-- 出力の競合はシェル側で制御可能
-
-## 実装の詳細
-
-### Phase 1: カテゴリ別実行
-
-`tests/TestRunner.lean`の`main`関数を修正：
-
-```lean
-def main (args : List String) : IO UInt32 := do
-  let categories := if args.isEmpty then
-    ["truncate", "big-step", "parser", "infer", "ir-eval", "consistency", "scheme"]
-  else
-    args
-
-  IO.println s!"Running tests: {categories}"
-
-  let mut totalPassed := 0
-  let mut totalFailed := 0
-
-  for cat in categories do
-    let (passed, failed) ← match cat with
-      | "truncate" => runTruncateTests
-      | "big-step" => BigStepEvalTest.runTests
-      | "parser" => runCategory "parser" "parser"
-      | "infer" => runCategory "infer" "infer"
-      | "ir-eval" => runCategory "ir-eval" "ir-eval"
-      | "consistency" => runConsistencyCategory
-      | "scheme" => runSchemeOnlyCategory
-      | _ => do
-        IO.println s!"Unknown category: {cat}"
-        pure (0, 0)
-    totalPassed := totalPassed + passed
-    totalFailed := totalFailed + failed
-
-  -- Summary...
-```
-
-**使用例**:
-```bash
-lake test              # 全テスト
-lake test -- parser    # パーサーテストのみ
-lake test -- parser infer  # パーサー＋型推論
-```
-
-### Phase 2: 並列実行と結果集約
-
-**テスト結果のファイル出力**（Lean側）:
-- 各カテゴリ実行時に結果をJSONファイルに出力
-- `lake test -- parser --report .test-results/parser.json`
-
-**結果集約スクリプト** (`scripts/aggregate-test-results.sh`):
-```bash
-#!/bin/bash
-# 各カテゴリの結果を集約してレポートを出力
-
-RESULTS_DIR=".test-results"
-TOTAL_PASSED=0
-TOTAL_FAILED=0
-FAILED_CATEGORIES=""
-
-for result in "$RESULTS_DIR"/*.json; do
-  cat=$(basename "$result" .json)
-  passed=$(jq -r '.passed' "$result")
-  failed=$(jq -r '.failed' "$result")
-
-  TOTAL_PASSED=$((TOTAL_PASSED + passed))
-  TOTAL_FAILED=$((TOTAL_FAILED + failed))
-
-  if [ "$failed" -gt 0 ]; then
-    FAILED_CATEGORIES="$FAILED_CATEGORIES $cat"
-  fi
-
-  echo "$cat: $passed passed, $failed failed"
-done
-
-echo "========================"
-echo "Total: $TOTAL_PASSED passed, $TOTAL_FAILED failed"
-
-if [ "$TOTAL_FAILED" -gt 0 ]; then
-  echo "Failed categories:$FAILED_CATEGORIES"
-  exit 1
-fi
-```
-
-**Makefile**:
-```makefile
-.PHONY: test test-parallel test-report clean-results
-
-RESULTS_DIR := .test-results
-CATEGORIES := parser infer ir-eval consistency
-
-# 逐次実行（従来通り）
-test:
-	lake test
-
-# 並列実行
-test-parallel: clean-results $(addprefix test-,$(CATEGORIES))
-	@./scripts/aggregate-test-results.sh
-
-test-%:
-	@mkdir -p $(RESULTS_DIR)
-	lake test -- $* --report $(RESULTS_DIR)/$*.json
-
-clean-results:
-	@rm -rf $(RESULTS_DIR)
-```
-
-**使用方法**:
-```bash
-make -j4 test-parallel   # 並列実行 + 結果集約
-```
-
-## 期待される効果
-
-| Phase | 推定高速化 | 備考 |
-|-------|----------|------|
-| Phase 1（カテゴリ別） | 開発時2-5倍 | 必要なテストのみ実行 |
-| Phase 2（並列実行） | 全体2-4倍 | CPUコア数に依存 |
 
 ## 検証方法
 
-### Phase 1 完了時
-```bash
-# カテゴリ別実行が動作することを確認
-time lake test -- parser
-time lake test -- infer
-time lake test -- ir-eval
-time lake test  # 全テスト（引数なし）
-```
+1. ローカルでイメージビルド（arm64ネイティブ）
+   ```bash
+   docker build -t ziku:chez-build .
+   ```
 
-### Phase 2 完了時
-```bash
-# 逐次 vs 並列の比較
-time lake test                    # 逐次
-time make -j4 test-parallel       # 並列
-```
+2. イメージサイズ確認
+   ```bash
+   docker images ziku --format "table {{.Tag}}\t{{.Size}}"
+   ```
 
-### CI での確認
-- GitHub Actionsで`make -j4 test-parallel`を使用
-- 実行時間を比較
+3. テスト実行
+   ```bash
+   docker run --rm ziku:chez-build
+   ```
 
-## 関連ファイル
+4. schemeコマンド動作確認
+   ```bash
+   docker run --rm ziku:chez-build scheme --version
+   ```
 
-- `tests/TestRunner.lean:744-825` - main関数（テスト実行順序）
-- `tests/TestRunner.lean:340-370` - runConsistencyTest（Schemeプロセス呼び出し）
-- `tests/TestRunner.lean:538-566` - runConsistencyCategory（124回のループ）
-- `lakefile.lean` - ビルド設定
-- `Ziku/IR/Env.lean` - 環境実装
-- `.github/workflows/` - CI設定
+## 注意点
+
+1. **ChezSchemeバージョン**: v10.1.0を使用（最新安定版）
+2. **ビルド時間増加**: ChezSchemeビルドで5-10分追加
+3. **キャッシュ最適化**: ChezSchemeビルドを最初のステージで分離
+
+## 参考資料
+
+- [Cisco ChezScheme BUILDING](https://github.com/cisco/ChezScheme/blob/main/BUILDING)
+- [ChezScheme Releases](https://github.com/cisco/ChezScheme/releases)
