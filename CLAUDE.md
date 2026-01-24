@@ -77,6 +77,28 @@ Tests are auto-discovered from `.ziku` files. Add new test by:
 1. Create `tests/golden/{category}/{success|error}/{name}.ziku`
 2. Run `lake test` to auto-generate `.golden` file
 
+### Test Execution Options
+
+```bash
+# Run all tests
+lake test
+
+# Run specific category only (faster feedback during development)
+lake test -- parser              # Parser tests only
+lake test -- infer               # Type inference tests only
+lake test -- parser infer        # Multiple categories
+
+# Parallel execution (recommended for full test runs)
+make -j4 test-parallel           # Run all categories in parallel
+make -j4 test-fast               # Run fast tests only (parser, infer, truncate, big-step)
+make -j4 test-medium             # Run fast + medium tests
+
+# Show available categories
+lake test -- --help
+```
+
+Available categories: `truncate`, `big-step`, `parser`, `infer`, `ir-eval`, `ir-eval-big-step`, `emit-translate`, `emit-scheme`, `scheme-only`, `consistency`, `big-step-consistency`, `io`
+
 ## Conventions
 
 - Use conventional commit format for commit messages

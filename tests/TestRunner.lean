@@ -741,84 +741,99 @@ def runIOTestCategory : IO (Nat × Nat) :=
 
 
 
-def main : IO UInt32 := do
+-- All available test categories
+def allCategories : List String :=
+  ["truncate", "big-step", "parser", "infer", "ir-eval", "ir-eval-big-step",
+   "emit-translate", "emit-scheme", "scheme-only", "consistency",
+   "big-step-consistency", "io"]
 
-  IO.println "Running all tests..."
+-- Run a single category and return (passed, failed)
+def runCategoryByName (cat : String) : IO (Nat × Nat) := do
+  match cat with
+  | "truncate" => runTruncateTests
+  | "big-step" => BigStepEvalTest.runTests
+  | "parser" => runCategory "parser" "parser"
+  | "infer" => runCategory "infer" "infer"
+  | "ir-eval" => runCategory "ir-eval" "ir-eval"
+  | "ir-eval-big-step" => runCategory "ir-eval" "ir-eval-big-step"
+  | "emit-translate" => runEmitTranslateCategory
+  | "emit-scheme" => runEmitSchemeCategory
+  | "scheme-only" => runSchemeOnlyCategory
+  | "consistency" => runConsistencyCategory
+  | "big-step-consistency" => runBigStepConsistencyCategory
+  | "io" => runIOTestCategory
+  | _ => do
+    IO.println s!"Unknown category: {cat}"
+    IO.println s!"Available categories: {allCategories}"
+    pure (0, 0)
 
+-- Write test results to a JSON file
+def writeJsonReport (reportPath : String) (passed failed : Nat) (categories : List String) : IO Unit := do
+  let json := s!"\{\"passed\": {passed}, \"failed\": {failed}, \"categories\": [{", ".intercalate (categories.map (fun c => s!"\"{c}\""))}]}"
+  IO.FS.writeFile reportPath json
 
+-- Parse command line arguments
+-- Returns (categories to run, optional report path)
+def parseArgs (args : List String) : List String × Option String :=
+  let rec go (args : List String) (cats : List String) (report : Option String) : List String × Option String :=
+    match args with
+    | [] => (cats.reverse, report)
+    | "--report" :: path :: rest => go rest cats (some path)
+    | "--help" :: _ => (["--help"], none)
+    | cat :: rest => go rest (cat :: cats) report
+  go args [] none
 
-  -- Truncate tests (unit tests)
+def main (args : List String) : IO UInt32 := do
+  let (categories, reportPath) := parseArgs args
 
-  let (truncatePassed, truncateFailed) ← runTruncateTests
+  -- Handle --help
+  if categories == ["--help"] then
+    IO.println "Usage: lake test [-- [OPTIONS] [CATEGORIES...]]"
+    IO.println ""
+    IO.println "OPTIONS:"
+    IO.println "  --report PATH    Write JSON results to PATH"
+    IO.println "  --help           Show this help"
+    IO.println ""
+    IO.println "CATEGORIES:"
+    for cat in allCategories do
+      IO.println s!"  {cat}"
+    IO.println ""
+    IO.println "EXAMPLES:"
+    IO.println "  lake test                        # Run all tests"
+    IO.println "  lake test -- parser              # Run parser tests only"
+    IO.println "  lake test -- parser infer        # Run parser and infer tests"
+    IO.println "  lake test -- --report out.json   # Run all tests with JSON report"
+    return 0
 
+  -- Determine which categories to run
+  let categoriesToRun := if categories.isEmpty then allCategories else categories
 
+  IO.println s!"Running tests: {categoriesToRun}"
 
-  -- Big-Step unit tests
+  -- Run each category and collect results
+  let mut totalPassed := 0
+  let mut totalFailed := 0
+  let mut results : List (String × Nat × Nat) := []
 
-  let (bigStepPassed, bigStepFailed) ← BigStepEvalTest.runTests
+  for cat in categoriesToRun do
+    let (passed, failed) ← runCategoryByName cat
+    totalPassed := totalPassed + passed
+    totalFailed := totalFailed + failed
+    results := results ++ [(cat, passed, failed)]
 
-
-
-  -- Golden tests (integration tests)
-
-  let (parserPassed, parserFailed) ← runCategory "parser" "parser"
-
-  let (inferPassed, inferFailed) ← runCategory "infer" "infer"
-
-  let (irEvalPassed, irEvalFailed) ← runCategory "ir-eval" "ir-eval"
-
-  let (irEvalBigStepPassed, irEvalBigStepFailed) ← runCategory "ir-eval" "ir-eval-big-step"
-
-  let (emitTranslatePassed, emitTranslateFailed) ← runEmitTranslateCategory
-
-  let (emitSchemePassed, emitSchemeFailed) ← runEmitSchemeCategory
-
-  let (schemeOnlyPassed, schemeOnlyFailed) ← runSchemeOnlyCategory
-
-  let (consistencyPassed, consistencyFailed) ← runConsistencyCategory
-
-  let (bigStepConsistencyPassed, bigStepConsistencyFailed) ← runBigStepConsistencyCategory
-
-  let (ioPassed, ioFailed) ← runIOTestCategory
-
-
-
-  let totalPassed := truncatePassed + bigStepPassed + parserPassed + inferPassed + irEvalPassed +
-
-                     irEvalBigStepPassed + emitTranslatePassed + emitSchemePassed + schemeOnlyPassed +
-
-                     consistencyPassed + bigStepConsistencyPassed + ioPassed
-
-  let totalFailed := truncateFailed + bigStepFailed + parserFailed + inferFailed + irEvalFailed +
-
-                     irEvalBigStepFailed + emitTranslateFailed + emitSchemeFailed + schemeOnlyFailed +
-
-                     consistencyFailed + bigStepConsistencyFailed + ioFailed
-
-
-
+  -- Print summary
   IO.println s!"\n=== Summary ==="
-
-  IO.println s!"Truncate tests: {truncatePassed} passed, {truncateFailed} failed"
-
-  IO.println s!"Big-Step unit tests: {bigStepPassed} passed, {bigStepFailed} failed"
-
-  IO.println s!"Golden tests: {totalPassed - truncatePassed - bigStepPassed - bigStepConsistencyPassed - irEvalBigStepPassed} passed, {totalFailed - truncateFailed - bigStepFailed - bigStepConsistencyFailed - irEvalBigStepFailed} failed"
-
-  IO.println s!"Big-Step consistency: {bigStepConsistencyPassed} passed, {bigStepConsistencyFailed} failed"
-
-  IO.println s!"Big-Step golden tests: {irEvalBigStepPassed} passed, {irEvalBigStepFailed} failed"
-
+  for (cat, passed, failed) in results do
+    IO.println s!"{cat}: {passed} passed, {failed} failed"
   IO.println s!"Total: {totalPassed} passed, {totalFailed} failed"
 
-
+  -- Write JSON report if requested
+  if let some path := reportPath then
+    writeJsonReport path totalPassed totalFailed categoriesToRun
+    IO.println s!"Report written to: {path}"
 
   if totalFailed > 0 then
-
     return 1
-
   else
-
     IO.println "All tests passed!"
-
     return 0
