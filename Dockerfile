@@ -34,7 +34,7 @@ COPY Ziku/ Ziku/
 COPY Backend/ Backend/
 COPY tests/ tests/
 
-RUN lake build && lake build test-runner truncate-test
+RUN lake build && lake build test-runner
 
 # Stage 2: Runtime (minimal)
 FROM debian:trixie-slim

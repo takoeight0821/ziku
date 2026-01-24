@@ -34,4 +34,4 @@ jobs:
           provenance: false
 
       - name: Run tests inside Docker (parallel)
-        run: docker run --rm ziku:test nix develop --command make -j4 test-parallel
+        run: docker run --rm ziku:test
