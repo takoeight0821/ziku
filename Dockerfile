@@ -19,6 +19,8 @@ COPY Main.lean Ziku.lean ZikuTest.lean ./
 COPY Ziku/ Ziku/
 COPY Backend/ Backend/
 COPY tests/ tests/
+COPY Makefile ./
+COPY scripts/ scripts/
 
 # Install Lean toolchain and build
 RUN nix develop --command sh -c "elan toolchain install \$(cat lean-toolchain) && lake build"
