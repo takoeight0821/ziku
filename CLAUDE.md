@@ -87,6 +87,15 @@ Tests are auto-discovered from `.ziku` files. Add new test by:
 - Source positions are tracked throughout AST for error reporting
 - Use explicit function calls (e.g., `Producer.substVar x p prod`) instead of dot notation in mutual recursive functions
 
+## Verification Checklist
+
+After making code changes, verify:
+
+1. **Build succeeds**: `docker run --rm ziku nix develop --command lake build`
+2. **All tests pass**: `docker run --rm ziku nix develop --command lake test`
+3. **New features have tests**: Add corresponding golden tests in `tests/golden/`
+4. **Proofs are complete**: If `Proofs/` was modified, ensure no `sorry` remains
+
 ## Hints
 
 - `rm` is denied for safety, use `trash` command instead
