@@ -4,7 +4,7 @@
 # Stage 1: Build Lean project
 FROM debian:trixie-slim AS builder
 
-# Elan version - updated automatically by update-dependencies.yml
+# Elan version - updated automatically by Renovate
 ARG ELAN_VERSION=v4.1.2
 
 # APT packages: Using Debian trixie LTS packages without version pinning
