@@ -1,10 +1,6 @@
 ---
 name: translate
 description: Translate documents, comments, or code documentation to Japanese. Use when the user asks to "translate", "translate to Japanese", "Japanese translation", or wants to convert English documentation, README files, code comments, or any text content to Japanese.
-arguments:
-  - name: target
-    description: File path to translate, or paste text directly
-    required: true
 ---
 
 # Translate to Japanese: $ARGUMENTS.target
