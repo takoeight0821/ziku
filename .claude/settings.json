@@ -1,5 +1,11 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(lake build)",
+      "Bash(lake test*)",
+      "Bash(lake exe ziku)",
+      "Bash(docker run *ziku*)"
+    ],
     "ask": [
       "Bash(git commit:*)"
     ],
