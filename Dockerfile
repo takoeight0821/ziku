@@ -4,6 +4,12 @@
 # Stage 1: Build Lean project
 FROM debian:trixie-slim AS builder
 
+# Elan version - updated automatically by update-dependencies.yml
+ARG ELAN_VERSION=v4.1.2
+
+# APT packages: Using Debian trixie LTS packages without version pinning
+# Rationale: Security updates are prioritized over absolute reproducibility.
+# Debian trixie provides API stability for its support period.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
@@ -12,9 +18,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chezscheme \
     && rm -rf /var/lib/apt/lists/*
 
-# Install elan
-RUN curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | \
-    sh -s -- -y --default-toolchain none
+# Install elan from specific release (not master branch)
+# Download binary directly based on architecture
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+      amd64) ELAN_ARCH="x86_64-unknown-linux-gnu" ;; \
+      arm64) ELAN_ARCH="aarch64-unknown-linux-gnu" ;; \
+      *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
+    esac && \
+    curl -sSfL "https://github.com/leanprover/elan/releases/download/${ELAN_VERSION}/elan-${ELAN_ARCH}.tar.gz" -o /tmp/elan.tar.gz && \
+    tar -xzf /tmp/elan.tar.gz -C /tmp && \
+    /tmp/elan-init -y --default-toolchain none && \
+    rm -rf /tmp/elan*
 
 ENV PATH="/root/.elan/bin:${PATH}"
 
