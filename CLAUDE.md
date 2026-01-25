@@ -74,10 +74,7 @@ Golden tests in `tests/golden/`:
 - `infer/error/`: Type inference error tests
 - `ir-eval/success/`: IR evaluation tests (via translation)
 
-Tests are auto-discovered from `.ziku` files. Add new test by:
-
-1. Create `tests/golden/{category}/{success|error}/{name}.ziku`
-2. Run `lake test` to auto-generate `.golden` file
+Tests are auto-discovered from `.ziku` files. Use `/add-golden-test` skill for detailed workflow.
 
 ### Test Execution Options
 
@@ -105,11 +102,7 @@ Available categories: `truncate`, `big-step`, `parser`, `infer`, `ir-eval`, `ir-
 
 - Use conventional commit format for commit messages
 - The parser is hand-written due to Std.Internal.Parsec API issues
-- Use `partial` for recursive functions where termination is hard to prove
-  - **Alternatives to consider**: `termination_by` clause, fuel parameter, step-based execution
-  - **Trade-offs**: `partial def` enables practical implementation but cannot be used in proofs
-- Source positions are tracked throughout AST for error reporting
-- Use explicit function calls (e.g., `Producer.substVar x p prod`) instead of dot notation in mutual recursive functions
+- Use `/lean4-conventions` skill for detailed Lean 4 coding patterns (`partial` vs termination proofs, mutual recursion, naming)
 
 ## Verification Checklist
 
@@ -117,8 +110,8 @@ After making code changes, verify:
 
 1. **Build succeeds**: `docker run --rm ziku lake build`
 2. **All tests pass**: `docker run --rm ziku`
-3. **New features have tests**: Add corresponding golden tests in `tests/golden/`
-4. **Proofs are complete**: If `Proofs/` was modified, ensure no `sorry` remains
+3. **New features have tests**: Use `/add-golden-test` skill
+4. **Proofs are complete**: Use `/proof-writing` skill for guidelines
 
 ## Hints
 
