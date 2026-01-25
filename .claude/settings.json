@@ -3,8 +3,8 @@
     "allow": [
       "Bash(lake build)",
       "Bash(lake test*)",
-      "Bash(lake exe ziku)",
-      "Bash(docker run *ziku*)"
+      "Bash(docker compose build:*)",
+      "Bash(docker compose run:*)"
     ],
     "ask": [
       "Bash(git commit:*)"

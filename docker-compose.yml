@@ -1,0 +1,8 @@
+services:
+  ziku:
+    build: .
+    volumes:
+      - .:/workspaces/ziku
+    working_dir: /workspaces/ziku
+    stdin_open: true
+    tty: true

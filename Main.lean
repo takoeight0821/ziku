@@ -147,6 +147,10 @@ def main (args : List String) : IO Unit := do
       | "--big-step" :: "--eval" :: file :: _ => IO.FS.readFile file
       | "--eval" :: file :: _ => IO.FS.readFile file
       | "--big-step" :: file :: _ => IO.FS.readFile file
+      | "--scheme" :: file :: _ => IO.FS.readFile file
+      | "--parse" :: file :: _ => IO.FS.readFile file
+      | "--infer" :: file :: _ => IO.FS.readFile file
+      | "--translate" :: file :: _ => IO.FS.readFile file
       | [_] => (← IO.getStdin).readToEnd
       | _ => (← IO.getStdin).readToEnd
     runOnInput mode input.trimAscii.toString

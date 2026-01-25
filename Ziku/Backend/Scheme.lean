@@ -1,5 +1,6 @@
 import Ziku.Syntax
 import Ziku.IR.Focusing
+import Ziku.IR.Simplify
 
 set_option linter.missingDocs false
 
@@ -150,7 +151,7 @@ partial def translateProducerM : Producer → GenM String
     -- We tag it with 'ziku-thunk to distinguish from regular lambdas (cocase)
     let alphaName := mangleIdent α
     let sCode ← translateStatementM s
-    pure s!"(vector 'ziku-thunk (lambda ({alphaName}) {sCode}))"
+    pure s!"(vector 'ziku-thunk\n  (lambda ({alphaName})\n    {sCode}))"
   | .cocase _ branches => do
     -- cocase { D(x̄; α) ⇒ s, ... }
     -- Translate to nested lambdas for each destructor
@@ -165,15 +166,15 @@ partial def translateProducerM : Producer → GenM String
           let xName := mangleIdent x
           let alphaName := mangleIdent α
           let bodyCode ← translateStatementM body
-          pure s!"(lambda ({xName}) (lambda ({alphaName}) {bodyCode}))"
+          pure s!"(lambda ({xName})\n  (lambda ({alphaName})\n    {bodyCode}))"
         | _ =>
           -- Multiple args: λx₁...λxₙ.body
           let (argVars, contVar) := (vars.dropLast, vars.getLast!)
           let argNames := argVars.map mangleIdent
           let contName := mangleIdent contVar
           let bodyCode ← translateStatementM body
-          let lambdas := argNames.foldr (fun arg acc => s!"(lambda ({arg}) {acc})")
-            s!"(lambda ({contName}) {bodyCode})"
+          let lambdas := argNames.foldr (fun arg acc => s!"(lambda ({arg})\n  {acc})")
+            s!"(lambda ({contName})\n  {bodyCode})"
           pure lambdas
       else
         -- Record-like destructor
@@ -182,7 +183,7 @@ partial def translateProducerM : Producer → GenM String
         let contName := mangleIdent contVar
         let allArgs := String.intercalate " " (argNames ++ [contName])
         let bodyCode ← translateStatementM body
-        pure s!"(lambda ({allArgs}) {bodyCode})"
+        pure s!"(lambda ({allArgs})\n  {bodyCode})"
     | _ =>
       -- Multiple branches: create a dispatch table
       -- This is for codata with multiple destructors
@@ -193,8 +194,8 @@ partial def translateProducerM : Producer → GenM String
         let contName := mangleIdent contVar
         let argsStr := String.intercalate " " argNames
         let bodyCode ← translateStatementM body
-        pure s!"(({dName} {argsStr} {contName}) {bodyCode})"
-      pure s!"(case-lambda {String.intercalate " " branchCodes})"
+        pure s!"(({dName} {argsStr} {contName})\n    {bodyCode})"
+      pure s!"(case-lambda\n  {String.intercalate "\n  " branchCodes})"
   | .record _ fields => do
     -- Record as association list: ((f1 . v1) (f2 . v2) ...)
     let fieldCodes ← fields.mapM fun (name, value) => do
@@ -210,18 +211,18 @@ partial def translateProducerM : Producer → GenM String
     | .cocase _ _ =>
       -- Lambda-like: can use letrec directly since it's already lazy
       let bodyCode ← translateProducerM body
-      pure s!"(letrec (({xName} {bodyCode})) {xName})"
+      pure s!"(letrec (({xName} {bodyCode}))\n  {xName})"
     | .record _ fields =>
       -- Record with potential recursive reference: use tagged dispatch function
       -- The vector #(ziku-dispatch <func>) distinguishes this from CPS functions
       let fieldCases ← fields.mapM fun (name, value) => do
         let valueCode ← translateProducerM value
         pure s!"(({mangleIdent name}) {valueCode})"
-      pure s!"(letrec (({xName} (vector 'ziku-dispatch (lambda (%field) (case %field {String.intercalate " " fieldCases}))))) {xName})"
+      pure s!"(letrec (({xName} (vector 'ziku-dispatch (lambda (%field) (case %field\n    {String.intercalate "\n    " fieldCases})))))\n  {xName})"
     | _ =>
       -- Other: simple letrec
       let bodyCode ← translateProducerM body
-      pure s!"(letrec (({xName} {bodyCode})) {xName})"
+      pure s!"(letrec (({xName} {bodyCode}))\n  {xName})"
   | .dataCon _ con args => do
     -- Data constructor as tagged list: (list 'K v1 v2 ...)
     let conName := mangleIdent con
@@ -374,7 +375,7 @@ partial def translateStatementM : Statement → GenM String
       let alphaName := mangleIdent α
       let cCode ← translateConsumerM c
       let sCode ← translateStatementM s
-      pure s!"(let (({alphaName} {cCode})) {sCode})"
+      pure s!"(let (({alphaName} {cCode}))\n  {sCode})"
     | _ =>
       match c with
       | .muTilde _ x s =>
@@ -382,7 +383,7 @@ partial def translateStatementM : Statement → GenM String
         let xName := mangleIdent x
         let pCode ← translateProducerM p
         let sCode ← translateStatementM s
-        pure s!"(let (({xName} {pCode})) {sCode})"
+        pure s!"(let (({xName} {pCode}))\n  {sCode})"
       | _ =>
         -- General case: (c p)
         -- If p is translated as a thunk #(ziku-thunk <func>), unwrap and call with c
@@ -430,10 +431,10 @@ partial def translateStatementM : Statement → GenM String
       -- cond is μα.s: evaluate it and use result as condition
       let alphaName := mangleIdent α
       let sCode ← translateStatementM s
-      pure s!"((lambda ({alphaName}) {sCode}) (lambda (%cond) (if %cond {s1Code} {s2Code})))"
+      pure s!"((lambda ({alphaName}) {sCode})\n  (lambda (%cond)\n    (if %cond\n      {s1Code}\n      {s2Code})))"
     | _ =>
       let condCode ← translateProducerM cond
-      pure s!"(if {condCode} {s1Code} {s2Code})"
+      pure s!"(if {condCode}\n  {s1Code}\n  {s2Code})"
   | .call _ f args conts => do
     -- f(p̄; c̄) → (f arg1 arg2 ... cont1 cont2 ...)
     let fName := mangleIdent f
@@ -576,6 +577,9 @@ def schemeRuntime : String :=
         \"\"
         line)))
 
+(define (ziku-slurp filename)
+  (call-with-input-file filename (lambda (p) (get-string-all p))))
+
 (define (ziku-extern-wrapper name arity)
   (let ((proc (top-level-value name)))
     (letrec ((wrapper (lambda (collected)
@@ -588,27 +592,26 @@ def schemeRuntime : String :=
                                 (if (= (length new-args) arity)
                                     (cont (apply proc new-args))
                                     (cont (wrapper new-args))))
-                              (error \"Extern wrapper received unknown message\"))))))
+                              (error 'extern \"Extern wrapper received unknown message\"))))))
       (wrapper '()))))
 
 "
 
 -- Generate complete Scheme program
+-- Applies simplification to eliminate administrative redexes before code generation
 def compile (s : Statement) : String :=
-  let mainBody := translateStatement s
+  let simplified := Ziku.IR.simplify s
+  let mainBody := translateStatement simplified
   schemeRuntime ++
 ";; Main program
 (define (ziku-main halt)
-  " ++ mainBody ++ ")
+  " ++ mainBody ++ ")\n\n;; Run with result printer\n(ziku-main ziku-print-result)\n"
 
-;; Run with result printer
-(ziku-main ziku-print-result)
-"
-
--- Compile a producer (wrapped with halt continuation, with focusing applied)
+-- Compile a producer (wrapped with halt continuation, with focusing and simplification applied)
 def compileProducer (p : Producer) : String :=
   let stmt := Statement.cut synthesizedPos p (Consumer.covar synthesizedPos "halt")
   let focused := Ziku.IR.Focusing.focus stmt
-  compile focused
+  let simplified := Ziku.IR.simplify focused
+  compile simplified
 
 end Ziku.Backend.Scheme
