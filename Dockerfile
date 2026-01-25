@@ -84,4 +84,10 @@ COPY tests/ tests/
 COPY Makefile ./
 COPY scripts/ scripts/
 
+# Copy examples for MAL development
+COPY examples/ examples/
+
+# Create wrapper script for lake command
+RUN printf '#!/bin/bash\nexec lake "$@"\n' > /usr/local/bin/zlake && chmod +x /usr/local/bin/zlake
+
 CMD ["bash", "-c", "make -j4 test-parallel"]

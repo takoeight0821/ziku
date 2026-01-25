@@ -97,6 +97,73 @@ let applyNative = \op args =>
     match args { | Cons(Cons(h, _), MNil) => h | _ => MNil }
   else if strEq op "rest" then
     match args { | Cons(Cons(_, t), MNil) => t | _ => MNil }
+  else if strEq op "read-string" then
+    match args { | Cons(MStr(s), MNil) => read_str s | _ => MErr("read-string requires string") }
+  else if strEq op "pr-str" then
+    match args { | Cons(v, MNil) => MStr(pr_str v) | _ => MErr("pr-str requires 1 arg") }
+  else if strEq op "println" then
+    match args {
+    | Cons(MStr(s), MNil) => let ignored0 = println(s) in MNil
+    | _ => MErr("println requires string")
+    }
+  else if strEq op "prn" then
+    match args {
+    | Cons(v, MNil) => let ignored0 = println(pr_str v) in MNil
+    | _ => MErr("prn requires 1 arg")
+    }
+  else if strEq op "<" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => if a < b then MTrue else MFalse | _ => MErr("< err") }
+  else if strEq op ">" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => if a > b then MTrue else MFalse | _ => MErr("> err") }
+  else if strEq op "<=" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => if a <= b then MTrue else MFalse | _ => MErr("<= err") }
+  else if strEq op ">=" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => if a >= b then MTrue else MFalse | _ => MErr(">= err") }
+  else if strEq op "count" then
+    match args {
+    | Cons(MNil, MNil) => MNum(0)
+    | Cons(lst, MNil) =>
+      let rec countList = \l acc =>
+        match l { | MNil => acc | Cons(_, t) => countList t (acc + 1) | _ => acc }
+      in MNum(countList lst 0)
+    | _ => MErr("count err")
+    }
+  else if strEq op "list?" then
+    match args { | Cons(Cons(_, _), MNil) => MTrue | Cons(MNil, MNil) => MTrue | _ => MFalse }
+  else if strEq op "cons" then
+    match args { | Cons(h, Cons(t, MNil)) => Cons(h, t) | _ => MErr("cons err") }
+  else if strEq op "concat" then
+    let rec concatLists = \lists =>
+      match lists {
+      | MNil => MNil
+      | Cons(MNil, rest) => concatLists rest
+      | Cons(Cons(h, t), rest) => Cons(h, concatLists (Cons(t, rest)))
+      | _ => MNil
+      }
+    in concatLists args
+  else if strEq op "nth" then
+    match args {
+    | Cons(lst, Cons(MNum(n), MNil)) =>
+      let rec getNth = \l i =>
+        match l {
+        | Cons(h, t) => if i == 0 then h else getNth t (i - 1)
+        | _ => MErr("nth: index out of bounds")
+        }
+      in getNth lst n
+    | _ => MErr("nth requires list and index")
+    }
+  else if strEq op "slurp" then
+    let slurpScheme : String -> String = @("scheme", "ziku-slurp", 1) in
+    match args { | Cons(MStr(filename), MNil) => MStr(slurpScheme filename) | _ => MErr("slurp err") }
+  else if strEq op "str" then
+    let rec strConcat = \l acc =>
+      match l {
+      | MNil => MStr(acc)
+      | Cons(MStr(s), rest) => strConcat rest (acc ++ s)
+      | Cons(MNum(n), rest) => strConcat rest (acc ++ intToStr n)
+      | Cons(v, rest) => strConcat rest (acc ++ pr_str v)
+      }
+    in strConcat args ""
   else MErr("unknown native: " ++ op)
 in
 
@@ -121,7 +188,17 @@ let rec skipWhitespace = \s =>
   else
     let c = strAt s 0 in
     let code = runeToInt c in
-    if code == runeToInt ' ' then skipWhitespace (strSub s 1 (strLen s - 1))
+    -- Skip comments (from ; to end of line)
+    if code == runeToInt ';' then
+      let rec skipComment = \s2 =>
+        if strLen s2 == 0 then s2
+        else
+          let c2 = strAt s2 0 in
+          let code2 = runeToInt c2 in
+          if code2 == runeToInt '\n' then skipWhitespace (strSub s2 1 (strLen s2 - 1))
+          else skipComment (strSub s2 1 (strLen s2 - 1))
+      in skipComment s
+    else if code == runeToInt ' ' then skipWhitespace (strSub s 1 (strLen s - 1))
     else if code == runeToInt '\t' then skipWhitespace (strSub s 1 (strLen s - 1))
     else if code == runeToInt '\n' then skipWhitespace (strSub s 1 (strLen s - 1))
     else if code == 13 then skipWhitespace (strSub s 1 (strLen s - 1))
@@ -284,6 +361,9 @@ let rec pr_str = \val =>
   | MFalse => "false"
   | Cons(h, t) => "(" ++ prListContents pr_str h t ++ ")"
   | MErr(msg) => "Error: " ++ msg
+  | MAtom(b) => "(atom ...)"
+  | MClosure(_, _, _) => "#<function>"
+  | MNative(n) => "#<native:" ++ n ++ ">"
   | _ => "unknown"
   }
 in
