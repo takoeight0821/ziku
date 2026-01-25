@@ -84,6 +84,10 @@ inductive Constraint where
   -- Field access `e.f` generates: unify(recTy, { f : resultTy | rowVar })
   deriving Repr
 
+-- Import type map: maps import paths to their signature types
+/-- Mapping from import paths to their resolved types from signature files. -/
+abbrev ImportTypeMap := List (String × Ty)
+
 /-- State for constraint generation phase -/
 structure GenState where
   /-- Counter for generating unique type variable names. -/
@@ -92,6 +96,8 @@ structure GenState where
   constraints : List Constraint := []
   /-- Environment for labels (used by goto). -/
   labelEnv : LabelEnv := []
+  /-- Resolved import types from signature files. -/
+  importTypes : ImportTypeMap := []
   deriving Inhabited
 
 /-- Monad for constraint generation -/
@@ -686,6 +692,13 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     -- External call: return a fresh type variable for now
     -- Phase 2 will implement proper type lookup from environment or annotations
     freshTyVar
+  | .import_ pos path => do
+    -- Look up the import's type from the pre-resolved import types
+    let s ← get
+    match s.importTypes.find? (fun (p, _) => p == path) with
+    | some (_, ty) => return ty
+    | none =>
+      throw $ .customError pos s!"Signature not found for import \"{path}\". Make sure {(path.dropEnd 5).toString}.ziki exists."
 
 /-! ## Constraint Solving
 
@@ -852,9 +865,10 @@ partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
   | .tilde p t => .tilde p (finalizeTy bottomVars t)
 
 /-- Top-level entry point for type inference. Generates and solves constraints for an expression. -/
-def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) := do
+def runInfer (expr : Expr) (env : TyEnv := []) (importTypes : ImportTypeMap := [])
+    : Except TypeError (Ty × Subst) := do
   -- Phase 1: Generate constraints
-  let initState : GenState := { nextVar := 0, constraints := [], labelEnv := [] }
+  let initState : GenState := { nextVar := 0, constraints := [], labelEnv := [], importTypes := importTypes }
   match (genConstraints env expr).run initState with
   | .error e => .error e
   | .ok (ty, finalGenState) =>

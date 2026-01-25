@@ -1,0 +1,2 @@
+let m = import "import/nosig.ziku" in
+m.x

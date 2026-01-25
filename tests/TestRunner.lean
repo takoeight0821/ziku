@@ -12,9 +12,63 @@ import Ziku.Translate
 import Ziku.IR.Eval
 import Ziku.IR.BigStepEval
 import Ziku.Backend.Scheme
+import Ziku.Path
 import tests.BigStepEvalTest
 
 set_option linter.missingDocs false
+
+open Ziku (Expr Pat Copattern Ident)
+
+/-!
+# Import Resolution Utilities (copied from Main.lean for test runner)
+-/
+
+/-- Collect all import paths from an expression -/
+partial def collectImports : Expr → List String
+  | .import_ _ path => [path]
+  | .binOp _ _ e1 e2 => collectImports e1 ++ collectImports e2
+  | .unaryOp _ _ e => collectImports e
+  | .lam _ _ _ body => collectImports body
+  | .app _ fn arg _ => collectImports fn ++ collectImports arg
+  | .let_ _ _ _ e1 e2 => collectImports e1 ++ collectImports e2
+  | .letRec _ _ _ e1 e2 => collectImports e1 ++ collectImports e2
+  | .match_ _ scrutinee cases =>
+    collectImports scrutinee ++ (cases.flatMap fun (_, body) => collectImports body)
+  | .codata _ clauses =>
+    clauses.flatMap fun (_, _, body) => collectImports body
+  | .field _ e _ => collectImports e
+  | .ann _ e _ => collectImports e
+  | .record _ fields =>
+    fields.flatMap fun (_, e) => collectImports e
+  | .if_ _ c t f => collectImports c ++ collectImports t ++ collectImports f
+  | .label _ _ body => collectImports body
+  | .goto _ e1 e2 => collectImports e1 ++ collectImports e2
+  | .con _ _ args => args.flatMap collectImports
+  | _ => []
+
+/-- Resolve import types by loading signature files. -/
+def resolveImportTypes (basePath : System.FilePath) (imports : List String)
+    : IO (Except String Ziku.ImportTypeMap) := do
+  let ctx := Ziku.Path.contextFromFile basePath
+  let mut result : Ziku.ImportTypeMap := []
+
+  for importPath in imports.eraseDups do
+    match ← Ziku.Path.resolve ctx importPath with
+    | .notFound tried =>
+      return .error s!"Import file not found: {importPath}\nTried: {tried}"
+    | .found resolvedPath =>
+      let sigPath := Ziku.Path.toSignaturePath resolvedPath
+      if ← sigPath.pathExists then
+        let sigContent ← IO.FS.readFile sigPath
+        match Ziku.parseSignature sigContent with
+        | .error msg =>
+          return .error s!"Failed to parse signature {sigPath}: {msg}"
+        | .ok ty =>
+          result := (importPath, ty) :: result
+      else
+        return .error s!"Signature file not found: {sigPath}"
+
+  return .ok result
 
 -- ============================================================================
 -- Truncate Tests (from TruncateTest.lean)
@@ -164,13 +218,20 @@ def runParserTest (input : String) : Except String TestOutput :=
       else
         .ok { output := exprErr, isError := true }
 
-def runInferTest (input : String) : Except String TestOutput :=
-  match Ziku.parseExprString input.trimAscii.toString with 
+def runInferTest (input : String) (inputPath : String) : IO (Except String TestOutput) := do
+  match Ziku.parseExprString input.trimAscii.toString with
   | .ok expr =>
-    match Ziku.runInfer expr with
-    | .ok (ty, _) => .ok { output := toString ty, isError := false }
-    | .error e => .ok { output := toString e, isError := true }
-  | .error e => .error e
+    -- Collect and resolve imports
+    let basePath := System.FilePath.mk inputPath
+    let imports := collectImports expr
+    let importTypes ← if imports.isEmpty then pure (.ok []) else resolveImportTypes basePath imports
+    match importTypes with
+    | .error msg => return .ok { output := s!"Import error: {msg}", isError := true }
+    | .ok importTypeMap =>
+      match Ziku.runInfer expr [] importTypeMap with
+      | .ok (ty, _) => return .ok { output := toString ty, isError := false }
+      | .error e => return .ok { output := toString e, isError := true }
+  | .error e => return .error e
 
 def runIREvalTest (input : String) : IO (Except String TestOutput) :=
   do
@@ -406,7 +467,7 @@ def runTest (tc : TestCase) : IO TestResult :=
 
 
 
-      | "infer" => pure (runInferTest input)
+      | "infer" => runInferTest input tc.inputPath
 
 
 

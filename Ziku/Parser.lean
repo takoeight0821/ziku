@@ -696,6 +696,8 @@ mutual
     | some .kLabel => parseLabel s
     -- Goto
     | some .kGoto => parseGoto s
+    -- Import expression
+    | some .kImport => parseImportExpr s
     -- Parenthesized or unit
     | some .lparen =>
       let s := s.advance
@@ -899,6 +901,13 @@ mutual
     let continuation ← parseExpr
     let _ ← expect .rparen
     return Expr.goto pos value continuation
+
+  -- Parse import expression: import "path.ziku"
+  partial def parseImportExpr : Parser Expr := do
+    let pos ← currentPos
+    advance  -- skip 'import'
+    let path ← expectString
+    return Expr.import_ pos path
 
   -- Parse brace expression: codata block { #.f => e } or record { x = 1 }
   partial def parseBraceExpr : Parser Expr := fun s =>
@@ -1265,5 +1274,16 @@ def parseExprString (input : String) : Except String Expr := do
 
 -- Backward compatibility alias
 def parse (input : String) : Except String Expr := parseExprString input
+
+-- Parse a signature file (.ziki) - contains a single type expression
+-- Example: { strEq : String -> String -> Bool, strLen : String -> Int }
+def parseSignature (input : String) : Except String Ty := do
+  let tokens ← tokenize input
+  let s : ParseState := { tokens := tokens }
+  let (ty, s') ← parseType s
+  if s'.eof then
+    .ok ty
+  else
+    .error s!"unexpected token at end of signature: {s'.peekToken?}"
 
 end Ziku

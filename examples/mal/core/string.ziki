@@ -1,0 +1,4 @@
+{
+  strEq : String -> String -> Bool,
+  strEqFrom : String -> String -> Int -> Bool
+}

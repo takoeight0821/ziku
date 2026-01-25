@@ -1,0 +1,7 @@
+{ strEq : String -> String -> Bool } ->
+{ read_str : String -> MalVal } ->
+{ pr_str : MalVal -> String } ->
+{
+  isTruthy : MalVal -> Bool,
+  applyNative : String -> MalVal -> MalVal
+}

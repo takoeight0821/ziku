@@ -1,8 +1,26 @@
 -- Step 4: Functions and Control Flow
+-- Uses the import-based module system
 
--- ============================================ 
+-- Import core modules
+let String = import "core/string.ziku" in
+let Env = import "core/env.ziku" String in
+let Reader = import "core/reader.ziku" String in
+let Printer = import "core/printer.ziku" in
+let Native = import "core/native.ziku" String Reader Printer in
+
+-- Extract commonly used functions
+let strEq = String.strEq in
+let emptyEnv = Env.emptyEnv in
+let envGet = Env.envGet in
+let envSet = Env.envSet in
+let bindParams = Env.bindParams in
+let read_str = Reader.read_str in
+let pr_str = Printer.pr_str in
+let applyNative = Native.applyNative in
+
+-- ============================================
 -- Eval Helper
--- ============================================ 
+-- ============================================
 
 let rec eval_ast = \ev env ast =>
   match ast {
@@ -43,9 +61,9 @@ let rec evalBindings = \ev bindings env =>
   }
 in
 
--- ============================================ 
+-- ============================================
 -- Debug Helper
--- ============================================ 
+-- ============================================
 let rec my_pr_str = \val =>
   match val {
   | MClosure(p, b, e) => "Closure"
@@ -57,9 +75,9 @@ let rec my_pr_str = \val =>
   }
 in
 
--- ============================================ 
+-- ============================================
 -- Apply
--- ============================================ 
+-- ============================================
 
 let apply = \ev func args =>
   match func {
@@ -74,9 +92,9 @@ let apply = \ev func args =>
   }
 in
 
--- ============================================ 
+-- ============================================
 -- Eval
--- ============================================ 
+-- ============================================
 
 let rec eval = \ev env ast =>
   match ast {
@@ -172,11 +190,11 @@ let rec eval = \ev env ast =>
   }
 in
 
--- ============================================ 
+-- ============================================
 -- REPL
--- ============================================ 
+-- ============================================
 
-let replEnv = 
+let replEnv =
   let e0 = emptyEnv in
   let e1 = envSet e0 "+" (MNative("+")) in
   let e2 = envSet e1 "-" (MNative("-")) in

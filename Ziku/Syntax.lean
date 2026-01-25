@@ -281,6 +281,8 @@ inductive Expr where
   | con       : SourcePos → Ident → List Expr → Expr                -- Constructor: Con args...
   /-- External definition. -/
   | extern    : SourcePos → ExternInfo → Expr                       -- Extern: @("scheme", "foo")
+  /-- Import expression. -/
+  | import_   : SourcePos → String → Expr                           -- Import: import "path.ziku"
   deriving Repr, BEq
 
 /-- Returns the source position of an expression. -/
@@ -304,6 +306,7 @@ def Expr.pos : Expr → SourcePos
   | goto p _ _ => p
   | con p _ _ => p
   | extern p _ => p
+  | import_ p _ => p
 
 -- Data constructor declaration
 /-- Represents a declaration of a data constructor. -/
@@ -379,6 +382,7 @@ partial def Expr.exprSize : Expr → Nat
   | goto _ e1 e2 => 1 + e1.exprSize + e2.exprSize
   | con _ _ args => 1 + args.foldl (fun acc e => acc + e.exprSize) 0
   | extern _ _ => 1
+  | import_ _ _ => 1
 
 -- Free variables in an expression
 /-- Returns the list of free variables in an expression. -/
@@ -405,6 +409,7 @@ partial def Expr.freeVars : Expr → List Ident
   | goto _ e1 e2 => e1.freeVars ++ e2.freeVars
   | con _ _ args => args.flatMap Expr.freeVars
   | extern _ _ => []
+  | import_ _ _ => []
 
 
 -- Closed expression (no free variables)
@@ -540,6 +545,7 @@ partial def Expr.toString : Expr → String
     let argsStr := args.map Expr.toString
     s!"(Con \"{name}\" [{String.intercalate ", " argsStr}])"
   | extern _ info => s!"(Extern {ExternInfo.toString info})"
+  | import_ _ path => s!"(Import \"{path}\")"
 
 instance : ToString Expr := ⟨Expr.toString⟩
 

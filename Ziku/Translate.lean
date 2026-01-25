@@ -350,6 +350,9 @@ mutual
       -- Returns the external entity (as a wrapped handler) to the continuation
       let α ← freshCovar
       return .mu pos α (.externalCall pos info [] (.covar pos α))
+    | .import_ pos _ =>
+      -- Import expressions should be expanded before translation
+      throw $ .notImplemented pos "import expression (should be expanded before translation)"
 
   -- Compile nested patterns for constructor arguments
   -- Takes list of ArgPatterns and generates nested case expressions

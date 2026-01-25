@@ -1,0 +1,4 @@
+{ strEq : String -> String -> Bool } ->
+{
+  read_str : String -> MalVal
+}
