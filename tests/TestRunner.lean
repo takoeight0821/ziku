@@ -13,62 +13,13 @@ import Ziku.IR.Eval
 import Ziku.IR.BigStepEval
 import Ziku.Backend.Scheme
 import Ziku.Path
+import Ziku.Import
 import tests.BigStepEvalTest
 
 set_option linter.missingDocs false
 
 open Ziku (Expr Pat Copattern Ident)
-
-/-!
-# Import Resolution Utilities (copied from Main.lean for test runner)
--/
-
-/-- Collect all import paths from an expression -/
-partial def collectImports : Expr → List String
-  | .import_ _ path => [path]
-  | .binOp _ _ e1 e2 => collectImports e1 ++ collectImports e2
-  | .unaryOp _ _ e => collectImports e
-  | .lam _ _ _ body => collectImports body
-  | .app _ fn arg _ => collectImports fn ++ collectImports arg
-  | .let_ _ _ _ e1 e2 => collectImports e1 ++ collectImports e2
-  | .letRec _ _ _ e1 e2 => collectImports e1 ++ collectImports e2
-  | .match_ _ scrutinee cases =>
-    collectImports scrutinee ++ (cases.flatMap fun (_, body) => collectImports body)
-  | .codata _ clauses =>
-    clauses.flatMap fun (_, _, body) => collectImports body
-  | .field _ e _ => collectImports e
-  | .ann _ e _ => collectImports e
-  | .record _ fields =>
-    fields.flatMap fun (_, e) => collectImports e
-  | .if_ _ c t f => collectImports c ++ collectImports t ++ collectImports f
-  | .label _ _ body => collectImports body
-  | .goto _ e1 e2 => collectImports e1 ++ collectImports e2
-  | .con _ _ args => args.flatMap collectImports
-  | _ => []
-
-/-- Resolve import types by loading signature files. -/
-def resolveImportTypes (basePath : System.FilePath) (imports : List String)
-    : IO (Except String Ziku.ImportTypeMap) := do
-  let ctx := Ziku.Path.contextFromFile basePath
-  let mut result : Ziku.ImportTypeMap := []
-
-  for importPath in imports.eraseDups do
-    match ← Ziku.Path.resolve ctx importPath with
-    | .notFound tried =>
-      return .error s!"Import file not found: {importPath}\nTried: {tried}"
-    | .found resolvedPath =>
-      let sigPath := Ziku.Path.toSignaturePath resolvedPath
-      if ← sigPath.pathExists then
-        let sigContent ← IO.FS.readFile sigPath
-        match Ziku.parseSignature sigContent with
-        | .error msg =>
-          return .error s!"Failed to parse signature {sigPath}: {msg}"
-        | .ok ty =>
-          result := (importPath, ty) :: result
-      else
-        return .error s!"Signature file not found: {sigPath}"
-
-  return .ok result
+open Ziku.Import (collectImports resolveImportTypes)
 
 -- ============================================================================
 -- Truncate Tests (from TruncateTest.lean)
@@ -233,23 +184,27 @@ def runInferTest (input : String) (inputPath : String) : IO (Except String TestO
       | .error e => return .ok { output := toString e, isError := true }
   | .error e => return .error e
 
-def runIREvalTest (input : String) : IO (Except String TestOutput) :=
+def runIREvalTest (input : String) (inputPath : String) : IO (Except String TestOutput) :=
   do
-    match Ziku.parseExprString input.trimAscii.toString with 
+    match Ziku.parseExprString input.trimAscii.toString with
     | .ok expr =>
-      match Ziku.elaborateAll expr with
-      | .ok elaborated =>
-        match Ziku.Translate.translateToStatement elaborated with
-        | .ok stmt =>
-          let result ← Ziku.IR.eval stmt
-          match result with
-          | .value p _ => return .ok { output := Ziku.IR.truncate p.toString, isError := false }
-          | .stuck s env =>
-            let val := env.lookup "evalList"
-            return .error s!"Stuck: {s}\nEnv keys: {env.keys}\nevalList: {repr val}"
-          | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
-        | .error e => return .ok { output := s!"Translation error: {e}", isError := true }
-      | .error e => return .ok { output := s!"Elaboration error: {e}", isError := true }
+      let basePath := System.FilePath.mk inputPath
+      match ← Ziku.Import.expandImports basePath expr with
+      | .error msg => return .ok { output := s!"Import expansion error: {msg}", isError := true }
+      | .ok expanded =>
+        match Ziku.elaborateAll expanded with
+        | .ok elaborated =>
+          match Ziku.Translate.translateToStatement elaborated with
+          | .ok stmt =>
+            let result ← Ziku.IR.eval stmt
+            match result with
+            | .value p _ => return .ok { output := Ziku.IR.truncate p.toString, isError := false }
+            | .stuck s env =>
+              let val := env.lookup "evalList"
+              return .error s!"Stuck: {s}\nEnv keys: {env.keys}\nevalList: {repr val}"
+            | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
+          | .error e => return .ok { output := s!"Translation error: {e}", isError := true }
+        | .error e => return .ok { output := s!"Elaboration error: {e}", isError := true }
     | .error e => return .error e
 
 def runTranslateTest (input : String) : Except String TestOutput :=
@@ -314,78 +269,59 @@ def runSchemeTest (tc : TestCase) : IO TestResult :=
 -- Evaluator Full Execution Helpers
 -- ============================================================================
 
-def runIREvalFull (input : String) : IO (Except String TestOutput) := do
-
+def runIREvalFull (input : String) (inputPath : String) : IO (Except String TestOutput) := do
   match Ziku.parseExprString input.trimAscii.toString with
-
   | .ok expr =>
-
-    match Ziku.elaborateAll expr with
-
-    | .ok elaborated =>
-
-      match Ziku.Translate.translateToStatement elaborated with
-
-      | .ok stmt =>
-
-        let result ← Ziku.IR.eval stmt
-
-        match result with
-
-        | .value p _ => return .ok { output := p.toString, isError := false }
-
-        | .stuck s env =>
-
-          let val := env.lookup "evalList"
-
-          return .error s!"Stuck: {s}\nEnv keys: {env.keys}\nevalList: {repr val}"
-
-        | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
-
-      | .error e => return .ok { output := s!"Translation error: {e}", isError := true }
-
-    | .error e => return .ok { output := s!"Elaboration error: {e}", isError := true }
-
+    let basePath := System.FilePath.mk inputPath
+    match ← Ziku.Import.expandImports basePath expr with
+    | .error msg => return .ok { output := s!"Import expansion error: {msg}", isError := true }
+    | .ok expanded =>
+      match Ziku.elaborateAll expanded with
+      | .ok elaborated =>
+        match Ziku.Translate.translateToStatement elaborated with
+        | .ok stmt =>
+          let result ← Ziku.IR.eval stmt
+          match result with
+          | .value p _ => return .ok { output := p.toString, isError := false }
+          | .stuck s env =>
+            let val := env.lookup "evalList"
+            return .error s!"Stuck: {s}\nEnv keys: {env.keys}\nevalList: {repr val}"
+          | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
+        | .error e => return .ok { output := s!"Translation error: {e}", isError := true }
+      | .error e => return .ok { output := s!"Elaboration error: {e}", isError := true }
   | .error e => return .error e
 
 
 
-def runBigStepEvalFull (input : String) : IO (Except String TestOutput) := do
-
+def runBigStepEvalFull (input : String) (inputPath : String) : IO (Except String TestOutput) := do
   match Ziku.parseExprString input.trimAscii.toString with
-
   | .ok expr =>
-
-    match Ziku.elaborateAll expr with
-
-    | .ok elaborated =>
-
-      match Ziku.Translate.translateToStatement elaborated with
-
-      | .ok stmt =>
-
-        let result ← Ziku.IR.BigStepEval.eval stmt
-
-        match result with
-
-        | .value v => return .ok { output := toString v, isError := false }
-
-        | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
-
-      | .error e => return .ok { output := s!"Translation error: {e}", isError := true }
-
-    | .error e => return .ok { output := s!"Elaboration error: {e}", isError := true }
-
+    let basePath := System.FilePath.mk inputPath
+    match ← Ziku.Import.expandImports basePath expr with
+    | .error msg => return .ok { output := s!"Import expansion error: {msg}", isError := true }
+    | .ok expanded =>
+      match Ziku.elaborateAll expanded with
+      | .ok elaborated =>
+        match Ziku.Translate.translateToStatement elaborated with
+        | .ok stmt =>
+          let result ← Ziku.IR.BigStepEval.eval stmt
+          match result with
+          | .value v => return .ok { output := toString v, isError := false }
+          | .error msg => return .ok { output := s!"Error: {msg}", isError := true }
+        | .error e => return .ok { output := s!"Translation error: {e}", isError := true }
+      | .error e => return .ok { output := s!"Elaboration error: {e}", isError := true }
   | .error e => return .error e
 
 
 
-def runBigStepEvalTest (input : String) : IO (Except String TestOutput) := do
-
-  match ← runBigStepEvalFull input with
-
-  | .ok output => return .ok { output with output := Ziku.IR.truncate output.output }
-
+def runBigStepEvalTest (input : String) (inputPath : String) : IO (Except String TestOutput) := do
+  match ← runBigStepEvalFull input inputPath with
+  | .ok output =>
+    -- Only truncate non-error outputs (like runIREvalTest does)
+    if output.isError then
+      return .ok output
+    else
+      return .ok { output with output := Ziku.IR.truncate output.output }
   | .error e => return .error e
 
 
@@ -402,7 +338,7 @@ def runConsistencyTest (name : String) (inputPath : String) : IO TestResult :=
   do
     let input ← IO.FS.readFile inputPath
 
-    let irResult ← runIREvalFull input
+    let irResult ← runIREvalFull input inputPath
     match irResult with
     | .error e =>
       pure (TestResult.error s!"IR eval parse error: {e}")
@@ -433,12 +369,12 @@ def runBigStepConsistencyTest (_name : String) (inputPath : String) : IO TestRes
   do
     let input ← IO.FS.readFile inputPath
 
-    let smallStepResult ← runIREvalFull input
+    let smallStepResult ← runIREvalFull input inputPath
     match smallStepResult with
     | .error e =>
       pure (TestResult.error s!"Small-step parse error: {e}")
     | .ok smallStepOutput =>
-      let bigStepResult ← runBigStepEvalFull input
+      let bigStepResult ← runBigStepEvalFull input inputPath
       match bigStepResult with
       | .error e =>
         pure (TestResult.error s!"Big-step parse error: {e}")
@@ -471,11 +407,9 @@ def runTest (tc : TestCase) : IO TestResult :=
 
 
 
-      | "ir-eval" => runIREvalTest input
+      | "ir-eval" => runIREvalTest input tc.inputPath
 
-
-
-      | "ir-eval-big-step" => runBigStepEvalTest input
+      | "ir-eval-big-step" => runBigStepEvalTest input tc.inputPath
 
 
 
