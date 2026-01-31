@@ -1,0 +1,2 @@
+Import expansion error: Circular import detected: circular_a.ziku
+Import chain: [tests/golden/ir-eval/error/import/circular_a.ziku, tests/golden/ir-eval/error/import/circular_b.ziku, tests/golden/ir-eval/error/import/circular_a.ziku]

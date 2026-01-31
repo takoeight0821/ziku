@@ -2,6 +2,7 @@
 -- Import modules here that should be built as part of the library.
 import Ziku.Syntax
 import Ziku.Path
+import Ziku.Import
 import Ziku.Builtins
 import Ziku.IR.Syntax
 import Ziku.IR.Eval

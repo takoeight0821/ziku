@@ -1,0 +1,1 @@
+let m = import "import/circular_a.ziku" in m
