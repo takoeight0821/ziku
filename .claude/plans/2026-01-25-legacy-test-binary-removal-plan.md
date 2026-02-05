@@ -1,4 +1,4 @@
-# レガシーテストバイナリ削除プラン
+# Legacy Test Binary Removal Plan
 
 **日付**: 2026-01-25
 **状態**: ✅ 完了

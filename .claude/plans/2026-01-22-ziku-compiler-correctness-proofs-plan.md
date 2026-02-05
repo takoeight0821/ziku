@@ -1,4 +1,4 @@
-# Ziku コンパイラ正当性証明の追加計画
+# Ziku Compiler Correctness Proofs Plan
 
 **作成日**: 2026-01-22
 
