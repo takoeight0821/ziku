@@ -175,7 +175,7 @@ def runInferTest (input : String) (inputPath : String) : IO (Except String TestO
     -- Collect and resolve imports
     let basePath := System.FilePath.mk inputPath
     let imports := collectImports expr
-    let importTypes ← if imports.isEmpty then pure (.ok []) else resolveImportTypes basePath imports
+    let importTypes ← if imports.isEmpty then pure (.ok []) else (resolveImportTypes basePath imports).run
     match importTypes with
     | .error msg => return .ok { output := s!"Import error: {msg}", isError := true }
     | .ok importTypeMap =>
@@ -189,7 +189,7 @@ def runIREvalTest (input : String) (inputPath : String) : IO (Except String Test
     match Ziku.parseExprString input.trimAscii.toString with
     | .ok expr =>
       let basePath := System.FilePath.mk inputPath
-      match ← Ziku.Import.expandImports basePath expr with
+      match ← (Ziku.Import.expandImports basePath expr).run with
       | .error msg => return .ok { output := s!"Import expansion error: {msg}", isError := true }
       | .ok expanded =>
         match Ziku.elaborateAll expanded with
@@ -273,7 +273,7 @@ def runIREvalFull (input : String) (inputPath : String) : IO (Except String Test
   match Ziku.parseExprString input.trimAscii.toString with
   | .ok expr =>
     let basePath := System.FilePath.mk inputPath
-    match ← Ziku.Import.expandImports basePath expr with
+    match ← (Ziku.Import.expandImports basePath expr).run with
     | .error msg => return .ok { output := s!"Import expansion error: {msg}", isError := true }
     | .ok expanded =>
       match Ziku.elaborateAll expanded with
@@ -297,7 +297,7 @@ def runBigStepEvalFull (input : String) (inputPath : String) : IO (Except String
   match Ziku.parseExprString input.trimAscii.toString with
   | .ok expr =>
     let basePath := System.FilePath.mk inputPath
-    match ← Ziku.Import.expandImports basePath expr with
+    match ← (Ziku.Import.expandImports basePath expr).run with
     | .error msg => return .ok { output := s!"Import expansion error: {msg}", isError := true }
     | .ok expanded =>
       match Ziku.elaborateAll expanded with

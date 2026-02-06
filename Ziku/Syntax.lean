@@ -579,4 +579,7 @@ partial def Decl.toString : Decl → String
 
 instance : ToString Decl := ⟨Decl.toString⟩
 
+/-- Mapping from import paths to their resolved types from signature files. -/
+abbrev ImportTypeMap := List (String × Ty)
+
 end Ziku

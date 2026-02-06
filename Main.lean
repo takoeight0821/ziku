@@ -47,7 +47,7 @@ def runOnInput (mode : Mode) (input : String) (basePath : System.FilePath := "."
   | .ok expr =>
     -- Collect and resolve imports
     let imports := collectImports expr
-    let importTypes ← if imports.isEmpty then pure (.ok []) else resolveImportTypes basePath imports
+    let importTypes ← if imports.isEmpty then pure (.ok []) else (resolveImportTypes basePath imports).run
 
     match importTypes with
     | .error msg =>
@@ -64,74 +64,37 @@ def runOnInput (mode : Mode) (input : String) (basePath : System.FilePath := "."
           IO.Process.exit 1
         | .ok (ty, _) =>
           IO.println s!"{ty}"
-      | .translate =>
-        -- Expand imports before translation
-        let expanded ← expandImports basePath expr
-        match expanded with
+      | _ =>
+        -- All remaining modes need import expansion + translation
+        match ← (expandImports basePath expr).run with
         | .error msg =>
           IO.eprintln s!"Import expansion error: {msg}"
           IO.Process.exit 1
-        | .ok expr' =>
-          match Translate.translateToStatement expr' with
+        | .ok expanded =>
+          match Translate.translateToStatement expanded with
           | .error err =>
             IO.eprintln s!"Translate error: {err}"
             IO.Process.exit 1
           | .ok stmt =>
-            IO.println s!"{stmt}"
-      | .scheme =>
-        -- Expand imports before compilation
-        let expanded ← expandImports basePath expr
-        match expanded with
-        | .error msg =>
-          IO.eprintln s!"Import expansion error: {msg}"
-          IO.Process.exit 1
-        | .ok expr' =>
-          match Translate.translateToStatement expr' with
-          | .error err =>
-            IO.eprintln s!"Translate error: {err}"
-            IO.Process.exit 1
-          | .ok stmt =>
-            let scheme := Backend.Scheme.compile stmt
-            IO.println scheme
-      | .eval | .repl false =>
-        -- Expand imports before evaluation
-        let expanded ← expandImports basePath expr
-        match expanded with
-        | .error msg =>
-          IO.eprintln s!"Import expansion error: {msg}"
-          IO.Process.exit 1
-        | .ok expr' =>
-          match Translate.translateToStatement expr' with
-          | .error err =>
-            IO.eprintln s!"Translate error: {err}"
-            IO.Process.exit 1
-          | .ok stmt =>
-            match ← IR.eval stmt with
-            | .value p _ => IO.println s!"{p}"
-            | .stuck s _ =>
-              IO.eprintln s!"Stuck: {s}"
-              IO.Process.exit 1
-            | .error msg =>
-              IO.eprintln s!"Eval error: {msg}"
-              IO.Process.exit 1
-      | .evalBigStep | .repl true =>
-        -- Expand imports before evaluation
-        let expanded ← expandImports basePath expr
-        match expanded with
-        | .error msg =>
-          IO.eprintln s!"Import expansion error: {msg}"
-          IO.Process.exit 1
-        | .ok expr' =>
-          match Translate.translateToStatement expr' with
-          | .error err =>
-            IO.eprintln s!"Translate error: {err}"
-            IO.Process.exit 1
-          | .ok stmt =>
-            match ← IR.BigStepEval.eval stmt with
-            | .value v => IO.println s!"{v}"
-            | .error msg =>
-              IO.eprintln s!"Eval error: {msg}"
-              IO.Process.exit 1
+            match mode with
+            | .translate => IO.println s!"{stmt}"
+            | .scheme => IO.println (Backend.Scheme.compile stmt)
+            | .eval | .repl false =>
+              match ← IR.eval stmt with
+              | .value p _ => IO.println s!"{p}"
+              | .stuck s _ =>
+                IO.eprintln s!"Stuck: {s}"
+                IO.Process.exit 1
+              | .error msg =>
+                IO.eprintln s!"Eval error: {msg}"
+                IO.Process.exit 1
+            | .evalBigStep | .repl true =>
+              match ← IR.BigStepEval.eval stmt with
+              | .value v => IO.println s!"{v}"
+              | .error msg =>
+                IO.eprintln s!"Eval error: {msg}"
+                IO.Process.exit 1
+            | .parse | .infer => pure ()  -- unreachable
 
 /-- Starts an interactive REPL loop. -/
 partial def repl (useBigStep : Bool) : IO Unit := do

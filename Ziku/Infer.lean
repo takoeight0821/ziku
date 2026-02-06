@@ -84,10 +84,6 @@ inductive Constraint where
   -- Field access `e.f` generates: unify(recTy, { f : resultTy | rowVar })
   deriving Repr
 
--- Import type map: maps import paths to their signature types
-/-- Mapping from import paths to their resolved types from signature files. -/
-abbrev ImportTypeMap := List (String × Ty)
-
 /-- State for constraint generation phase -/
 structure GenState where
   /-- Counter for generating unique type variable names. -/
