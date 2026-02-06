@@ -1,4 +1,4 @@
-# Plan: パーサー可読性改善 - parseExternEntry
+# Parser Readability Improvement - parseExternEntry
 
 ## 概要
 

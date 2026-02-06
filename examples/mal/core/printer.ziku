@@ -1,0 +1,30 @@
+-- Printer module for MAL
+let rec prListContents = \pr h t =>
+  let hStr = pr h in
+  match t {
+  | MNil => hStr
+  | Cons(h2, t2) => hStr ++ " " ++ prListContents pr h2 t2
+  | _ => hStr ++ " . " ++ pr t
+  }
+in
+
+let rec pr_str = \val =>
+  match val {
+  | MNum(n) => intToStr n
+  | MSym(s) => s
+  | MStr(s) => "\"" ++ s ++ "\""
+  | MNil => "nil"
+  | MTrue => "true"
+  | MFalse => "false"
+  | Cons(h, t) => "(" ++ prListContents pr_str h t ++ ")"
+  | MErr(msg) => "Error: " ++ msg
+  | MAtom(b) => "(atom ...)"
+  | MClosure(_, _, _) => "#<function>"
+  | MNative(n) => "#<native:" ++ n ++ ">"
+  | _ => "unknown"
+  }
+in
+
+{
+  pr_str = pr_str
+}

@@ -1,0 +1,2 @@
+Import error: Signature file not found: tests/golden/infer/error/import/nosig.ziki
+Every imported .ziku file must have a corresponding .ziki signature file.

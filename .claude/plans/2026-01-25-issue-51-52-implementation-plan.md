@@ -1,4 +1,4 @@
-# Issue #51 & #52 実装計画
+# Issue 51 and 52 Implementation Plan
 
 **日付**: 2026-01-25
 

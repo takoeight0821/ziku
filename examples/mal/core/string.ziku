@@ -1,0 +1,13 @@
+-- String comparison helpers for MAL
+let rec strEqFrom = \s1 s2 i =>
+  if i >= strLen s1 then true
+  else if runeToInt(strAt s1 i) == runeToInt(strAt s2 i) then strEqFrom s1 s2 (i + 1)
+  else false
+in
+let strEq = \s1 s2 =>
+  if strLen s1 == strLen s2 then strEqFrom s1 s2 0 else false
+in
+{
+  strEq = strEq,
+  strEqFrom = strEqFrom
+}

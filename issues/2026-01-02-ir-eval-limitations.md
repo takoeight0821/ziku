@@ -72,4 +72,4 @@ All issues have been resolved:
 ## Related
 
 - MAL implementation plan: `docs/research/mal.md`
-- Phase 2 plan: `.claude/plans/mutable-sparking-babbage.md`
+- Phase 2 plan: `.claude/plans/index.md`

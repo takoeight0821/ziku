@@ -1,0 +1,119 @@
+-- Native functions module for MAL
+-- Takes string, reader, and printer modules as dependencies
+\String Reader Printer =>
+let strEq = String.strEq in
+let read_str = Reader.read_str in
+let pr_str = Printer.pr_str in
+
+let isTruthy = \val =>
+  match val {
+  | MNil => false
+  | MFalse => false
+  | _ => true
+  }
+in
+
+let applyNative = \op args =>
+  if strEq op "+" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a + b) | _ => MErr("+ err") }
+  else if strEq op "-" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a - b) | _ => MErr("- err") }
+  else if strEq op "/" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a / b) | _ => MErr("/ err") }
+  else if strEq op "*" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a * b) | _ => MErr("* err") }
+  else if strEq op "mod" then
+    match args {
+      | Cons(MNum(a), Cons(MNum(b), MNil)) => MNum(a - (a / b) * b)
+      | _ => MErr("mod err")
+    }
+  else if strEq op "=" then
+    match args {
+    | Cons(MNum(a), Cons(MNum(b), MNil)) => if a == b then MTrue else MFalse
+    | _ => MErr("= err")
+    }
+  else if strEq op "list" then args
+  else if strEq op "empty?" then
+    match args {
+    | Cons(MNil, MNil) => MTrue
+    | Cons(Cons(_, _), MNil) => MFalse
+    | _ => MTrue
+    }
+  else if strEq op "first" then
+    match args { | Cons(Cons(h, _), MNil) => h | _ => MNil }
+  else if strEq op "rest" then
+    match args { | Cons(Cons(_, t), MNil) => t | _ => MNil }
+  else if strEq op "read-string" then
+    match args { | Cons(MStr(s), MNil) => read_str s | _ => MErr("read-string requires string") }
+  else if strEq op "pr-str" then
+    match args { | Cons(v, MNil) => MStr(pr_str v) | _ => MErr("pr-str requires 1 arg") }
+  else if strEq op "println" then
+    match args {
+    | Cons(MStr(s), MNil) => let ignored0 = println(s) in MNil
+    | _ => MErr("println requires string")
+    }
+  else if strEq op "prn" then
+    match args {
+    | Cons(v, MNil) => let ignored0 = println(pr_str v) in MNil
+    | _ => MErr("prn requires 1 arg")
+    }
+  else if strEq op "<" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => if a < b then MTrue else MFalse | _ => MErr("< err") }
+  else if strEq op ">" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => if a > b then MTrue else MFalse | _ => MErr("> err") }
+  else if strEq op "<=" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => if a <= b then MTrue else MFalse | _ => MErr("<= err") }
+  else if strEq op ">=" then
+    match args { | Cons(MNum(a), Cons(MNum(b), MNil)) => if a >= b then MTrue else MFalse | _ => MErr(">= err") }
+  else if strEq op "count" then
+    match args {
+    | Cons(MNil, MNil) => MNum(0)
+    | Cons(lst, MNil) =>
+      let rec countList = \l acc =>
+        match l { | MNil => acc | Cons(_, t) => countList t (acc + 1) | _ => acc }
+      in MNum(countList lst 0)
+    | _ => MErr("count err")
+    }
+  else if strEq op "list?" then
+    match args { | Cons(Cons(_, _), MNil) => MTrue | Cons(MNil, MNil) => MTrue | _ => MFalse }
+  else if strEq op "cons" then
+    match args { | Cons(h, Cons(t, MNil)) => Cons(h, t) | _ => MErr("cons err") }
+  else if strEq op "concat" then
+    let rec concatLists = \lists =>
+      match lists {
+      | MNil => MNil
+      | Cons(MNil, rest) => concatLists rest
+      | Cons(Cons(h, t), rest) => Cons(h, concatLists (Cons(t, rest)))
+      | _ => MNil
+      }
+    in concatLists args
+  else if strEq op "nth" then
+    match args {
+    | Cons(lst, Cons(MNum(n), MNil)) =>
+      let rec getNth = \l i =>
+        match l {
+        | Cons(h, t) => if i == 0 then h else getNth t (i - 1)
+        | _ => MErr("nth: index out of bounds")
+        }
+      in getNth lst n
+    | _ => MErr("nth requires list and index")
+    }
+  else if strEq op "slurp" then
+    let slurpScheme : String -> String = @("scheme", "ziku-slurp", 1) in
+    match args { | Cons(MStr(filename), MNil) => MStr(slurpScheme filename) | _ => MErr("slurp err") }
+  else if strEq op "str" then
+    let rec strConcat = \l acc =>
+      match l {
+      | MNil => MStr(acc)
+      | Cons(MStr(s), rest) => strConcat rest (acc ++ s)
+      | Cons(MNum(n), rest) => strConcat rest (acc ++ intToStr n)
+      | Cons(v, rest) => strConcat rest (acc ++ pr_str v)
+      }
+    in strConcat args ""
+  else MErr("unknown native: " ++ op)
+in
+
+{
+  isTruthy = isTruthy,
+  applyNative = applyNative
+}

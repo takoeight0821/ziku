@@ -1,0 +1,2 @@
+let math = import "import/math.ziku" in
+math.add 1 2

@@ -92,6 +92,8 @@ structure GenState where
   constraints : List Constraint := []
   /-- Environment for labels (used by goto). -/
   labelEnv : LabelEnv := []
+  /-- Resolved import types from signature files. -/
+  importTypes : ImportTypeMap := []
   deriving Inhabited
 
 /-- Monad for constraint generation -/
@@ -403,6 +405,7 @@ def tyToScheme (ty : Ty) : Scheme :=
 
 -- Instantiate a Ty: if it's a forall type, replace quantified variables with fresh ones
 -- This handles explicit forall types in annotations like `(e : forall a. a -> a)`
+-- Also recursively instantiates forall types inside records, arrows, etc.
 /-- Instantiates a 'forall' type into a monomorphic type with fresh variables. -/
 partial def instantiateTy (ty : Ty) : GenM Ty :=
   match ty with
@@ -413,6 +416,25 @@ partial def instantiateTy (ty : Ty) : GenM Ty :=
   | .tilde pos t => do
     let t' ← instantiateTy t
     return .tilde pos t'
+  | .record pos fields rowVar => do
+    -- Recursively instantiate forall types in record fields
+    let fields' ← fields.mapM fun (name, fieldTy) => do
+      let fieldTy' ← instantiateTy fieldTy
+      return (name, fieldTy')
+    return .record pos fields' rowVar
+  | .arrow pos arg ret => do
+    let arg' ← instantiateTy arg
+    let ret' ← instantiateTy ret
+    return .arrow pos arg' ret'
+  | .app pos con arg => do
+    let con' ← instantiateTy con
+    let arg' ← instantiateTy arg
+    return .app pos con' arg'
+  | .variant pos ctors rowVar => do
+    let ctors' ← ctors.mapM fun (name, argTys) => do
+      let argTys' ← argTys.mapM instantiateTy
+      return (name, argTys')
+    return .variant pos ctors' rowVar
   | _ => pure ty
 
 -- Pattern type checking: returns variable bindings
@@ -686,6 +708,13 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     -- External call: return a fresh type variable for now
     -- Phase 2 will implement proper type lookup from environment or annotations
     freshTyVar
+  | .import_ pos path => do
+    -- Look up the import's type from the pre-resolved import types
+    let s ← get
+    match s.importTypes.find? (fun (p, _) => p == path) with
+    | some (_, ty) => instantiateTy ty  -- Freshen type variables for each import use
+    | none =>
+      throw $ .customError pos s!"Signature not found for import \"{path}\". Make sure {(path.dropEnd 5).toString}.ziki exists."
 
 /-! ## Constraint Solving
 
@@ -852,9 +881,10 @@ partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
   | .tilde p t => .tilde p (finalizeTy bottomVars t)
 
 /-- Top-level entry point for type inference. Generates and solves constraints for an expression. -/
-def runInfer (expr : Expr) (env : TyEnv := []) : Except TypeError (Ty × Subst) := do
+def runInfer (expr : Expr) (env : TyEnv := []) (importTypes : ImportTypeMap := [])
+    : Except TypeError (Ty × Subst) := do
   -- Phase 1: Generate constraints
-  let initState : GenState := { nextVar := 0, constraints := [], labelEnv := [] }
+  let initState : GenState := { nextVar := 0, constraints := [], labelEnv := [], importTypes := importTypes }
   match (genConstraints env expr).run initState with
   | .error e => .error e
   | .ok (ty, finalGenState) =>

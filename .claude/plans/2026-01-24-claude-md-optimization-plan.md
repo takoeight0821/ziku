@@ -1,4 +1,4 @@
-# CLAUDE.md最適化計画
+# CLAUDE.md Optimization Plan
 
 **日付**: 2026-01-24
 **Issue**: #48 - CLAUDE.mdの最適化と簡潔化

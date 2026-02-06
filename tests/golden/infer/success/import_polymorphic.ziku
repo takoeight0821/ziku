@@ -1,0 +1,5 @@
+let m1 = import "import/poly.ziku" in
+let m2 = import "import/poly.ziku" in
+let a = m1.id 42 in
+let b = m2.id true in
+a + 1
