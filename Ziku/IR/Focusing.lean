@@ -1,5 +1,6 @@
 import Ziku.Syntax
 import Ziku.IR.Syntax
+import Ziku.MonadFresh
 
 set_option linter.missingDocs false
 
@@ -33,11 +34,6 @@ open Ziku (SourcePos Ident)
 -- Focusing monad for fresh variable generation
 abbrev FocusM := StateT Nat Id
 
-def freshVar : FocusM Ident := do
-  let n ← get
-  set (n + 1)
-  pure s!"_f{n}"
-
 -- Check if a producer needs focusing (is non-value)
 -- A producer needs focusing if it's a μ-abstraction or contains nested non-values
 partial def Producer.needsFocus : Producer → Bool
@@ -61,8 +57,8 @@ mutual
         match args[idx]? with
         | none => pure (.dataCon pos con args)  -- shouldn't happen
         | some nonValueArg =>
-          let x ← freshVar
-          let α ← freshVar
+          let x ← freshName "_f"
+          let α ← freshName "_f"
           let focusedArg ← focusProducer nonValueArg
           let args' := args.set idx (.var pos x)
           -- Recursively focus the rest (may have more non-values)
@@ -113,8 +109,8 @@ mutual
           pure (.destructor pos d ps c')
         | some nonValueP =>
           -- μ̃y.⟨F(p) | μ̃x.⟨y | F(D(ps,x,ps';c))⟩⟩
-          let y ← freshVar
-          let x ← freshVar
+          let y ← freshName "_f"
+          let x ← freshName "_f"
           let p ← focusProducer nonValueP
           let ps' := ps.set idx (.var pos x)
           let innerDestr ← focusConsumer (.destructor pos d ps' c)
@@ -132,12 +128,12 @@ mutual
     | .binOp pos op p1 p2 c => do
       -- Focus operands left-to-right
       if Producer.needsFocus p1 then
-        let x ← freshVar
+        let x ← freshName "_f"
         let p1' ← focusProducer p1
         let inner ← focusStatement (.binOp pos op (.var pos x) p2 c)
         pure (.cut pos p1' (.muTilde pos x inner))
       else if Producer.needsFocus p2 then
-        let x ← freshVar
+        let x ← freshName "_f"
         let p2' ← focusProducer p2
         let inner ← focusStatement (.binOp pos op p1 (.var pos x) c)
         pure (.cut pos p2' (.muTilde pos x inner))
@@ -146,7 +142,7 @@ mutual
         pure (.binOp pos op p1 p2 c')
     | .ifz pos cond s1 s2 => do
       if Producer.needsFocus cond then
-        let x ← freshVar
+        let x ← freshName "_f"
         let cond' ← focusProducer cond
         let inner ← focusStatement (.ifz pos (.var pos x) s1 s2)
         pure (.cut pos cond' (.muTilde pos x inner))
@@ -166,7 +162,7 @@ mutual
           let c' ← focusConsumer c
           pure (.builtin pos b ps c')
         | some nonValueP =>
-          let x ← freshVar
+          let x ← freshName "_f"
           let p ← focusProducer nonValueP
           let ps' := ps.set idx (.var pos x)
           let inner ← focusStatement (.builtin pos b ps' c)
@@ -182,7 +178,7 @@ mutual
           let cs' ← cs.mapM focusConsumer
           pure (.call pos f ps cs')
         | some nonValueP =>
-          let x ← freshVar
+          let x ← freshName "_f"
           let p ← focusProducer nonValueP
           let ps' := ps.set idx (.var pos x)
           let inner ← focusStatement (.call pos f ps' cs)
@@ -199,7 +195,7 @@ mutual
           let c' ← focusConsumer c
           pure (.externalCall pos info ps c')
         | some nonValueP =>
-          let x ← freshVar
+          let x ← freshName "_f"
           let p ← focusProducer nonValueP
           let ps' := ps.set idx (.var pos x)
           let inner ← focusStatement (.externalCall pos info ps' c)

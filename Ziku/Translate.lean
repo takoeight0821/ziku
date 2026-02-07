@@ -3,6 +3,7 @@ import Ziku.Builtins
 import Ziku.IR.Syntax
 import Ziku.IR.Eval
 import Ziku.IR.Focusing
+import Ziku.MonadFresh
 
 set_option linter.missingDocs false
 
@@ -72,12 +73,15 @@ instance : Inhabited (TranslateM Producer) where
 instance : Inhabited (TranslateM Statement) where
   default := throw (.notImplemented { line := 0, col := 0 } "uninhabited")
 
+instance : MonadFreshCounter TranslateM where
+  nextCounter := do
+    let s ← get
+    let n := s.freshCounter
+    set { s with freshCounter := n + 1 }
+    pure n
+
 -- Generate fresh covariable name
-def freshCovar : TranslateM Ident := do
-  let s ← get
-  let name := s!"_α{s.freshCounter}"
-  set { s with freshCounter := s.freshCounter + 1 }
-  return name
+def freshCovar : TranslateM Ident := freshName "_α"
 
 -- Check if label is in scope
 def isLabelInScope (name : Ident) : TranslateM Bool := do
@@ -129,11 +133,7 @@ def litToConName : Lit → Ident
   | .unit => "_lit_unit"
 
 -- Generate fresh variable name
-def freshVar : TranslateM Ident := do
-  let s ← get
-  let name := s!"_tmp{s.freshCounter}"
-  set { s with freshCounter := s.freshCounter + 1 }
-  return name
+def freshVar : TranslateM Ident := freshName "_tmp"
 
 -- Describes what to do with a constructor argument pattern
 inductive ArgPattern where
@@ -195,10 +195,7 @@ where
     | .var _ x => return x
     | .wild _ => do
       -- Generate fresh name for wildcard
-      let s ← get
-      let name := s!"_wild{s.freshCounter}"
-      set { s with freshCounter := s.freshCounter + 1 }
-      return name
+      freshName "_wild"
     | .paren _ p => extractVarFromPat p
     | .ann _ p _ => extractVarFromPat p
     | .con pos _ _ => throw $ .notImplemented pos "nested constructor pattern"

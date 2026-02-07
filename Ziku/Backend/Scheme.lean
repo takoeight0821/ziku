@@ -1,6 +1,7 @@
 import Ziku.Syntax
 import Ziku.IR.Focusing
 import Ziku.IR.Simplify
+import Ziku.MonadFresh
 
 set_option linter.missingDocs false
 
@@ -131,19 +132,17 @@ def translateBuiltinApp (b : Builtin) (argCodes : List String) : String :=
     s!"(ziku-println {argCodes[0]!})"
 
 -- State monad for generating unique variable names
-abbrev GenM := StateM Nat
+abbrev SchemeGenM := StateM Nat
 
 -- Generate a fresh unique variable name
 -- Uses prefix "%" which is invalid in Ziku identifiers but valid in Scheme
-def freshVar (pfx : String := "g") : GenM String := do
-  let n ← get
-  set (n + 1)
-  pure s!"%{pfx}{n}"
+def freshVar (pfx : String := "g") : SchemeGenM String :=
+  freshName s!"%{pfx}"
 
 -- Forward declarations for mutual recursion
 mutual
 
-partial def translateProducerM : Producer → GenM String
+partial def translateProducerM : Producer → SchemeGenM String
   | .var _ x => pure (mangleIdent x)
   | .lit _ l => pure (translateLit l)
   | .mu _ α s => do
@@ -233,7 +232,7 @@ partial def translateProducerM : Producer → GenM String
     else
       pure s!"(list '{conName} {argsStr})"
 
-partial def translateConsumerM : Consumer → GenM String
+partial def translateConsumerM : Consumer → SchemeGenM String
   | .covar _ α => pure (mangleIdent α)
   | .muTilde _ x s => do
     let xName := mangleIdent x
@@ -362,7 +361,7 @@ partial def translateConsumerM : Consumer → GenM String
         let argsCode := String.intercalate " " argCodes
         pure s!"(lambda (%rec) (let* ((%is-dispatch (and (vector? %rec) (eq? (vector-ref %rec 0) 'ziku-dispatch))) (%v (cond (%is-dispatch ((vector-ref %rec 1) '{dName})) ((procedure? %rec) (%rec '{dName})) (else (cdr (assq '{dName} %rec)))))) ({contCode} (%v {argsCode}))))"
 
-partial def translateStatementM : Statement → GenM String
+partial def translateStatementM : Statement → SchemeGenM String
   | .cut _ p c => do
     -- ⟨p | c⟩ - apply cut (interaction between producer and consumer)
     -- Key reduction rules:

@@ -2,6 +2,7 @@ import Ziku.Syntax
 import Ziku.Builtins
 import Ziku.Type
 import Ziku.Elaborate
+import Ziku.MonadFresh
 
 namespace Ziku
 
@@ -112,15 +113,18 @@ abbrev GenM := StateT GenState (Except TypeError)
 -- Nonempty instance for GenM Ty (needed for partial def)
 instance : Nonempty (GenM Ty) := ⟨pure (.con synthesizedPos "Unit")⟩
 
+instance : MonadFreshCounter GenM where
+  nextCounter := do
+    let s ← get
+    let n := s.nextVar
+    set { s with nextVar := n + 1 }
+    pure n
+
 -- Generate fresh type variable with level tracking
 /-- Generates a fresh, unique type variable and records its creation level. -/
 def freshTyVar : GenM Ty := do
-  let s ← get
-  let name := s!"_t{s.nextVar}"
-  set { s with
-    nextVar := s.nextVar + 1
-    varLevels := (name, s.currentLevel) :: s.varLevels
-  }
+  let name ← freshName "_t"
+  modify fun s => { s with varLevels := (name, s.currentLevel) :: s.varLevels }
   return .var synthesizedPos name
 
 -- Add a constraint to the state
