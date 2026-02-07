@@ -1,1 +1,1 @@
-{ x #.value => x }
+{ # x .value => x }

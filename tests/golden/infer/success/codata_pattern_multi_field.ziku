@@ -1,1 +1,1 @@
-{ x #.fst => x, y #.snd => y }
+{ # x .fst => x, # y .snd => y }

@@ -1,1 +1,1 @@
-{ snd : ([Pair(_t2, _t1) | _t4] -> _t1), fst : ([Pair(_t6, _t8) | _t9] -> _t6) }
+([Pair(_t2, _t3) | _t4] -> { snd : _t3, fst : _t2 })

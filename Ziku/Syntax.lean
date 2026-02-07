@@ -210,8 +210,8 @@ def Pat.pos : Pat → SourcePos
 inductive Accessor where
   /-- Field accessor (e.g., '.field'). -/
   | field : Ident → Accessor                  -- .field
-  /-- Application accessor (e.g., '(arg)'). -/
-  | apply : Ident → Accessor                  -- (arg)
+  /-- Application accessor (e.g., '(pat)' or 'pat'). -/
+  | apply : Pat → Accessor                    -- (pat) or pat
   deriving Repr, BEq
 
 -- Copattern (sequence of accessors)
@@ -496,7 +496,7 @@ instance : ToString Pat := ⟨Pat.toString⟩
 /-- Returns the string representation of an accessor. -/
 def Accessor.toString : Accessor → String
   | .field f => s!".{f}"
-  | .apply x => s!"({x})"
+  | .apply p => s!"({p})"
 
 instance : ToString Accessor := ⟨Accessor.toString⟩
 
