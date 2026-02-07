@@ -393,7 +393,7 @@ mutual
     | none => .error "expected pattern but found EOF"
 
   -- Parse copattern accessor
-  -- Supports: .field, (arg), and bare identifier arg (space-separated)
+  -- Supports: .field, (pat), and bare pattern (space-separated)
   partial def parseAccessor : Parser Accessor := do
     let tok? ← peek?
     match tok? with
@@ -403,14 +403,17 @@ mutual
       return .field id
     | some .lparen =>
       advance
-      let id ← expectIdent
+      let pat ← parsePattern
       let _ ← expect .rparen
-      return .apply id
-    -- Bare identifier as space-separated argument
-    | some (.ident id) =>
-      advance
-      return .apply id
-    | some tok => throw s!"expected '.', '(' or identifier but found {tok}"
+      return .apply pat
+    -- Bare identifier or constructor as space-separated argument
+    | some (.ident _) =>
+      let pat ← parsePattern
+      return .apply pat
+    | some (.conId _) =>
+      let pat ← parsePattern
+      return .apply pat
+    | some tok => throw s!"expected '.', '(' or pattern but found {tok}"
     | none => throw "expected accessor"
 
   -- Parse copattern (after #)
@@ -931,8 +934,8 @@ mutual
         | .error msg => .error msg
       | .error msg => .error msg
     | some (.ident _) =>
-      -- Could be record or codata with patterns
-      -- Check if next is '=' (record) or '#' (codata)
+      -- Could be record { x = ... } or error
+      -- In the new syntax, codata always starts with # or |
       match s.peekN 1 with
       | some ptok =>
         if ptok.token == .eq then
@@ -944,13 +947,7 @@ mutual
             | .error msg => .error msg
           | .error msg => .error msg
         else
-          -- Codata with patterns
-          match parseCodataBlock s with
-          | .ok (clauses, s') =>
-            match expect .rbrace s' with
-            | .ok (_, s'') => .ok (Expr.codata pos clauses, s'')
-            | .error msg => .error msg
-          | .error msg => .error msg
+          .error s!"expected '=' for record field but found {ptok.token} at {ptok.pos.line}:{ptok.pos.col}"
       | none => .error "unexpected EOF"
     | some .rbrace => .ok (Expr.record pos [], s.advance)
     | _ =>
@@ -1002,38 +999,31 @@ mutual
     | _ => .error s!"expected }} or clause separator but found {s.peekToken?}"
 
   -- Parse the body of a codata clause (without leading separator)
+  -- In the new syntax, # always comes first. Patterns are part of copattern (as apply accessors).
   partial def parseCodataClauseBody : Parser (List Pat × Copattern × Expr) := fun s =>
     -- Note: leading pipe already consumed by caller
-    let s := s
-    -- Parse patterns before #
-    let (patterns, s) :=
-      let rec loop (acc : List Pat) (st : ParseState) : List Pat × ParseState :=
-        match st.peekToken? with
-        | some .hash => (acc.reverse, st)
-        | _ =>
-          match parsePattern st with
-          | .ok (p, st') => loop (p :: acc) st'
-          | .error _ => (acc.reverse, st)
-      loop [] s
-    -- Parse # and copattern
     match s.peekToken? with
     | some .hash =>
+      -- Codata clause: # copattern => body
       let s := s.advance
       match parseCopattern s with
       | .ok (copat, s') =>
         match expect .fatArrow s' with
         | .ok (_, s'') =>
           match parseExpr s'' with
-          | .ok (body, s''') => .ok ((patterns, copat, body), s''')
+          | .ok (body, s''') => .ok (([], copat, body), s''')
           | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
     | _ =>
-      -- Pattern-only clause (for consumers)
-      match expect .fatArrow s with
-      | .ok (_, s') =>
-        match parseExpr s' with
-        | .ok (body, s'') => .ok ((patterns, [], body), s'')
+      -- Pattern-only clause (for consumers): pat => body
+      match parsePattern s with
+      | .ok (pat, s') =>
+        match expect .fatArrow s' with
+        | .ok (_, s'') =>
+          match parseExpr s'' with
+          | .ok (body, s''') => .ok (([pat], [], body), s''')
+          | .error msg => .error msg
         | .error msg => .error msg
       | .error msg => .error msg
 

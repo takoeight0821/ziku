@@ -97,6 +97,17 @@ def allSameKind (clauses : List Clause) : Option AccessorKind :=
     else
       none
 
+-- Structural equality for patterns ignoring source positions
+partial def Pat.structEq : Pat → Pat → Bool
+  | .var _ x, .var _ y => x == y
+  | .lit _ l1, .lit _ l2 => l1 == l2
+  | .wild _, .wild _ => true
+  | .con _ c1 ps1, .con _ c2 ps2 =>
+    c1 == c2 && ps1.length == ps2.length && (ps1.zip ps2).all (fun (p1, p2) => Pat.structEq p1 p2)
+  | .paren _ p1, .paren _ p2 => Pat.structEq p1 p2
+  | .ann _ p1 _, .ann _ p2 _ => Pat.structEq p1 p2
+  | _, _ => false
+
 -- Group clauses by their copattern
 /-- Groups a list of clauses by their shared copattern sequence. -/
 def groupByCopattern (clauses : List Clause) : List (Copattern × List Clause) :=
@@ -123,6 +134,49 @@ def buildMatchExpr (pos : SourcePos) (argName : Ident) (clauses : List Clause)
 -- Inhabited instance for Except ElaborateError Expr
 instance : Inhabited (Except ElaborateError Expr) where
   default := throw (.customError synthesizedPos "uninhabited")
+
+-- Rename a free variable in an expression (simple alpha-renaming)
+partial def renameVar (oldName newName : Ident) : Expr → Expr
+  | .var p x => if x == oldName then .var p newName else .var p x
+  | .lam p x isCov body =>
+    if x == oldName then .lam p x isCov body  -- shadowed
+    else .lam p x isCov (renameVar oldName newName body)
+  | .app p fn arg isCov => .app p (renameVar oldName newName fn) (renameVar oldName newName arg) isCov
+  | .binOp p op e1 e2 => .binOp p op (renameVar oldName newName e1) (renameVar oldName newName e2)
+  | .unaryOp p op e => .unaryOp p op (renameVar oldName newName e)
+  | .let_ p x ty e1 e2 =>
+    let e1' := renameVar oldName newName e1
+    if x == oldName then .let_ p x ty e1' e2  -- shadowed in e2
+    else .let_ p x ty e1' (renameVar oldName newName e2)
+  | .letRec p x ty e1 e2 =>
+    if x == oldName then .letRec p x ty e1 e2  -- shadowed in both
+    else .letRec p x ty (renameVar oldName newName e1) (renameVar oldName newName e2)
+  | .match_ p e cases =>
+    .match_ p (renameVar oldName newName e) (cases.map fun (pat, body) =>
+      -- If pattern binds oldName, don't rename in body
+      if patBinds oldName pat then (pat, body)
+      else (pat, renameVar oldName newName body))
+  | .field p e f => .field p (renameVar oldName newName e) f
+  | .ann p e ty => .ann p (renameVar oldName newName e) ty
+  | .record p fields => .record p (fields.map fun (n, e) => (n, renameVar oldName newName e))
+  | .if_ p c t f => .if_ p (renameVar oldName newName c) (renameVar oldName newName t) (renameVar oldName newName f)
+  | .label p name body =>
+    if name == oldName then .label p name body  -- shadowed
+    else .label p name (renameVar oldName newName body)
+  | .goto p e1 e2 => .goto p (renameVar oldName newName e1) (renameVar oldName newName e2)
+  | .con p name args => .con p name (args.map (renameVar oldName newName))
+  | .codata p clauses => .codata p (clauses.map fun (pats, copat, body) =>
+      -- If any pattern binds oldName, don't rename in body
+      if pats.any (patBinds oldName) then (pats, copat, body)
+      else (pats, copat, renameVar oldName newName body))
+  | e => e  -- lit, hash, extern, import_
+where
+  patBinds (name : Ident) : Pat → Bool
+    | .var _ x => x == name
+    | .con _ _ ps => ps.any (patBinds name)
+    | .paren _ p => patBinds name p
+    | .ann _ p _ => patBinds name p
+    | _ => false
 
 mutual
 
@@ -227,36 +281,62 @@ partial def elaborate (pos : SourcePos) (rawClauses : List (List Pat × Copatter
       pure (.record pos fields.reverse)
     | some .call => do
       -- Elaborate call copatterns into curried lambdas
-      -- Multi-param copatterns like #(x, y) are desugared to #(x) => { #(y) => ... }
-      -- Check first accessor
-      match clauses.head? with
-      | none => throw (.emptyCopattern pos)
-      | some firstClause =>
-        match firstClause.copattern with
-        | .apply paramName :: _ =>
-          -- All clauses should have .apply as first accessor
-          -- Group clauses by parameter pattern and create lambda
-          let mut lamClauses : List Clause := []
-
-          for clause in clauses do
-            match clause.copattern with
-            | .apply _ :: restCopat =>
-              let newClause : Clause := {
-                patterns := clause.patterns,
-                copattern := restCopat,
-                body := clause.body
-              }
-              lamClauses := lamClauses ++ [newClause]
-            | _ =>
-              throw (.customError pos "expected call accessor")
-
-          -- Recursively elaborate the body with remaining copatterns
-          let bodyExpr ← elaborate pos (lamClauses.map (fun c => (c.patterns, c.copattern, c.body)))
-
-          -- Create lambda
-          pure (.lam pos paramName false bodyExpr)
-
-        | _ => throw (.customError pos "expected call accessor")
+      -- Check if all first accessors are simple variable patterns
+      let allSimpleVar := clauses.all fun c =>
+        match c.copattern with
+        | .apply (.var _ _) :: _ => true
+        | _ => false
+      if allSimpleVar then
+        -- All simple variable patterns: use the first clause's name for the lambda,
+        -- and rename other variables in their bodies to match
+        match clauses.head? with
+        | none => throw (.emptyCopattern pos)
+        | some firstClause =>
+          match firstClause.copattern with
+          | .apply (.var _ paramName) :: _ =>
+            let mut lamClauses : List Clause := []
+            for clause in clauses do
+              match clause.copattern with
+              | .apply (.var _ varName) :: restCopat =>
+                -- Rename variable in body if different from paramName
+                let body := if varName == paramName then clause.body
+                            else renameVar varName paramName clause.body
+                lamClauses := lamClauses ++ [{
+                  patterns := clause.patterns,
+                  copattern := restCopat,
+                  body := body
+                }]
+              | _ => throw (.customError pos "expected call accessor")
+            let bodyExpr ← elaborate pos (lamClauses.map (fun c => (c.patterns, c.copattern, c.body)))
+            pure (.lam pos paramName false bodyExpr)
+          | _ => throw (.customError pos "expected call accessor")
+      else
+        -- Complex patterns (e.g., constructors): generate \fresh => match fresh { pat => ... }
+        let freshName := "_copat_arg"
+        -- Collect (pattern, remaining clauses) pairs grouped by pattern
+        let mut patGroups : List (Pat × List Clause) := []
+        for clause in clauses do
+          match clause.copattern with
+          | .apply p :: restCopat =>
+            let newClause : Clause := {
+              patterns := clause.patterns,
+              copattern := restCopat,
+              body := clause.body
+            }
+            match patGroups.find? (fun (gp, _) => Pat.structEq gp p) with
+            | some _ =>
+              patGroups := patGroups.map (fun (gp, cs) =>
+                if Pat.structEq gp p then (gp, cs ++ [newClause]) else (gp, cs))
+            | none =>
+              patGroups := patGroups ++ [(p, [newClause])]
+          | _ => throw (.customError pos "expected call accessor")
+        -- For each pattern group, recursively elaborate and create a match case
+        let mut matchCases : List (Pat × Expr) := []
+        for (p, groupClauses) in patGroups do
+          let bodyExpr ← elaborate pos (groupClauses.map (fun c => (c.patterns, c.copattern, c.body)))
+          matchCases := matchCases ++ [(p, bodyExpr)]
+        let matchExpr := Expr.match_ pos (Expr.var pos freshName) matchCases
+        pure (.lam pos freshName false matchExpr)
 
 end -- mutual
 

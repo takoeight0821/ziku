@@ -71,7 +71,12 @@ def runOnInput (mode : Mode) (input : String) (basePath : System.FilePath := "."
           IO.eprintln s!"Import expansion error: {msg}"
           IO.Process.exit 1
         | .ok expanded =>
-          match Translate.translateToStatement expanded with
+          match elaborateAll expanded with
+          | .error err =>
+            IO.eprintln s!"Elaboration error: {err}"
+            IO.Process.exit 1
+          | .ok elaborated =>
+          match Translate.translateToStatement elaborated with
           | .error err =>
             IO.eprintln s!"Translate error: {err}"
             IO.Process.exit 1
@@ -119,7 +124,12 @@ partial def repl (useBigStep : Bool) : IO Unit := do
     IO.println s!"Parse error: {msg}"
     repl useBigStep
   | .ok expr =>
-    match Translate.translateToStatement expr with
+    match elaborateAll expr with
+    | .error err =>
+      IO.println s!"Elaboration error: {err}"
+      repl useBigStep
+    | .ok elaborated =>
+    match Translate.translateToStatement elaborated with
     | .error err =>
       IO.println s!"Translate error: {err}"
       repl useBigStep

@@ -5,6 +5,7 @@
       "Bash(lake test*)",
       "Bash(docker compose build:*)",
       "Bash(docker compose run:*)",
+      "Bash(mise run docker:build-check:*)",
       "Bash(mise run docker:test:*)",
       "Bash(mise run docker:test:category:*)",
       "Bash(mise run docker:build:*)",
