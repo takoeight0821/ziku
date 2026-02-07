@@ -4,7 +4,12 @@
       "Bash(lake build)",
       "Bash(lake test*)",
       "Bash(docker compose build:*)",
-      "Bash(docker compose run:*)"
+      "Bash(docker compose run:*)",
+      "Bash(mise run docker:test:*)",
+      "Bash(mise run docker:test:category:*)",
+      "Bash(mise run docker:build:*)",
+      "Bash( mise run docker:run:*)",
+      "Bash( mise run docker:run: infer*)"
     ],
     "ask": [
       "Bash(git commit:*)"
@@ -13,38 +18,5 @@
       "Bash(rm:*)"
     ]
   },
-  "plansDirectory": "./.claude/plans",
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/protect-proofs.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/lean-build.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/test-golden.sh"
-          }
-        ]
-      }
-    ]
-  }
+  "plansDirectory": "./.claude/plans"
 }

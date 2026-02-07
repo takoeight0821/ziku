@@ -13,12 +13,14 @@ Uses Hindley-Milner with let-polymorphism via Scheme types.
 
 ## Architecture
 
-The inference is split into two phases:
-1. **Constraint Generation**: Traverse AST, generate constraints without solving
-2. **Constraint Solving**: Solve constraints using unification, handle bottom type propagation
+The inference uses level-based let-generalization:
+1. **Constraint Generation**: Traverse AST, generating constraints.
+   At `let` boundaries, intermediate constraint solving + level-based generalization.
+2. **Constraint Solving**: Solve remaining constraints using unification, handle bottom type propagation
 
-This separation allows bottom type (⊥) propagation to be handled in the constraint solver,
-keeping the constraint generation code simple.
+Level-based generalization assigns each type variable a "level" (let-nesting depth).
+At a `let` boundary, type variables with level higher than the outer scope that don't
+escape into the environment can be generalized (quantified).
 -/
 
 -- Type error with source location and detailed message
@@ -80,8 +82,10 @@ inductive Constraint where
       - if分岐: ⊥と Boolを単一化 → Bool（⊥は任意の型と単一化可能）
       - 最終型: Bool -/
   | bottomProp (sources : List Ty) (target : Ty)
-  -- Note: fieldAccess constraint removed - now handled via row polymorphism
-  -- Field access `e.f` generates: unify(recTy, { f : resultTy | rowVar })
+  /-- Instantiate a field type that may contain forall, then unify with the result type.
+      Used for polymorphic record fields: when accessing `r.id` where `id : forall a. a -> a`,
+      the forall is instantiated at the access site rather than at record construction. -/
+  | instantiateField (pos : SourcePos) (fieldTy : Ty) (resultTy : Ty)
   deriving Repr
 
 /-- State for constraint generation phase -/
@@ -94,6 +98,12 @@ structure GenState where
   labelEnv : LabelEnv := []
   /-- Resolved import types from signature files. -/
   importTypes : ImportTypeMap := []
+  /-- Current let-nesting depth for level-based generalization. -/
+  currentLevel : Nat := 0
+  /-- Maps type variable names to the level at which they were created. -/
+  varLevels : List (Ident × Nat) := []
+  /-- Accumulated substitution from intermediate constraint solving at let boundaries. -/
+  solvedSubst : Subst := []
   deriving Inhabited
 
 /-- Monad for constraint generation -/
@@ -102,12 +112,15 @@ abbrev GenM := StateT GenState (Except TypeError)
 -- Nonempty instance for GenM Ty (needed for partial def)
 instance : Nonempty (GenM Ty) := ⟨pure (.con synthesizedPos "Unit")⟩
 
--- Generate fresh type variable
-/-- Generates a fresh, unique type variable. -/
+-- Generate fresh type variable with level tracking
+/-- Generates a fresh, unique type variable and records its creation level. -/
 def freshTyVar : GenM Ty := do
   let s ← get
   let name := s!"_t{s.nextVar}"
-  set { s with nextVar := s.nextVar + 1 }
+  set { s with
+    nextVar := s.nextVar + 1
+    varLevels := (name, s.currentLevel) :: s.varLevels
+  }
   return .var synthesizedPos name
 
 -- Add a constraint to the state
@@ -124,6 +137,14 @@ def addLabelBinding (name : Ident) (ty : Ty) : GenM Unit :=
 /-- Removes the most recent label binding. -/
 def popLabelBinding : GenM Unit :=
   modify fun s => { s with labelEnv := s.labelEnv.drop 1 }
+
+/-- Increments the current let-nesting level. -/
+def enterLevel : GenM Unit :=
+  modify fun s => { s with currentLevel := s.currentLevel + 1 }
+
+/-- Decrements the current let-nesting level. -/
+def exitLevel : GenM Unit :=
+  modify fun s => { s with currentLevel := s.currentLevel - 1 }
 
 -- Standard types (using synthesized position for compiler-generated types)
 /-- Predefined integer type. -/
@@ -181,6 +202,16 @@ partial def occursIn (varName : Ident) (ty : Ty) : Bool :=
     | none => false
   | .bottom _ => false
   | .tilde _ t => occursIn varName t
+
+/-- Instantiates forall types purely (without GenM), used by the constraint solver and unification.
+    Strips all outer forall quantifiers and replaces bound variables with fresh ones. -/
+partial def instantiateForallPure (ty : Ty) (nextVar : Nat) : Ty × Nat :=
+  match ty with
+  | .forall_ _ x inner =>
+    let fresh := Ty.var synthesizedPos s!"_t{nextVar}"
+    let body := inner.applySubst [(x, fresh)]
+    instantiateForallPure body (nextVar + 1)
+  | _ => (ty, nextVar)
 
 -- Unification with error reporting
 -- Bottom type unifies with any type (⊥ <: τ for all τ)
@@ -243,12 +274,17 @@ where
     let only1 := fs1.filter (fun (l, _) => !fs2.any (fun (l', _) => l == l'))
     let only2 := fs2.filter (fun (l, _) => !fs1.any (fun (l', _) => l == l'))
 
-    -- Unify common fields first
+    -- Unify common fields first (instantiate forall in polymorphic fields)
     let (commonSubst, n1) ← common.foldlM (init := ([], nextVar)) fun (subst, n) (l, t1) =>
       match fs2.find? (fun (l', _) => l == l') with
       | some (_, t2) =>
-        match unifyAt pos (t1.applySubst subst) (t2.applySubst subst) n with
-        | .ok (s, n') => .ok (subst ++ s, n')
+        let t1' := t1.applySubst subst
+        let t2' := t2.applySubst subst
+        -- Instantiate forall in field types before unification
+        let (t1'', n') := instantiateForallPure t1' n
+        let (t2'', n'') := instantiateForallPure t2' n'
+        match unifyAt pos t1'' t2'' n'' with
+        | .ok (s, n''') => .ok (subst ++ s, n''')
         | .error e => .error e
       | none => .ok (subst, n)  -- Should not happen since we filtered for common
 
@@ -417,11 +453,12 @@ partial def instantiateTy (ty : Ty) : GenM Ty :=
     let t' ← instantiateTy t
     return .tilde pos t'
   | .record pos fields rowVar => do
-    -- Recursively instantiate forall types in record fields
-    let fields' ← fields.mapM fun (name, fieldTy) => do
-      let fieldTy' ← instantiateTy fieldTy
-      return (name, fieldTy')
-    return .record pos fields' rowVar
+    -- Preserve forall types in record fields (polymorphic record fields).
+    -- Only instantiate the row variable, not field-level foralls.
+    let rowVar' ← match rowVar with
+      | some rv => do let rv' ← instantiateTy rv; pure (some rv')
+      | none => pure none
+    return .record pos fields rowVar'
   | .arrow pos arg ret => do
     let arg' ← instantiateTy arg
     let ret' ← instantiateTy ret
@@ -482,6 +519,26 @@ partial def checkPattern (pat : Pat) (expectedTy : Ty) : GenM (List (Ident × Sc
     -- Annotated: unify annotation with expected type, then check inner pattern
     addConstraint (.unify pos ty expectedTy)
     checkPattern p ty
+
+/-- Composes two substitutions into a single substitution. -/
+def composeSubst (s1 s2 : Subst) : Subst :=
+  s1.map (fun (x, t) => (x, t.applySubst s2)) ++ s2.filter (fun (x, _) => !s1.any (·.1 == x))
+
+/-- Updates type variable levels in varLevels based on unification results.
+    When `?a (level 2) = ?b (level 1)`, `?a`'s level should be lowered to 1
+    to record that it has "escaped" to the outer scope. -/
+def updateVarLevels (subst : Subst) (varLevels : List (Ident × Nat)) : List (Ident × Nat) :=
+  -- For each substitution entry x → ty, propagate the minimum level
+  subst.foldl (fun levels (x, ty) =>
+    let xLevel := match levels.find? (fun (n, _) => n == x) with
+      | some (_, lvl) => lvl
+      | none => 0
+    -- For each free variable in the substituted type, lower its level to min of both
+    let freeInTy := ty.freeVars
+    freeInTy.foldl (fun lvls v =>
+      lvls.map fun (n, l) => if n == v then (n, min l xLevel) else (n, l)
+    ) levels
+  ) varLevels
 
 -- Constraint generation phase: traverse AST and generate constraints
 -- Returns the type of the expression (constraints are added to state)
@@ -548,7 +605,7 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
       let t_val ← freshTyVar
       let expectedArgTy := .tilde pos t_val
       addConstraint (.unify arg.pos argTy expectedArgTy)
-      
+
       let resultTy ← freshTyVar
       addConstraint (.unify pos fnTy (.arrow pos expectedArgTy resultTy))
       addConstraint (.bottomProp [fnTy, argTy] resultTy)
@@ -593,21 +650,77 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
         addConstraint (.bottomProp [fnTy, argTy] resultTy)
         return resultTy
   | .let_ pos x tyOpt e1 e2 => do
+    -- Enter a new level for the let-bound expression
+    enterLevel
     let t1 ← genConstraints env e1
-    -- Determine the scheme for the binding:
-    -- If an explicit forall annotation is given, use it for polymorphism
-    let scheme := match tyOpt with
-      | some ty =>
+    exitLevel
+
+    let scheme ← match tyOpt with
+      | some ty => do
+        -- Annotation present: use the explicit forall for polymorphism
+        let instantiated ← instantiateTy ty
+        addConstraint (.unify pos t1 instantiated)
         let s := tyToScheme ty
-        if s.vars.isEmpty then { vars := [], ty := t1 }
-        else s  -- Use explicit forall as polymorphic scheme
-      | none => { vars := [], ty := t1 }
-    -- Unify the inferred type with the instantiated annotation
-    match tyOpt with
-    | some ty => do
-      let instantiated ← instantiateTy ty
-      addConstraint (.unify pos t1 instantiated)
-    | none => pure ()
+        -- Use annotation type to preserve forall inside record fields
+        pure (if s.vars.isEmpty then { vars := [], ty := ty } else s)
+      | none => do
+        -- No annotation: intermediate solve + level-based generalize
+        let st ← get
+        let letLevel := st.currentLevel + 1  -- The level used inside enterLevel
+        let allConstraints := st.constraints.reverse
+        -- Inline intermediate constraint solving using unifyAt directly
+        let mut intermediateSubst : Subst := []
+        let mut nextVar := st.nextVar
+        for c in allConstraints do
+          match c with
+          | .unify cpos ct1 ct2 =>
+            let ct1' := ct1.applySubst intermediateSubst
+            let ct2' := ct2.applySubst intermediateSubst
+            -- Skip bottom types during intermediate solving (handled by final solve)
+            if ct1'.isBottom || ct2'.isBottom then
+              pure ()
+            else
+              match unifyAt cpos ct1' ct2' nextVar with
+              | .ok (newSubst, n) =>
+                intermediateSubst := composeSubst intermediateSubst newSubst
+                nextVar := n
+              | .error e => throw e
+          | _ => pure ()
+        -- Phase 2: Process instantiateField constraints
+        for c in allConstraints do
+          match c with
+          | .instantiateField _pos rawField result =>
+            let resolved := rawField.applySubst intermediateSubst
+            let (instantiated, newNextVar) := instantiateForallPure resolved nextVar
+            nextVar := newNextVar
+            let result' := result.applySubst intermediateSubst
+            match unifyAt _pos instantiated result' nextVar with
+            | .ok (newSubst, n) =>
+              intermediateSubst := composeSubst intermediateSubst newSubst
+              nextVar := n
+            | .error e => throw e
+          | _ => pure ()
+        let fullSubst := composeSubst st.solvedSubst intermediateSubst
+        let resolvedTy := t1.applySubst fullSubst
+        -- Update var levels based on unification results
+        let updatedVarLevels := updateVarLevels fullSubst st.varLevels
+        -- Collect free vars from env schemes (after applying substitution)
+        let envApplied := env.map (fun (n, s) => (n, s.applySubst fullSubst))
+        let envVars := (envApplied.map (·.2)).flatMap Scheme.freeVars
+        let freeInTy := resolvedTy.freeVars
+        let generalizable := freeInTy.filter fun v =>
+          !envVars.contains v &&
+          match updatedVarLevels.find? (fun (n, _) => n == v) with
+          | some (_, lvl) => lvl >= letLevel
+          | none => false
+        set { st with
+          nextVar := nextVar
+          constraints := []      -- Consumed
+          solvedSubst := fullSubst
+          varLevels := updatedVarLevels
+        }
+        pure { vars := generalizable.eraseDups, ty := resolvedTy }
+
     let env' := (x, scheme) :: env
     genConstraints env' e2
   | .letRec pos x tyOpt e1 e2 => do
@@ -658,12 +771,16 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
   | .field pos e field => do
     -- Infer type of the record expression
     let recTy ← genConstraints env e
-    -- Create fresh type variable for the result
+    -- Create fresh type variable for the raw field type (may contain forall)
+    let rawFieldTy ← freshTyVar
+    -- Create fresh type variable for the result (after instantiation)
     let resultTy ← freshTyVar
     -- Create fresh row variable for remaining fields (row polymorphism)
     let rowVar ← freshTyVar
-    -- Unify record type with { field : resultTy | rowVar }
-    addConstraint (.unify pos recTy (.record pos [(field, resultTy)] (some rowVar)))
+    -- Unify record type with { field : rawFieldTy | rowVar }
+    addConstraint (.unify pos recTy (.record pos [(field, rawFieldTy)] (some rowVar)))
+    -- Instantiate any forall in the field type, then unify with resultTy
+    addConstraint (.instantiateField pos rawFieldTy resultTy)
     -- Propagate bottom if record is bottom
     addConstraint (.bottomProp [recTy] resultTy)
     return resultTy
@@ -689,12 +806,12 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     -- goto(value, continuation): Jumps to the continuation, never returns.
     let valueTy ← genConstraints env value
     let contTy ← genConstraints env continuation
-    
+
     -- Expected type of value is the type k expects
     let t_val ← freshTyVar
     addConstraint (.unify pos contTy (.tilde pos t_val))
     addConstraint (.unify pos valueTy t_val)
-    
+
     -- goto returns bottom type (never returns)
     return .bottom pos
   | .con pos conName args => do
@@ -763,10 +880,6 @@ partial def isBottomTainted (bottomVars : List Ident) : Ty → Bool
 def Ty.varName? : Ty → Option Ident
   | .var _ x => some x
   | _ => none
-
-/-- Composes two substitutions into a single substitution. -/
-def composeSubst (s1 s2 : Subst) : Subst :=
-  s1.map (fun (x, t) => (x, t.applySubst s2)) ++ s2.filter (fun (x, _) => !s1.any (·.1 == x))
 
 /-- Solves a single unification constraint, propagating bottom taint if necessary. -/
 partial def solveUnify (pos : SourcePos) (t1 t2 : Ty) (state : SolverState)
@@ -843,7 +956,7 @@ def solveConstraints (constraints : List Constraint) (initNextVar : Nat := 0) : 
   let bottomProps := collectBottomProps constraints
   let mut state : SolverState := { nextVar := initNextVar }
 
-  -- Process unify constraints in order, propagating bottom after each
+  -- Phase 1: Process unify constraints in order, propagating bottom after each
   for c in constraints do
     match c with
     | .unify pos t1 t2 =>
@@ -856,6 +969,21 @@ def solveConstraints (constraints : List Constraint) (initNextVar : Nat := 0) : 
     | .bottomProp _ _ =>
       -- Handled by propagateBottomFixpoint
       pure ()
+
+    | .instantiateField _ _ _ =>
+      -- Handled in phase 2 below
+      pure ()
+
+  -- Phase 2: Process instantiateField constraints (after all unify constraints resolved)
+  for c in constraints do
+    match c with
+    | .instantiateField pos rawField result => do
+      let resolved := rawField.applySubst state.subst
+      let (instantiated, newNextVar) := instantiateForallPure resolved state.nextVar
+      state := { state with nextVar := newNextVar }
+      state ← solveUnify pos instantiated (result.applySubst state.subst) state
+      state := propagateBottomFixpoint bottomProps state
+    | _ => pure ()
 
   -- Final bottom propagation pass
   state := propagateBottomFixpoint bottomProps state
@@ -883,22 +1011,24 @@ partial def finalizeTy (bottomVars : List Ident) : Ty → Ty
 /-- Top-level entry point for type inference. Generates and solves constraints for an expression. -/
 def runInfer (expr : Expr) (env : TyEnv := []) (importTypes : ImportTypeMap := [])
     : Except TypeError (Ty × Subst) := do
-  -- Phase 1: Generate constraints
+  -- Phase 1: Generate constraints (with intermediate solving at let boundaries)
   let initState : GenState := { nextVar := 0, constraints := [], labelEnv := [], importTypes := importTypes }
   match (genConstraints env expr).run initState with
   | .error e => .error e
   | .ok (ty, finalGenState) =>
-    -- Phase 2: Solve constraints
+    -- Phase 2: Solve remaining constraints
     let constraints := finalGenState.constraints.reverse  -- Process in order generated
     -- Pass nextVar to solver for fresh variable generation during row unification
     match solveConstraints constraints finalGenState.nextVar with
     | .error e => .error e
     | .ok solverState =>
       -- Phase 3: Apply substitution and finalize (handle bottom)
-      let resultTy := ty.applySubst solverState.subst
+      -- Compose the accumulated intermediate substitution with the final one
+      let fullSubst := composeSubst finalGenState.solvedSubst solverState.subst
+      let resultTy := ty.applySubst fullSubst
       let finalTy := finalizeTy solverState.bottomVars resultTy
       -- Apply substitution again to ensure full resolution of nested types
-      let fullyResolved := finalTy.applySubst solverState.subst
-      .ok (fullyResolved, solverState.subst)
+      let fullyResolved := finalTy.applySubst fullSubst
+      .ok (fullyResolved, fullSubst)
 
 end Ziku

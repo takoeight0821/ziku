@@ -95,18 +95,16 @@ lake test -- infer
 ## Test Execution Commands
 
 ```bash
-# Run all tests
-lake test
+# Docker (recommended - no local dependencies)
+mise run docker:test                     # Run all tests
+mise run docker:test:category infer      # Run specific category
 
-# Run specific category (faster feedback)
-lake test -- parser
-lake test -- infer
-lake test -- ir-eval
+# Native (requires Lean 4 + Chez Scheme)
+lake test                                # Run all tests
+lake test -- parser                      # Run specific category
+lake test -- parser infer                # Run multiple categories
 
-# Run multiple categories
-lake test -- parser infer
-
-# Parallel execution (recommended for full runs)
+# Parallel execution (native, recommended for full runs)
 make -j4 test-parallel
 
 # Fast tests only (parser, infer, truncate, big-step)

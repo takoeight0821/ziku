@@ -1,0 +1,1 @@
+let id = \x => x in { a = id 42, b = id true }

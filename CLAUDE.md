@@ -14,23 +14,15 @@ Ziku is a programming language implementation in Lean 4 featuring:
 
 ## Build Commands
 
-### Docker (Recommended - no local dependencies required)
+### Docker via mise (Recommended)
 
 ```bash
-# Build Docker image (one-time setup)
-docker build -t ziku .
-
-# Run tests (default command)
-docker run --rm ziku
-
-# Run REPL
-docker run --rm -it ziku lake exe ziku
-
-# Build project
-docker run --rm ziku lake build
-
-# Run specific test category
-docker run --rm ziku lake test -- parser
+mise run docker:build            # Build Docker image
+mise run docker:test             # Run all tests (builds image automatically)
+mise run docker:test:category infer  # Run specific test category
+mise run docker:build-check      # Check build succeeds
+mise run docker:repl             # Start REPL
+mise run docker:infer tests/golden/infer/success/let_simple.ziku  # Infer type of a file
 ```
 
 ### Native
@@ -79,21 +71,21 @@ Tests are auto-discovered from `.ziku` files. Use `/add-golden-test` skill for d
 ### Test Execution Options
 
 ```bash
-# Run all tests
-lake test
+# Docker (recommended - no local dependencies)
+mise run docker:test                     # Run all tests
+mise run docker:test:category infer      # Run specific category
+mise run docker:test:category parser     # Parser tests only
 
-# Run specific category only (faster feedback during development)
-lake test -- parser              # Parser tests only
-lake test -- infer               # Type inference tests only
-lake test -- parser infer        # Multiple categories
+# Native (requires Lean 4 + Chez Scheme)
+lake test                                # Run all tests
+lake test -- parser                      # Parser tests only
+lake test -- infer                       # Type inference tests only
+lake test -- parser infer                # Multiple categories
 
-# Parallel execution (recommended for full test runs)
+# Parallel execution (native, recommended for full test runs)
 make -j4 test-parallel           # Run all categories in parallel
 make -j4 test-fast               # Run fast tests only (parser, infer, truncate, big-step)
 make -j4 test-medium             # Run fast + medium tests
-
-# Show available categories
-lake test -- --help
 ```
 
 Available categories: `truncate`, `big-step`, `parser`, `infer`, `ir-eval`, `ir-eval-big-step`, `emit-translate`, `emit-scheme`, `scheme-only`, `consistency`, `big-step-consistency`, `io`
@@ -108,8 +100,8 @@ Available categories: `truncate`, `big-step`, `parser`, `infer`, `ir-eval`, `ir-
 
 After making code changes, verify:
 
-1. **Build succeeds**: `docker run --rm ziku lake build`
-2. **All tests pass**: `docker run --rm ziku`
+1. **Build succeeds**: `mise run docker:build-check`
+2. **All tests pass**: `mise run docker:test`
 3. **New features have tests**: Use `/add-golden-test` skill
 4. **Proofs are complete**: Use `/proof-writing` skill for guidelines
 

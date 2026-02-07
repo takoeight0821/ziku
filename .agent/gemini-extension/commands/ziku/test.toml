@@ -3,8 +3,8 @@ prompt = """
 Read the skill file at `.agent/skills/test/SKILL.md` and follow its instructions to test Ziku code.
 
 The skill file contains:
-- Usage of `./scripts/ziku-test.sh` script
-- Available test phases: parse, infer, eval, translate, scheme, scheme-run
+- Usage of `mise run docker:run` for testing phases
+- Available test phases: parse, infer, eval, translate, scheme
 - Examples for different testing scenarios
 - Common debugging patterns
 
