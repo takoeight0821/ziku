@@ -89,6 +89,20 @@ let rec factorial = \n =>
 in factorial 5              // 120
 ```
 
+### Mutual Recursion
+
+For mutually recursive functions, pack them into a single record bound with `let rec`:
+
+```ziku
+let rec fns = {
+  isEven = \n => if n == 0 then true else fns.isOdd (n - 1),
+  isOdd  = \n => if n == 0 then false else fns.isEven (n - 1)
+} in
+fns.isEven 4                // true
+```
+
+Since `let rec` brings the bound name into scope within its own definition, each field in the record can refer to any other field through `fns`. This avoids the need for a special `let rec ... and ...` syntax.
+
 ## 3. Functions
 
 ### Lambda Syntax
@@ -387,6 +401,16 @@ in fib 10
 let applyTwice = \f, x => f (f x) in
 let addOne = \x => x + 1 in
 applyTwice addOne 5         // 7
+```
+
+### Mutual Recursion
+
+```ziku
+let rec parity = {
+  isEven = \n => if n == 0 then true  else parity.isOdd  (n - 1),
+  isOdd  = \n => if n == 0 then false else parity.isEven (n - 1)
+} in
+parity.isEven 10            // true
 ```
 
 ### Codata Stream

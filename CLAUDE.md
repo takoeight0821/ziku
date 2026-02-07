@@ -66,7 +66,7 @@ Golden tests in `tests/golden/`:
 - `infer/error/`: Type inference error tests
 - `ir-eval/success/`: IR evaluation tests (via translation)
 
-Tests are auto-discovered from `.ziku` files. Use `/add-golden-test` skill for detailed workflow.
+Tests are auto-discovered from `.ziku` files.
 
 ### Test Execution Options
 
@@ -94,7 +94,6 @@ Available categories: `truncate`, `big-step`, `parser`, `infer`, `ir-eval`, `ir-
 
 - Use conventional commit format for commit messages
 - The parser is hand-written due to Std.Internal.Parsec API issues
-- Use `/lean4-conventions` skill for detailed Lean 4 coding patterns (`partial` vs termination proofs, mutual recursion, naming)
 
 ## Verification Checklist
 
@@ -102,8 +101,7 @@ After making code changes, verify:
 
 1. **Build succeeds**: `mise run docker:build-check`
 2. **All tests pass**: `mise run docker:test`
-3. **New features have tests**: Use `/add-golden-test` skill
-4. **Proofs are complete**: Use `/proof-writing` skill for guidelines
+3. **New features have tests**
 
 ## Hints
 
