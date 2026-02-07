@@ -1,3 +1,48 @@
 [tools]
 chezscheme = "latest"
 gemini = "latest"
+
+# Docker tasks
+# All docker:* tasks rebuild the image automatically before running.
+
+[tasks."docker:build"]
+description = "Build the Docker image"
+run = "docker build -t ziku ."
+
+[tasks."docker:test"]
+description = "Run all tests in Docker"
+depends = ["docker:build"]
+run = "docker run --rm ziku"
+
+[tasks."docker:test:category"]
+description = "Run specific test category in Docker (e.g., mise run docker:test:category infer)"
+depends = ["docker:build"]
+run = "docker run --rm ziku lake test -- {{arg(name=\"category\")}}"
+
+[tasks."docker:build-check"]
+description = "Check that the project builds in Docker"
+depends = ["docker:build"]
+run = "docker run --rm ziku lake build"
+
+[tasks."docker:repl"]
+description = "Start the Ziku REPL in Docker"
+depends = ["docker:build"]
+run = "docker run --rm -it ziku lake exe ziku"
+
+[tasks."docker:infer"]
+description = "Run type inference on a .ziku file in Docker (e.g., mise run docker:infer tests/golden/infer/success/let_simple.ziku)"
+depends = ["docker:build"]
+run = "docker run --rm ziku lake exe ziku -- --infer {{arg(name=\"file\")}}"
+
+[tasks."docker:run"]
+description = "Run a Ziku phase on an expression or file (e.g., mise run docker:run infer 'let x = 1 in x')"
+depends = ["docker:build"]
+run = """
+PHASE="{{arg(name="phase")}}"
+INPUT="{{arg(name="input")}}"
+if [ -f "$INPUT" ]; then
+  docker run --rm -v "$(pwd)/$INPUT:/app/input.ziku:ro" ziku sh -c "cat /app/input.ziku | lake exe ziku-test $PHASE"
+else
+  docker run --rm ziku sh -c "echo '$INPUT' | lake exe ziku-test $PHASE"
+fi
+"""

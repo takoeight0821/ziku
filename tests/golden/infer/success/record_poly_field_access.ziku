@@ -1,0 +1,2 @@
+let r : { id : forall a. a -> a } = { id = \x => x } in
+r.id 42 + (if r.id true then 1 else 0)

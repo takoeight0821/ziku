@@ -74,16 +74,16 @@ Generated code now has basic line breaks; use this for additional formatting.
 ./scripts/scheme-analyze.sh --section main .mal_tmp.scm | ./scripts/scheme-format.sh
 ```
 
-### `ziku-test.sh`
-Test Ziku expressions through compilation phases.
+### Testing via mise (Docker)
+
+Test Ziku expressions through compilation phases using `mise run docker:run`:
 
 ```bash
-./scripts/ziku-test.sh parse 'let x = 1 in x'
-./scripts/ziku-test.sh infer 'let x = 1 in x'
-./scripts/ziku-test.sh eval 'let x = 1 in x'
-./scripts/ziku-test.sh translate 'let x = 1 in x'
-./scripts/ziku-test.sh scheme 'let x = 1 in x'
-./scripts/ziku-test.sh scheme-run 'let x = 1 in x'
+mise run docker:run parse 'let x = 1 in x'
+mise run docker:run infer 'let x = 1 in x'
+mise run docker:run eval 'let x = 1 in x'
+mise run docker:run translate 'let x = 1 in x'
+mise run docker:run scheme 'let x = 1 in x'
 ```
 
 ## Test Infrastructure
