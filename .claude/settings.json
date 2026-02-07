@@ -9,8 +9,7 @@
       "Bash(mise run docker:test:*)",
       "Bash(mise run docker:test:category:*)",
       "Bash(mise run docker:build:*)",
-      "Bash( mise run docker:run:*)",
-      "Bash( mise run docker:run: infer*)"
+      "Bash(mise run docker:run:*)"
     ],
     "ask": [
       "Bash(git commit:*)"

@@ -765,7 +765,7 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     return resultTy
   | .codata pos clauses => do
     -- Elaborate codata to record/lambda before type inference
-    match elaborate pos clauses with
+    match (elaborate pos clauses).run' 0 with
     | .ok elaborated => genConstraints env elaborated
     | .error err => throw $ .customError pos (toString err)
   | .field pos e field => do

@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.FreshName
 import Ziku.IR.Syntax
 
 set_option linter.missingDocs false
@@ -36,7 +37,7 @@ abbrev FocusM := StateT Nat Id
 def freshVar : FocusM Ident := do
   let n ← get
   set (n + 1)
-  pure s!"_f{n}"
+  pure (FreshName.fresh "f" n)
 
 -- Check if a producer needs focusing (is non-value)
 -- A producer needs focusing if it's a μ-abstraction or contains nested non-values
