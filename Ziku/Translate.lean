@@ -49,12 +49,15 @@ inductive TranslateError where
   | undefinedLabel (pos : SourcePos) (name : Ident)
   /-- Error for language features that don't have translation rules yet. -/
   | notImplemented (pos : SourcePos) (feature : String)
+  /-- Error when a codata block reaches translation without being elaborated first. -/
+  | unexpectedCodata (pos : SourcePos)
   deriving Repr
 
 /-- Returns the string representation of a translation error. -/
 def TranslateError.toString : TranslateError → String
   | .undefinedLabel pos name => s!"Undefined label '{name}' at {pos.line}:{pos.col}"
   | .notImplemented pos feature => s!"Translation not implemented for {feature} at {pos.line}:{pos.col}"
+  | .unexpectedCodata pos => s!"Unexpected codata block at {pos.line}:{pos.col}: codata should be elaborated before translation"
 
 instance : ToString TranslateError := ⟨TranslateError.toString⟩
 
@@ -306,7 +309,7 @@ mutual
       let matchStmt ← compileCases pos scrutineeP cases α
       return .mu pos α matchStmt
     | .codata pos _ => do
-      throw $ .notImplemented pos "codata block"
+      throw $ .unexpectedCodata pos
     | .field pos e fieldName => do
       -- ⟦e.f⟧ = μα.⟨⟦e⟧ | f(; α)⟩
       let α ← freshCovar
