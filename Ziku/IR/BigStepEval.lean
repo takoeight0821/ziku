@@ -290,13 +290,7 @@ mutual
             | _ => return .error (.caseNotFound pos conName branchNames)
       | .lit l =>
         -- Literal case matching
-        let litConName := match l with
-          | .int n => s!"{FreshName.litIntPrefix}{n}"
-          | .bool b => s!"{FreshName.litBoolPrefix}{b}"
-          | .string s => s!"{FreshName.litStringPrefix}{s}"
-          | .char c => s!"{FreshName.litRunePrefix}{c.val}"
-          | .float f => s!"{FreshName.litFloatPrefix}{f}"
-          | .unit => FreshName.litUnit
+        let litConName := FreshName.litToConName l
         let branchNames := branches.map (·.1)
         match branches.find? (fun (k, _, _) => k == litConName) with
         | some (_, _, body) => evalStatement body env

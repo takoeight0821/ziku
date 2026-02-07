@@ -104,6 +104,8 @@ structure GenState where
   varLevels : List (Ident × Nat) := []
   /-- Accumulated substitution from intermediate constraint solving at let boundaries. -/
   solvedSubst : Subst := []
+  /-- Counter for fresh names in elaboration (shared across elaborate calls). -/
+  elabCounter : Nat := 0
   deriving Inhabited
 
 /-- Monad for constraint generation -/
@@ -765,8 +767,11 @@ partial def genConstraints (env : TyEnv) (expr : Expr) : GenM Ty :=
     return resultTy
   | .codata pos clauses => do
     -- Elaborate codata to record/lambda before type inference
-    match (elaborate pos clauses).run' 0 with
-    | .ok elaborated => genConstraints env elaborated
+    let counter := (← get).elabCounter
+    match (elaborate pos clauses).run counter with
+    | .ok (elaborated, counter') =>
+      modify fun s => { s with elabCounter := counter' }
+      genConstraints env elaborated
     | .error err => throw $ .customError pos (toString err)
   | .field pos e field => do
     -- Infer type of the record expression

@@ -121,13 +121,8 @@ mu result.
 -/
 
 -- Convert literal to pseudo-constructor name for pattern matching
-def litToConName : Lit → Ident
-  | .int n => s!"{FreshName.litIntPrefix}{n}"
-  | .bool b => s!"{FreshName.litBoolPrefix}{b}"
-  | .string s => s!"{FreshName.litStringPrefix}{s}"
-  | .char c => s!"{FreshName.litRunePrefix}{c.val}"
-  | .float f => s!"{FreshName.litFloatPrefix}{f}"
-  | .unit => FreshName.litUnit
+-- (delegates to FreshName.litToConName)
+def litToConName : Lit → Ident := FreshName.litToConName
 
 -- Generate fresh variable name
 def freshVar : TranslateM Ident := do

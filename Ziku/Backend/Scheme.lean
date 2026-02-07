@@ -249,7 +249,7 @@ partial def translateConsumerM : Consumer → GenM String
     -- Generate literal pattern checks (direct value comparison)
     let literalCodes ← literalBranches.mapM fun (k, _, body) => do
       let bodyCode ← translateStatementM body
-      -- Parse literal from pattern name like "_lit_int_42" or "_lit_bool_true"
+      -- Parse literal from pattern name like "#lit_int_42" or "#lit_bool_true"
       let cond := if k.startsWith FreshName.litIntPrefix then
         let numStr := k.drop FreshName.litIntPrefix.length
         s!"(equal? %v {numStr})"

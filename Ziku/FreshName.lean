@@ -45,4 +45,13 @@ def litPrefix : String := static "lit_"
 /-- Pseudo-constructor for unrecognized literal kinds. -/
 def litOther : Ident := static "lit_other"
 
+/-- Convert a literal value to its pseudo-constructor name for pattern matching. -/
+def litToConName : Lit → Ident
+  | .int n => s!"{litIntPrefix}{n}"
+  | .bool b => s!"{litBoolPrefix}{b}"
+  | .string s => s!"{litStringPrefix}{s}"
+  | .char c => s!"{litRunePrefix}{c.val}"
+  | .float f => s!"{litFloatPrefix}{f}"
+  | .unit => litUnit
+
 end Ziku.FreshName
