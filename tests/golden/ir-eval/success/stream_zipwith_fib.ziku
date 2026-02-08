@@ -1,0 +1,22 @@
+-- zipWith: combines two codata streams element-wise
+let rec zipWith = \f => \s1 => \s2 => {
+  #.head => f (s1.head) (s2.head),
+  #.tail => zipWith f (s1.tail) (s2.tail)
+} in
+
+-- take: convert first n elements of a stream to a Cons/Nil list
+let rec take = \n => \s =>
+  if n == 0 then Nil
+  else Cons(s.head, take (n - 1) (s.tail))
+in
+
+-- fib: Fibonacci stream with three explicit copattern cases
+-- fib = [0, 1, 1, 2, 3, 5, 8, 13, ...]
+let rec fib = {
+  #.head => 0,
+  #.tail.head => 1,
+  #.tail.tail => zipWith (\x => \y => x + y) fib (fib.tail)
+} in
+
+-- First 5 Fibonacci numbers as a cons list
+take 5 fib
