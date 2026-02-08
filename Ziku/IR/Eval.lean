@@ -1,4 +1,5 @@
 import Ziku.Builtins
+import Ziku.FreshName
 import Ziku.IR.Syntax
 
 set_option linter.missingDocs false
@@ -312,22 +313,22 @@ partial def stateStep : State → IO (Except EvalError (Option State))
   | .stmt (.cut _ p c) env => return .ok (some (.cut p env c env))
   | .stmt (.binOp pos op p1 p2 c) env =>
     if !p1.isValue then
-      return .ok (some (.cut p1 env (.muTilde p1.pos "_binop_l" (.binOp pos op (.var p1.pos "_binop_l") p2 c)) env))
+      return .ok (some (.cut p1 env (.muTilde p1.pos (FreshName.static "binop_l") (.binOp pos op (.var p1.pos (FreshName.static "binop_l")) p2 c)) env))
     else if !p2.isValue then
-      return .ok (some (.cut p2 env (.muTilde p2.pos "_binop_r" (.binOp pos op p1 (.var p2.pos "_binop_r") c)) env))
+      return .ok (some (.cut p2 env (.muTilde p2.pos (FreshName.static "binop_r") (.binOp pos op p1 (.var p2.pos (FreshName.static "binop_r")) c)) env))
     else
       return match evalBinOp pos op p1 p2 with
       | .ok result => .ok (some (.cut result .empty c env))
       | .error e => .error e
   | .stmt (.ifz pos cond s1 s2) env =>
     if !cond.isValue then
-      return .ok (some (.cut cond env (.muTilde cond.pos "_ifz_cond" (.ifz pos (.var cond.pos "_ifz_cond") s1 s2)) env))
+      return .ok (some (.cut cond env (.muTilde cond.pos (FreshName.static "ifz_cond") (.ifz pos (.var cond.pos (FreshName.static "ifz_cond")) s1 s2)) env))
     else
       return match cond with
       | .lit _ (.bool true) => .ok (some (.stmt s1 env))
       | .lit _ (.bool false) => .ok (some (.stmt s2 env))
       | .lit _ (.int n) => if n == 0 then .ok (some (.stmt s1 env)) else .ok (some (.stmt s2 env))
-      | _ => .error (.patternMatchFailed pos cond (.muTilde cond.pos "_ifz" (.ifz pos cond s1 s2)))
+      | _ => .error (.patternMatchFailed pos cond (.muTilde cond.pos (FreshName.static "ifz") (.ifz pos cond s1 s2)))
   | .stmt (.builtin pos b ps c) env => do
     match ← evalBuiltin pos b ps env with
     | .ok result => return .ok (some (.cut result .empty c env))
@@ -350,10 +351,10 @@ partial def stateStep : State → IO (Except EvalError (Option State))
         match args.findIdx? (fun arg => !arg.isValue) with
         | some idx =>
           let arg := args[idx]!
-          let freshName := s!"_dataCon_arg{idx}"
+          let freshName := FreshName.fresh "dataCon_arg" idx
           let args' := args.set idx (.var arg.pos freshName)
-          let env_cont := env_p.extend "_original_c" (.covarClosure c env_c)
-          let s_cont := Statement.cut dPos (.dataCon dPos conName args') (Consumer.covar dPos "_original_c")
+          let env_cont := env_p.extend (FreshName.static "original_c") (.covarClosure c env_c)
+          let s_cont := Statement.cut dPos (.dataCon dPos conName args') (Consumer.covar dPos (FreshName.static "original_c"))
           .ok (some (.cut arg env_p (Consumer.muTilde arg.pos freshName s_cont) env_cont))
         | none => .error (.patternMatchFailed dPos p c)
       else
@@ -375,10 +376,10 @@ partial def stateStep : State → IO (Except EvalError (Option State))
               let env' := vars.zip args |>.foldl (fun e (x, v) => e.extend x (.closure v env_p)) env_c
               .ok (some (.stmt body env'))
           | none =>
-            match branches.find? (fun (k, _, _) => k == "_wild") with
+            match branches.find? (fun (k, _, _) => k == FreshName.wildCon) with
             | some (_, _, body) => .ok (some (.stmt body env_c))
             | none =>
-              match branches.find? (fun (k, _, _) => k == "_var") with
+              match branches.find? (fun (k, _, _) => k == FreshName.varCon) with
               | some (_, [x], body) => .ok (some (.stmt body (env_c.extend x (.closure p env_p))))
               | _ => .error (.caseNotFound cpos conName branchNames)
         | .destructor dpos _ _ _ => .error (.patternMatchFailed dpos p c)
@@ -412,17 +413,15 @@ partial def stateStep : State → IO (Except EvalError (Option State))
       | none => .error (.destructorNotFound dpos fieldName fieldNames)
     -- Literal + case
     | .lit _ l, .case cpos branches =>
-      let litConName := match l with
-        | .int n => s!"_lit_int_{n}" | .bool b => s!"_lit_bool_{b}" | .string s => s!"_lit_string_{s}"
-        | .char c => s!"_lit_rune_{c.val}" | .float f => s!"_lit_float_{f}" | .unit => "_lit_unit"
+      let litConName := FreshName.litToConName l
       let branchNames := branches.map (·.1)
       match branches.find? (fun (k, _, _) => k == litConName) with
       | some (_, _, body) => .ok (some (.stmt body env_c))
       | none =>
-        match branches.find? (fun (k, _, _) => k == "_wild") with
+        match branches.find? (fun (k, _, _) => k == FreshName.wildCon) with
         | some (_, _, body) => .ok (some (.stmt body env_c))
         | none =>
-          match branches.find? (fun (k, _, _) => k == "_var") with
+          match branches.find? (fun (k, _, _) => k == FreshName.varCon) with
           | some (_, [x], body) => .ok (some (.stmt body (env_c.extend x (.closure p env_p))))
           | _ => .error (.caseNotFound cpos litConName branchNames)
     | _, _ => .error (.patternMatchFailed p.pos p c)

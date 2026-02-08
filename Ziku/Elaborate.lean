@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.FreshName
 
 namespace Ziku
 
@@ -44,6 +45,15 @@ def ElaborateError.toString : ElaborateError → String
     s!"Elaboration error at {pos.line}:{pos.col}: {msg}"
 
 instance : ToString ElaborateError := ⟨ElaborateError.toString⟩
+
+/-- Elaboration monad with a counter for generating fresh hygienic names. -/
+abbrev ElabM := StateT Nat (Except ElaborateError)
+
+/-- Generate a fresh hygienic variable name for elaboration. -/
+def elabFresh (base : String) : ElabM Ident := do
+  let n ← get
+  set (n + 1)
+  return FreshName.fresh base n
 
 -- Classification of copattern accessors
 /-- Represents the kind of a copattern accessor (field vs. call). -/
@@ -123,7 +133,7 @@ def groupByCopattern (clauses : List Clause) : List (Copattern × List Clause) :
 -- Each clause should have exactly one pattern
 /-- Constructs a match expression from a list of clauses that have pattern guards. -/
 def buildMatchExpr (pos : SourcePos) (argName : Ident) (clauses : List Clause)
-    : Except ElaborateError Expr := do
+    : ElabM Expr := do
   let cases ← clauses.mapM fun clause =>
     match clause.patterns with
     | [pat] => pure (pat, clause.body)
@@ -133,6 +143,10 @@ def buildMatchExpr (pos : SourcePos) (argName : Ident) (clauses : List Clause)
 
 -- Inhabited instance for Except ElaborateError Expr
 instance : Inhabited (Except ElaborateError Expr) where
+  default := throw (.customError synthesizedPos "uninhabited")
+
+-- Inhabited instance for ElabM Expr
+instance : Inhabited (ElabM Expr) where
   default := throw (.customError synthesizedPos "uninhabited")
 
 -- Rename a free variable in an expression (simple alpha-renaming)
@@ -185,7 +199,7 @@ mutual
 -- \arg => { copat1 = match arg with | pat1 => body1, copat2 = match arg with | pat2 => body2 }
 /-- Elaborates pattern guards into an equivalent expression using lambdas and match. -/
 partial def elaborateWithPatternGuards (pos : SourcePos) (clauses : List Clause)
-    : Except ElaborateError Expr := do
+    : ElabM Expr := do
   -- Validate: all clauses must have exactly one pattern
   for clause in clauses do
     if clause.patterns.isEmpty then
@@ -194,7 +208,7 @@ partial def elaborateWithPatternGuards (pos : SourcePos) (clauses : List Clause)
       throw (.customError pos "multiple pattern arguments not yet supported")
 
   -- Generate fresh argument name
-  let argName := "_pat_arg"
+  let argName ← elabFresh "pat_arg"
 
   -- Group clauses by copattern
   let groups := groupByCopattern clauses
@@ -213,7 +227,7 @@ partial def elaborateWithPatternGuards (pos : SourcePos) (clauses : List Clause)
 
 -- Elaborate pattern guards into a match expression
 /-- Handles the base case of pattern matching during elaboration. -/
-partial def elaboratePatternMatch (pos : SourcePos) (clauses : List Clause) : Except ElaborateError Expr :=
+partial def elaboratePatternMatch (pos : SourcePos) (clauses : List Clause) : ElabM Expr :=
   if clauses.isEmpty then
     throw (.emptyCopattern pos)
   else if clauses.length == 1 && clauses.head!.patterns.isEmpty then
@@ -231,7 +245,7 @@ partial def elaboratePatternMatch (pos : SourcePos) (clauses : List Clause) : Ex
 -- Elaborate a codata expression into records and lambdas
 -- All helper functions are inlined to avoid partial def issues
 /-- Recursively elaborates a codata expression into nested records and lambdas. -/
-partial def elaborate (pos : SourcePos) (rawClauses : List (List Pat × Copattern × Expr)) : Except ElaborateError Expr :=
+partial def elaborate (pos : SourcePos) (rawClauses : List (List Pat × Copattern × Expr)) : ElabM Expr :=
   -- Convert to clause structure
   let clauses : List Clause := rawClauses.map (fun (pats, copat, body) =>
     { patterns := pats, copattern := copat, body := body })
@@ -312,7 +326,7 @@ partial def elaborate (pos : SourcePos) (rawClauses : List (List Pat × Copatter
           | _ => throw (.customError pos "expected call accessor")
       else
         -- Complex patterns (e.g., constructors): generate \fresh => match fresh { pat => ... }
-        let freshName := "_copat_arg"
+        let freshName ← elabFresh "copat_arg"
         -- Collect (pattern, remaining clauses) pairs grouped by pattern
         let mut patGroups : List (Pat × List Clause) := []
         for clause in clauses do
@@ -343,70 +357,73 @@ end -- mutual
 -- Top-level elaboration entry point
 /-- Top-level entry point for elaborating a single expression. -/
 def elaborateExpr : Expr → Except ElaborateError Expr
-  | .codata pos clauses => elaborate pos clauses
+  | .codata pos clauses => (elaborate pos clauses).run' 0
   | e => pure e
 
--- Recursively elaborate all codata expressions in an expression
-/-- Recursively elaborates all codata expressions found within an expression tree. -/
-partial def elaborateAll : Expr → Except ElaborateError Expr
+-- Recursively elaborate all codata expressions in an expression (internal, uses ElabM)
+partial def elaborateAllM : Expr → ElabM Expr
   | .codata pos clauses => do
     let elaborated ← elaborate pos clauses
-    elaborateAll elaborated
+    elaborateAllM elaborated
   | .binOp pos op e1 e2 => do
-    let e1' ← elaborateAll e1
-    let e2' ← elaborateAll e2
+    let e1' ← elaborateAllM e1
+    let e2' ← elaborateAllM e2
     pure (.binOp pos op e1' e2')
   | .unaryOp pos op e => do
-    let e' ← elaborateAll e
+    let e' ← elaborateAllM e
     pure (.unaryOp pos op e')
   | .lam pos param isCov body => do
-    let body' ← elaborateAll body
+    let body' ← elaborateAllM body
     pure (.lam pos param isCov body')
   | .app pos fn arg isCov => do
-    let fn' ← elaborateAll fn
-    let arg' ← elaborateAll arg
+    let fn' ← elaborateAllM fn
+    let arg' ← elaborateAllM arg
     pure (.app pos fn' arg' isCov)
   | .let_ pos x ty e1 e2 => do
-    let e1' ← elaborateAll e1
-    let e2' ← elaborateAll e2
+    let e1' ← elaborateAllM e1
+    let e2' ← elaborateAllM e2
     pure (.let_ pos x ty e1' e2')
   | .letRec pos x ty e1 e2 => do
-    let e1' ← elaborateAll e1
-    let e2' ← elaborateAll e2
+    let e1' ← elaborateAllM e1
+    let e2' ← elaborateAllM e2
     pure (.letRec pos x ty e1' e2')
   | .match_ pos e cases => do
-    let e' ← elaborateAll e
+    let e' ← elaborateAllM e
     let cases' ← cases.mapM (fun (p, body) => do
-      let body' ← elaborateAll body
+      let body' ← elaborateAllM body
       pure (p, body'))
     pure (.match_ pos e' cases')
   | .field pos e f => do
-    let e' ← elaborateAll e
+    let e' ← elaborateAllM e
     pure (.field pos e' f)
   | .ann pos e ty => do
-    let e' ← elaborateAll e
+    let e' ← elaborateAllM e
     pure (.ann pos e' ty)
   | .record pos fields => do
     let fields' ← fields.mapM (fun (name, expr) => do
-      let expr' ← elaborateAll expr
+      let expr' ← elaborateAllM expr
       pure (name, expr'))
     pure (.record pos fields')
   | .if_ pos c t f => do
-    let c' ← elaborateAll c
-    let t' ← elaborateAll t
-    let f' ← elaborateAll f
+    let c' ← elaborateAllM c
+    let t' ← elaborateAllM t
+    let f' ← elaborateAllM f
     pure (.if_ pos c' t' f')
   | .hash pos => pure (.hash pos)  -- Hash self-reference (passed through)
   | .label pos name body => do
-    let body' ← elaborateAll body
+    let body' ← elaborateAllM body
     pure (.label pos name body')
   | .goto pos value continuation => do
-    let value' ← elaborateAll value
-    let continuation' ← elaborateAll continuation
+    let value' ← elaborateAllM value
+    let continuation' ← elaborateAllM continuation
     pure (.goto pos value' continuation')
   | .con pos name args => do
-    let args' ← args.mapM elaborateAll
+    let args' ← args.mapM elaborateAllM
     pure (.con pos name args')
   | e => pure e  -- Literals and variables
+
+/-- Recursively elaborates all codata expressions found within an expression tree. -/
+def elaborateAll (e : Expr) : Except ElaborateError Expr :=
+  (elaborateAllM e).run' 0
 
 end Ziku

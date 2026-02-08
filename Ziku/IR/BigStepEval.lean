@@ -1,4 +1,5 @@
 import Ziku.IR.Syntax
+import Ziku.FreshName
 import Ziku.Builtins
 
 set_option linter.missingDocs false
@@ -280,30 +281,24 @@ mutual
             evalStatement body env'
         | none =>
           -- Try wildcard
-          match branches.find? (fun (k, _, _) => k == "_wild") with
+          match branches.find? (fun (k, _, _) => k == FreshName.wildCon) with
           | some (_, _, body) => evalStatement body env
           | none =>
             -- Try variable pattern
-            match branches.find? (fun (k, _, _) => k == "_var") with
+            match branches.find? (fun (k, _, _) => k == FreshName.varCon) with
             | some (_, [x], body) => evalStatement body (env.insertVal x v)
             | _ => return .error (.caseNotFound pos conName branchNames)
       | .lit l =>
         -- Literal case matching
-        let litConName := match l with
-          | .int n => s!"_lit_int_{n}"
-          | .bool b => s!"_lit_bool_{b}"
-          | .string s => s!"_lit_string_{s}"
-          | .char c => s!"_lit_rune_{c.val}"
-          | .float f => s!"_lit_float_{f}"
-          | .unit => "_lit_unit"
+        let litConName := FreshName.litToConName l
         let branchNames := branches.map (·.1)
         match branches.find? (fun (k, _, _) => k == litConName) with
         | some (_, _, body) => evalStatement body env
         | none =>
-          match branches.find? (fun (k, _, _) => k == "_wild") with
+          match branches.find? (fun (k, _, _) => k == FreshName.wildCon) with
           | some (_, _, body) => evalStatement body env
           | none =>
-            match branches.find? (fun (k, _, _) => k == "_var") with
+            match branches.find? (fun (k, _, _) => k == FreshName.varCon) with
             | some (_, [x], body) => evalStatement body (env.insertVal x v)
             | _ => return .error (.caseNotFound pos litConName branchNames)
       | _ => return .error (.patternMatchFailed pos "cannot case on closure/record")

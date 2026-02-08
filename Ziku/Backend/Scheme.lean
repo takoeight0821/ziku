@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.FreshName
 import Ziku.IR.Focusing
 import Ziku.IR.Simplify
 
@@ -243,21 +244,21 @@ partial def translateConsumerM : Consumer → GenM String
     -- case { K(x̄) ⇒ s, ... }
     -- Pattern matching: handles both tagged data and literal patterns
     -- Separate branches by type: wildcard, literal patterns, constructor patterns
-    let (wildcardBranch, nonWildcard) := branches.partition fun (k, _, _) => k == "_wild" || k == "_var"
-    let (literalBranches, conBranches) := nonWildcard.partition fun (k, _, _) => k.startsWith "_lit_"
+    let (wildcardBranch, nonWildcard) := branches.partition fun (k, _, _) => k == FreshName.wildCon || k == FreshName.varCon
+    let (literalBranches, conBranches) := nonWildcard.partition fun (k, _, _) => k.startsWith FreshName.litPrefix
     -- Generate literal pattern checks (direct value comparison)
     let literalCodes ← literalBranches.mapM fun (k, _, body) => do
       let bodyCode ← translateStatementM body
-      -- Parse literal from pattern name like "_lit_int_42" or "_lit_bool_true"
-      let cond := if k.startsWith "_lit_int_" then
-        let numStr := k.drop 9  -- drop "_lit_int_"
+      -- Parse literal from pattern name like "#lit_int_42" or "#lit_bool_true"
+      let cond := if k.startsWith FreshName.litIntPrefix then
+        let numStr := k.drop FreshName.litIntPrefix.length
         s!"(equal? %v {numStr})"
-      else if k.startsWith "_lit_bool_" then
-        let boolStr := k.drop 10  -- drop "_lit_bool_"
+      else if k.startsWith FreshName.litBoolPrefix then
+        let boolStr := k.drop FreshName.litBoolPrefix.length
         let schemeBool := if boolStr == "true" then "#t" else "#f"
         s!"(equal? %v {schemeBool})"
-      else if k.startsWith "_lit_string_" then
-        let strVal := k.drop 12  -- drop "_lit_string_"
+      else if k.startsWith FreshName.litStringPrefix then
+        let strVal := k.drop FreshName.litStringPrefix.length
         s!"(equal? %v \"{strVal}\")"
       else
         s!"(equal? %v '{k})"

@@ -1,4 +1,5 @@
 import Ziku.Syntax
+import Ziku.FreshName
 import Ziku.Builtins
 import Ziku.IR.Syntax
 import Ziku.IR.Eval
@@ -75,7 +76,7 @@ instance : Inhabited (TranslateM Statement) where
 -- Generate fresh covariable name
 def freshCovar : TranslateM Ident := do
   let s ← get
-  let name := s!"_α{s.freshCounter}"
+  let name := FreshName.fresh "α" s.freshCounter
   set { s with freshCounter := s.freshCounter + 1 }
   return name
 
@@ -120,18 +121,13 @@ mu result.
 -/
 
 -- Convert literal to pseudo-constructor name for pattern matching
-def litToConName : Lit → Ident
-  | .int n => s!"_lit_int_{n}"
-  | .bool b => s!"_lit_bool_{b}"
-  | .string s => s!"_lit_string_{s}"
-  | .char c => s!"_lit_rune_{c.val}"
-  | .float f => s!"_lit_float_{f}"
-  | .unit => "_lit_unit"
+-- (delegates to FreshName.litToConName)
+def litToConName : Lit → Ident := FreshName.litToConName
 
 -- Generate fresh variable name
 def freshVar : TranslateM Ident := do
   let s ← get
-  let name := s!"_tmp{s.freshCounter}"
+  let name := FreshName.fresh "tmp" s.freshCounter
   set { s with freshCounter := s.freshCounter + 1 }
   return name
 
@@ -173,18 +169,18 @@ partial def patternToIRBranch (pat : Pat) : TranslateM (Ident × List Ident) :=
     let vars ← args.mapM extractVarFromPat
     return (conName, vars)
   | .var _ x =>
-    -- Variable pattern: catch-all, bind to "_var" pseudo-constructor
-    return ("_var", [x])
+    -- Variable pattern: catch-all, bind to "#var" pseudo-constructor
+    return (FreshName.varCon, [x])
   | .wild _ =>
-    -- Wildcard: catch-all, bind to "_wild" pseudo-constructor
-    return ("_wild", [])
+    -- Wildcard: catch-all, bind to "#wild" pseudo-constructor
+    return (FreshName.wildCon, [])
   | .lit _ l =>
     -- Literal pattern: treat as nullary constructor
     let conName := match l with
-      | .int n => s!"_lit_int_{n}"
-      | .bool b => s!"_lit_bool_{b}"
-      | .string s => s!"_lit_string_{s}"
-      | _ => "_lit_other"
+      | .int n => s!"{FreshName.litIntPrefix}{n}"
+      | .bool b => s!"{FreshName.litBoolPrefix}{b}"
+      | .string s => s!"{FreshName.litStringPrefix}{s}"
+      | _ => FreshName.litOther
     return (conName, [])
   | .paren _ p => patternToIRBranch p
   | .ann _ p _ => patternToIRBranch p
@@ -196,7 +192,7 @@ where
     | .wild _ => do
       -- Generate fresh name for wildcard
       let s ← get
-      let name := s!"_wild{s.freshCounter}"
+      let name := FreshName.fresh "wild" s.freshCounter
       set { s with freshCounter := s.freshCounter + 1 }
       return name
     | .paren _ p => extractVarFromPat p
@@ -381,7 +377,7 @@ mutual
         let failStmt := Statement.cut pos (.lit pos .unit) (.covar pos failLabel)
         return .cut pos (.var pos tmp) (.case pos [
           (litConName, [], restBody),
-          ("_wild", [], failStmt)
+          (FreshName.wildCon, [], failStmt)
         ])
 
   -- Compile a pattern against a scrutinee with success/failure continuations
@@ -409,7 +405,7 @@ mutual
       let failStmt := Statement.cut pos (.lit pos .unit) (.covar pos failLabel)
       return .cut pos scrutinee (.case pos [
         (litConName, [], successBody),
-        ("_wild", [], failStmt)
+        (FreshName.wildCon, [], failStmt)
       ])
     | .con _ conName args => do
       -- Analyze each argument pattern
@@ -424,7 +420,7 @@ mutual
       let failStmt := Statement.cut pos (.lit pos .unit) (.covar pos failLabel)
       return .cut pos scrutinee (.case pos [
         (conName, vars, successBody),
-        ("_wild", [], failStmt)
+        (FreshName.wildCon, [], failStmt)
       ])
     | .paren _ p => compilePattern pos scrutinee p success failLabel
     | .ann _ p _ => compilePattern pos scrutinee p success failLabel
