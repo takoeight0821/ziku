@@ -7,28 +7,6 @@
   "timezone": "UTC",
   "labels": ["dependencies"],
   "prConcurrentLimit": 5,
-  "nix": {
-    "enabled": true
-  },
-  "customManagers": [
-    {
-      "customType": "regex",
-      "fileMatch": ["^Dockerfile$", "^\\.github/workflows/lean_action_ci\\.yml$"],
-      "matchStrings": [
-        "ARG ELAN_VERSION=(?<currentValue>v[\\d.]+)",
-        "ELAN_VERSION: (?<currentValue>v[\\d.]+)"
-      ],
-      "depNameTemplate": "leanprover/elan",
-      "datasourceTemplate": "github-releases"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": ["^lean-toolchain$"],
-      "matchStrings": ["leanprover/lean4:(?<currentValue>v[\\d.]+)"],
-      "depNameTemplate": "leanprover/lean4",
-      "datasourceTemplate": "github-releases"
-    }
-  ],
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
@@ -36,30 +14,7 @@
       "automerge": false,
       "pinDigests": true,
       "description": "Pin GitHub Actions to SHA digests for supply chain security"
-    },
-    {
-      "matchManagers": ["nix"],
-      "groupName": "Nix flake inputs",
-      "automerge": false,
-      "description": "Update Nix flake dependencies"
-    },
-    {
-      "matchManagers": ["git-submodules"],
-      "groupName": "Git submodules",
-      "automerge": false
-    },
-    {
-      "matchDepNames": ["leanprover/elan"],
-      "groupName": "Elan version",
-      "automerge": false,
-      "description": "Update elan (Lean toolchain installer) version"
-    },
-    {
-      "matchDepNames": ["leanprover/lean4"],
-      "groupName": "Lean toolchain",
-      "automerge": false,
-      "description": "Update Lean 4 toolchain version"
     }
   ],
-  "ignorePaths": ["**/vendor/**"]
+  "ignorePaths": ["**/archive/**", "**/vendor/**"]
 }

@@ -8,3 +8,13 @@
 
 # Test results (parallel execution)
 .test-results/
+
+# Haskell
+dist-newstyle/
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+.hie/
+*.hp
+*.prof
