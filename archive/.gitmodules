@@ -1,6 +1,6 @@
 [submodule "vendor/mal"]
-	path = vendor/mal
+	path = archive/vendor/mal
 	url = https://github.com/kanaka/mal
 [submodule "vendor/ChezScheme"]
-	path = vendor/ChezScheme
+	path = archive/vendor/ChezScheme
 	url = https://github.com/cisco/ChezScheme.git

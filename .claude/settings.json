@@ -1,15 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(lake build)",
-      "Bash(lake test*)",
-      "Bash(docker compose build:*)",
-      "Bash(docker compose run:*)",
-      "Bash(mise run docker:build-check:*)",
-      "Bash(mise run docker:test:*)",
-      "Bash(mise run docker:test:category:*)",
-      "Bash(mise run docker:build:*)",
-      "Bash(mise run docker:run:*)"
+      "Bash(cabal build*)",
+      "Bash(cabal test*)",
+      "Bash(cabal run*)",
+      "Bash(mise run build*)",
+      "Bash(mise run test*)",
+      "Bash(mise run check*)",
+      "Bash(mise run fmt*)",
+      "Bash(mise run lint*)",
+      "Bash(mise run setup*)",
+      "Bash(mise run repl*)"
     ],
     "ask": [
       "Bash(git commit:*)"

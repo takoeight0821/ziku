@@ -1,0 +1,4 @@
+import: cabal.project
+
+package ziku
+    ghc-options: -Werror

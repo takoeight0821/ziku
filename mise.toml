@@ -1,48 +1,69 @@
+[env]
+_.path = ["~/.ghcup/bin", "~/.cabal/bin"]
+
 [tools]
+ghcup = "latest"
 chezscheme = "latest"
-gemini = "latest"
 
-# Docker tasks
-# All docker:* tasks rebuild the image automatically before running.
-
-[tasks."docker:build"]
-description = "Build the Docker image"
-run = "docker build -t ziku ."
-
-[tasks."docker:test"]
-description = "Run all tests in Docker"
-depends = ["docker:build"]
-run = "docker run --rm ziku"
-
-[tasks."docker:test:category"]
-description = "Run specific test category in Docker (e.g., mise run docker:test:category infer)"
-depends = ["docker:build"]
-run = "docker run --rm ziku lake test -- {{arg(name=\"category\")}}"
-
-[tasks."docker:build-check"]
-description = "Check that the project builds in Docker"
-depends = ["docker:build"]
-run = "docker run --rm ziku lake build"
-
-[tasks."docker:repl"]
-description = "Start the Ziku REPL in Docker"
-depends = ["docker:build"]
-run = "docker run --rm -it ziku lake exe ziku"
-
-[tasks."docker:infer"]
-description = "Run type inference on a .ziku file in Docker (e.g., mise run docker:infer tests/golden/infer/success/let_simple.ziku)"
-depends = ["docker:build"]
-run = "docker run --rm ziku lake exe ziku -- --infer {{arg(name=\"file\")}}"
-
-[tasks."docker:run"]
-description = "Run a Ziku phase on an expression or file (e.g., mise run docker:run infer 'let x = 1 in x')"
-depends = ["docker:build"]
+[tasks.setup]
+description = "Install Haskell toolchain and dev tools"
 run = """
-PHASE="{{arg(name="phase")}}"
-INPUT="{{arg(name="input")}}"
-if [ -f "$INPUT" ]; then
-  docker run --rm -v "$(pwd)/$INPUT:/app/input.ziku:ro" ziku sh -c "cat /app/input.ziku | lake exe ziku-test $PHASE"
-else
-  docker run --rm ziku sh -c "echo '$INPUT' | lake exe ziku-test $PHASE"
-fi
+ghcup install ghc 9.12.2
+ghcup set ghc 9.12.2
+ghcup install cabal latest
+ghcup install hls latest
+cabal update
+cabal install hlint fourmolu cabal-gild
 """
+
+[tasks."setup:check"]
+description = "Verify all tools are available"
+run = """
+echo "GHC:        $(ghc --version)"
+echo "Cabal:      $(cabal --version | head -1)"
+echo "HLS:        $(haskell-language-server-wrapper --version)"
+echo "HLint:      $(hlint --version)"
+echo "Fourmolu:   $(fourmolu --version)"
+echo "cabal-gild: $(cabal-gild --version)"
+echo "Chez:       $(scheme --version 2>&1)"
+"""
+
+[tasks.build]
+description = "Build the project"
+run = "cabal build all"
+
+[tasks.test]
+description = "Run all tests"
+run = "cabal test all --test-show-details=direct"
+
+[tasks."test:accept"]
+description = "Run tests and update golden files"
+run = "cabal test all --test-option=--accept"
+
+[tasks.fmt]
+description = "Format all Haskell source + cabal file"
+run = """
+fourmolu --mode inplace src/ app/ test/
+cabal-gild --mode format --io ziku.cabal
+"""
+
+[tasks.lint]
+description = "Run HLint on all source"
+run = "hlint src/ app/ test/"
+
+[tasks.check]
+description = "CI-equivalent check (format + lint + build + test)"
+run = """
+fourmolu --mode check src/ app/ test/
+cabal-gild --mode check -i ziku.cabal
+hlint src/ app/ test/
+cabal test all --project-file=cabal.project.ci --test-show-details=direct
+"""
+
+[tasks.repl]
+description = "Start Ziku REPL"
+run = "cabal run ziku"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = "cabal clean"

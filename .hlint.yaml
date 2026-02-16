@@ -1,0 +1,22 @@
+# HLint configuration
+# https://github.com/ndmitchell/hlint
+
+# Treat all warnings as errors in CI
+- error: {name: ""}
+
+# Custom rules
+- warn: {lhs: "map f (map g x)", rhs: "map (f . g) x"}
+
+# Restrict dangerous functions
+- functions:
+  - {name: "Data.List.head", within: [], message: "Use pattern matching instead"}
+  - {name: "Data.List.tail", within: [], message: "Use pattern matching instead"}
+  - {name: "Data.List.!!", within: [], message: "Use safe indexing"}
+  - {name: "error", within: [], message: "Use a proper error type with Either/ExceptT"}
+  - {name: "undefined", within: [], message: "Remove undefined before merging"}
+  - {name: "Data.Text.pack", within: [], message: "Use OverloadedStrings"}
+
+# Module-level restrictions
+- modules:
+  - {name: "Data.Map", as: "", message: "Use Data.Map.Strict instead"}
+  - {name: "System.IO.Unsafe", within: [], message: "No unsafePerformIO"}
