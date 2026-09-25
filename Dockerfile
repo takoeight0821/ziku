@@ -39,9 +39,12 @@ WORKDIR /app
 COPY lean-toolchain ./
 RUN elan toolchain install $(cat lean-toolchain)
 
-# Copy dependency files and fetch
+# Copy dependency files and fetch the revisions pinned in lake-manifest.json.
+# `lake update` would move batteries to its latest main and bump lean-toolchain
+# to whatever that revision requires, so the image would stop matching the
+# pinned toolchain that the CI workflow builds with.
 COPY lakefile.lean lake-manifest.json ./
-RUN lake update
+RUN lake env true
 
 # Copy source and build
 COPY Main.lean Ziku.lean ZikuTest.lean ./
