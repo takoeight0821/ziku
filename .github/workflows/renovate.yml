@@ -39,4 +39,4 @@ jobs:
           # Set log level (use 'debug' for initial troubleshooting)
           LOG_LEVEL: "info"
           # Enable commit signing with GitHub App
-          RENOVATE_PLATFORM_COMMIT: "true"
+          RENOVATE_PLATFORM_COMMIT: "enabled"
