@@ -6,12 +6,13 @@ This document describes the architecture of the Ziku programming language implem
 
 ```
 Ziku/
-├── Syntax.lean         # Shared types: SourcePos, Ident, Lit, BinOp, Builtin, Pat, Ty
-├── Surface/
-│   └── Syntax.lean     # Surface AST with label/goto
+├── Syntax.lean         # Shared types (SourcePos, Ident, Lit, BinOp, Builtin, Pat, Ty) and the surface AST (Expr)
 ├── IR/
 │   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
-│   └── Eval.lean       # IR evaluator with μ/μ̃-reduction and builtin evaluation
+│   ├── Eval.lean       # IR evaluator with μ/μ̃-reduction and builtin evaluation
+│   ├── BigStepEval.lean
+│   ├── Focusing.lean
+│   └── Simplify.lean
 ├── Backend/
 │   └── Scheme.lean     # Scheme code generator (CPS translation)
 ├── Translate.lean      # Surface → IR translation (including builtin detection)
@@ -20,15 +21,20 @@ Ziku/
 ├── Type.lean           # Type utilities: Subst, Scheme
 ├── Infer.lean          # HM type inference (including builtin type checking)
 ├── Elaborate.lean      # Codata elaboration
+├── Builtins.lean       # Builtin definitions
+├── FreshName.lean      # Hygienic names for compiler-generated variables
+├── Import.lean         # Module system resolution
+├── Path.lean           # Import path resolution
+├── Soundness.lean      # Type soundness statements
 └── Proofs/             # Lean proofs (Arithmetic, Eval, Identities, Soundness)
 ```
 
 ## Pipeline
 
 ```
-Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
-                        ↓                              ↓
-                   [Elaborate] → [Infer]          [Scheme Backend]
+Source → [Parse] → Expr → [Translate] → IR.Statement → [Eval]
+                    ↓                          ↓
+               [Elaborate] → [Infer]      [Scheme Backend]
 ```
 
 ## Key Types
