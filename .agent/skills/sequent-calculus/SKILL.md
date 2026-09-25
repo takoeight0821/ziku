@@ -53,5 +53,5 @@ The reduction relation ⊲ defines the evaluation semantics:
 
 ## Further Reading
 
-- [docs/research/grokking-the-sequent-calculus.md](../../docs/research/grokking-the-sequent-calculus.md) - Full research notes
+- [docs/research/grokking-the-sequent-calculus.md](../../../docs/research/grokking-the-sequent-calculus.md) - Full research notes
 - Downen & Ariola, "Compiling with Classical Connectives"

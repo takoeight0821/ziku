@@ -22,13 +22,13 @@ Agent for verifying Ziku's type inference results.
 
 ## Analysis Targets
 
-- `Ziku/Surface/TypeInfer.lean` - Type inference implementation
-- `Ziku/Surface/Types.lean` - Type definitions
+- `Ziku/Infer.lean` - Type inference implementation
+- `Ziku/Type.lean` - Type definitions
 - `tests/golden/infer/` - Type inference tests
 
 ## Verification Method
 
-1. Run type inference on test input using `lake exe ziku`
+1. Run type inference on a file with `lake exe ziku -- --infer FILE` (or `mise run docker:infer FILE`)
 2. Compare expected type with actual type
 3. Evaluate error message quality for error cases
 

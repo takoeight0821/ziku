@@ -43,6 +43,14 @@ if [ ${#violations[@]} -gt 0 ]; then
     echo "Convention: YYYY-MM-DD-descriptive-title.md" >&2
     echo "Please rename these files to follow the project convention." >&2
     echo "" >&2
+
+    # Exit 2 blocks the stop and feeds stderr to Claude so it can rename the
+    # files; exit 0 would leave the warning in the transcript only. Block only
+    # when stop_hook_active is explicitly false, so a violation that survives
+    # one continuation does not block every later stop.
+    if [[ "$input" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*false ]]; then
+        exit 2
+    fi
 fi
 
 exit 0
