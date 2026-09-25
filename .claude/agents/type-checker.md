@@ -28,7 +28,7 @@ Agent for verifying Ziku's type inference results.
 
 ## Verification Method
 
-1. Run type inference on a file with `lake exe ziku -- --infer FILE` (or `mise run docker:infer FILE`)
+1. Run type inference on a file with `lake exe ziku --infer FILE` (or `mise run docker:infer FILE`)
 2. Compare expected type with actual type
 3. Evaluate error message quality for error cases
 

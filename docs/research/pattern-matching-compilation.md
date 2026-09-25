@@ -241,10 +241,9 @@ The algorithm mirrors pattern compilation but for observations instead of constr
 
 ### Relevant Ziku Files
 
-- `Ziku/Surface/Syntax.lean` - Surface patterns
+- `Ziku/Syntax.lean` - Surface AST (`Expr`) and the shared `Pat` type
 - `Ziku/IR/Syntax.lean` - IR case/cocase
 - `Ziku/Translate.lean` - Surface → IR
-- `Ziku/Syntax.lean` - Shared Pat type
 
 ## Sources
 

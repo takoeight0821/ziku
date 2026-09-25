@@ -46,8 +46,9 @@ if [ ${#violations[@]} -gt 0 ]; then
 
     # Exit 2 blocks the stop and feeds stderr to Claude so it can rename the
     # files; exit 0 would leave the warning in the transcript only. Block only
-    # when stop_hook_active is explicitly false, so a violation that survives
-    # one continuation does not block every later stop.
+    # when stop_hook_active is explicitly false: while a violation remains,
+    # this forces one continuation per user turn, and the stop that ends that
+    # continuation arrives with stop_hook_active=true and is let through.
     if [[ "$input" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*false ]]; then
         exit 2
     fi
