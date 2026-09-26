@@ -41,15 +41,17 @@ Ziku/
 
 ## Pipeline
 
-The CLI (`Main.lean`) parses the source once and then takes one of two paths:
+The CLI (`Main.lean`) parses the source once, resolves the types of its
+imports (an import error stops every mode), and then takes one of these paths:
 
 ```
 Source
   │ parse
   ▼
-Expr ──(--infer)──▶ runInfer ──▶ Ty
-  │                   imports: types only, via resolveImportTypes
-  │                   codata: elaborated inside Infer
+Expr                     resolveImportTypes → import type map
+  ├──(--parse)──▶ printed Expr
+  ├──(--infer)──▶ runInfer ──▶ Ty    uses the import type map; codata is elaborated inside Infer
+  │
   │ expandImports
   ▼
 Expr
