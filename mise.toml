@@ -32,7 +32,7 @@ run = "docker run --rm -it ziku lake exe ziku"
 [tasks."docker:infer"]
 description = "Run type inference on a .ziku file in Docker (e.g., mise run docker:infer tests/golden/infer/success/let_simple.ziku)"
 depends = ["docker:build"]
-run = "docker run --rm ziku lake exe ziku -- --infer {{arg(name=\"file\")}}"
+run = "docker run --rm ziku lake exe ziku --infer {{arg(name=\"file\")}}"
 
 [tasks."docker:run"]
 description = "Run a Ziku phase on an expression or file (e.g., mise run docker:run infer 'let x = 1 in x')"
