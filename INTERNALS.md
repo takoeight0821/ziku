@@ -2,35 +2,10 @@
 
 Implementation details for developers and contributors.
 
-## Architecture
+## Architecture and Pipeline
 
-```
-Ziku/
-├── Syntax.lean         # AST types: SourcePos, Ident, Lit, BinOp, Pat, Ty, Expr
-├── Builtins.lean       # Built-in function definitions
-├── IR/
-│   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
-│   ├── Eval.lean       # IR evaluator with μ/μ̃-reduction
-│   └── Focusing.lean   # Focusing transformation
-├── Backend/
-│   └── Scheme.lean     # Scheme code generator (CPS translation)
-├── Translate.lean      # Surface → IR translation
-├── Lexer.lean          # UTF-8 hand-written lexer
-├── Parser.lean         # Recursive descent parser
-├── Type.lean           # Type utilities: Subst, Scheme
-├── Infer.lean          # HM type inference
-├── Elaborate.lean      # Codata elaboration
-├── Soundness.lean      # Type soundness proofs
-└── Proofs/             # Lean proofs (Arithmetic, Eval, Identities)
-```
-
-## Pipeline
-
-```
-Source → [Parse] → Surface.Expr → [Translate] → IR.Statement → [Eval]
-                        ↓                              ↓
-                   [Elaborate] → [Infer]          [Scheme Backend]
-```
+See [docs/architecture.md](docs/architecture.md) for the module layout and the
+compilation pipeline.
 
 ## Sequent Calculus IR
 

@@ -6,36 +6,66 @@ This document describes the architecture of the Ziku programming language implem
 
 ```
 Ziku/
-├── Syntax.lean         # Shared types (SourcePos, Ident, Lit, BinOp, Builtin, Pat, Ty) and the surface AST (Expr)
+├── Syntax.lean               # Shared types (SourcePos, Ident, Lit, BinOp, Builtin, Pat, Ty) and the surface AST (Expr)
 ├── IR/
-│   ├── Syntax.lean     # Sequent calculus IR (Producer, Consumer, Statement)
-│   ├── Eval.lean       # IR evaluator with μ/μ̃-reduction and builtin evaluation
-│   ├── BigStepEval.lean
-│   ├── Focusing.lean
-│   └── Simplify.lean
+│   ├── Syntax.lean           # Sequent calculus IR (Producer, Consumer, Statement)
+│   ├── Eval.lean             # Small-step IR evaluator with μ/μ̃-reduction and builtin evaluation
+│   ├── BigStepEval.lean      # Big-step IR interpreter tuned for execution speed
+│   ├── Focusing.lean         # Static focusing: lifts non-values out of value positions
+│   └── Simplify.lean         # Administrative redex elimination (safe μ/μ̃-reductions)
 ├── Backend/
-│   └── Scheme.lean     # Scheme code generator (CPS translation)
-├── Translate.lean      # Surface → IR translation (including builtin detection)
-├── Lexer.lean          # Hand-written lexer with UTF-8 support
-├── Parser.lean         # Hand-written recursive descent parser
-├── Type.lean           # Type utilities: Subst, Scheme
-├── Infer.lean          # HM type inference (including builtin type checking)
-├── Elaborate.lean      # Codata elaboration
-├── Builtins.lean       # Builtin definitions
-├── FreshName.lean      # Hygienic names for compiler-generated variables
-├── Import.lean         # Module system resolution
-├── Path.lean           # Import path resolution
-├── Soundness.lean      # Type soundness statements
-└── Proofs/             # Lean proofs (Arithmetic, Eval, Identities, Soundness)
+│   └── Scheme.lean           # Scheme code generator (CPS translation)
+├── Translate.lean            # Surface → IR translation (including builtin detection)
+├── Lexer.lean                # Hand-written lexer with UTF-8 support
+├── Parser.lean               # Hand-written recursive descent parser
+├── Type.lean                 # Type utilities: Subst, Scheme
+├── Infer.lean                # HM type inference (including builtin type checking)
+├── Elaborate.lean            # Codata elaboration (copatterns → records and lambdas)
+├── Builtins.lean             # Shared utilities for built-in functions used by inference and translation
+├── FreshName.lean            # Hygienic names for compiler-generated variables
+├── Import.lean               # Module system resolution
+├── Path.lean                 # Import path resolution
+├── Soundness.lean            # Type safety theorems and proofs of their basic cases
+└── Proofs/
+    ├── Arithmetic.lean       # Arithmetic properties (placeholder)
+    ├── Eval.lean             # Evaluation correctness (placeholder)
+    ├── Identities.lean       # Algebraic identities (placeholder)
+    ├── Path.lean             # Properties of path resolution
+    ├── Soundness.lean        # Type soundness lemmas
+    └── IR/
+        ├── Values.lean       # Values as inductive relations
+        ├── Substitution.lean # Substitution as inductive relations
+        ├── Semantics.lean    # Small-step operational semantics as a relation
+        └── Evaluation.lean   # Multi-step evaluation properties
 ```
 
 ## Pipeline
 
+The CLI (`Main.lean`) parses the source once and then takes one of two paths:
+
 ```
-Source → [Parse] → Expr → [Translate] → IR.Statement → [Eval]
-                    ↓                          ↓
-               [Elaborate] → [Infer]      [Scheme Backend]
+Source
+  │ parse
+  ▼
+Expr ──(--infer)──▶ runInfer ──▶ Ty
+  │                   imports: types only, via resolveImportTypes
+  │                   codata: elaborated inside Infer
+  │ expandImports
+  ▼
+Expr
+  │ elaborateAll           codata → records and lambdas
+  ▼
+Expr
+  │ translateToStatement   Translate, then IR.Focusing.focus
+  ▼
+IR.Statement
+  ├──(--translate)────────▶ printed IR
+  ├──(--scheme)───────────▶ Backend.Scheme.compile   IR.simplify, then code generation
+  ├──(--eval)─────────────▶ IR.eval                  small-step
+  └──(--eval --big-step)──▶ IR.BigStepEval.eval      big-step
 ```
+
+The REPL skips `expandImports` and starts from `elaborateAll`.
 
 ## Key Types
 
