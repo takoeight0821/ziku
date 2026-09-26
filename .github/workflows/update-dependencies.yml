@@ -24,7 +24,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y chezscheme
 
       - name: Setup Lean
-        uses: leanprover/lean-action@c544e89643240c6b398f14a431bcdc6309e36b3e # v1.4.0
+        uses: leanprover/lean-action@50fcf42d2e460296f1a34b402e990d1b24f8b596 # v1.6.0
         with:
           build: false
 
