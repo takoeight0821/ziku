@@ -142,7 +142,7 @@ After making code changes, verify:
 ### General
 - `rm` is denied for safety, use `trash` command instead
 - If you want to try simpler case, you should add it as golden test
-- If you write a plan, please add the date at the top of the file
+- If you write a plan, name the file `.claude/plans/YYYY-MM-DD-descriptive-title.md`. The Stop hook `.claude/hooks/warn-plan-naming.sh` lists plan files there that lack the date prefix and asks you to rename them before you finish
 
 ### Type System (Infer.lean)
 - **Variable numbering shifts**: Adding `freshTyVar` calls shifts `_tN` numbering in golden tests. Always update golden files after constraint generation changes.

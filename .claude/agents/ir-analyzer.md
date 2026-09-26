@@ -20,7 +20,7 @@ Lightweight agent for analyzing Ziku's Surface language to λμμ̃-based IR tra
 
 ## Analysis Targets
 
-- `Ziku/Surface/` - Surface language definitions
+- `Ziku/Syntax.lean` - Surface language AST
 - `Ziku/IR/` - IR language definitions
 - `Ziku/Translate.lean` - Translation logic
 - `tests/golden/ir-eval/` - IR evaluation tests
