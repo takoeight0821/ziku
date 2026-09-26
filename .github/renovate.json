@@ -13,7 +13,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^Dockerfile$", "^\\.github/workflows/lean_action_ci\\.yml$"],
+      "managerFilePatterns": ["/^Dockerfile$/", "/^\\.github/workflows/lean_action_ci\\.yml$/"],
       "matchStrings": [
         "ARG ELAN_VERSION=(?<currentValue>v[\\d.]+)",
         "ELAN_VERSION: (?<currentValue>v[\\d.]+)"
@@ -23,7 +23,7 @@
     },
     {
       "customType": "regex",
-      "fileMatch": ["^lean-toolchain$"],
+      "managerFilePatterns": ["/^lean-toolchain$/"],
       "matchStrings": ["leanprover/lean4:(?<currentValue>v[\\d.]+)"],
       "depNameTemplate": "leanprover/lean4",
       "datasourceTemplate": "github-releases"
