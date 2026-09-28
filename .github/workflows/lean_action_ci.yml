@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Cache elan
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.elan
           key: ${{ runner.os }}-elan-${{ env.ELAN_VERSION }}-${{ hashFiles('lean-toolchain') }}
@@ -38,7 +38,7 @@ jobs:
         run: lake --version
 
       - name: Cache Lake build
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: .lake
           key: ${{ runner.os }}-lake-${{ hashFiles('lake-manifest.json', 'lakefile.lean') }}
