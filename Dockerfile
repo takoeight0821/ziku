@@ -5,7 +5,7 @@
 FROM debian:trixie-slim AS builder
 
 # Elan version - updated automatically by Renovate
-ARG ELAN_VERSION=v4.1.2
+ARG ELAN_VERSION=v4.4.0
 
 # APT packages: Using Debian trixie LTS packages without version pinning
 # Rationale: Security updates are prioritized over absolute reproducibility.
